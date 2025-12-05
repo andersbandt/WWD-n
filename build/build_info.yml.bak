@@ -1,0 +1,22 @@
+cmake:
+  board:
+    name: '96b_nitrogen'
+    path:
+     - '/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen'
+    qualifiers: 'nrf52832'
+    revision: ''
+  images:
+   - name: 'WWD-n'
+     source-dir: '/home/anders/Documents/NCS/WWD-n'
+     type: 'MAIN'
+  kconfig:
+    files:
+     - '/home/anders/Documents/NCS/WWD-n/build/_sysbuild/empty.conf'
+     - '/home/anders/Documents/NCS/WWD-n/build/_sysbuild/empty.conf'
+    user-files:
+     - '/home/anders/Documents/NCS/WWD-n/build/_sysbuild/empty.conf'
+version: '0.1.0'
+west:
+  command: '/home/anders/ncs/toolchains/c5be9c56c7/usr/local/bin/west build --build-dir /home/anders/Documents/NCS/WWD-n/build /home/anders/Documents/NCS/WWD-n --pristine --board 96b_nitrogen/nrf52832'
+  topdir: '/home/anders/ncs/v3.1.1'
+  version: '1.4.0'

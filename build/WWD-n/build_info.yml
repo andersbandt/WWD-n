@@ -1,0 +1,53 @@
+cmake:
+  application:
+    configuration-dir: '/home/anders/Documents/NCS/WWD-n'
+    source-dir: '/home/anders/Documents/NCS/WWD-n'
+  board:
+    name: '96b_nitrogen'
+    path:
+     - '/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen'
+    qualifiers: 'nrf52832'
+    revision: ''
+  devicetree:
+    bindings-dirs:
+     - '/home/anders/ncs/v3.1.1/nrf/dts/bindings'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/bindings'
+    files:
+     - '/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen.dts'
+    include-dirs:
+     - '/home/anders/ncs/v3.1.1/nrf/include'
+     - '/home/anders/ncs/v3.1.1/nrf/dts/common'
+     - '/home/anders/ncs/v3.1.1/nrf/dts/riscv'
+     - '/home/anders/ncs/v3.1.1/nrf/dts/arm'
+     - '/home/anders/ncs/v3.1.1/nrf/dts'
+     - '/home/anders/ncs/v3.1.1/zephyr/include'
+     - '/home/anders/ncs/v3.1.1/zephyr/include/zephyr'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/common'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/vendor'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/rx'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/x86'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/xtensa'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/sparc'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/riscv'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/posix'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/arm64'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/arm'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts/arc'
+     - '/home/anders/ncs/v3.1.1/zephyr/dts'
+  kconfig:
+    files:
+     - '/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen_defconfig'
+     - '/home/anders/Documents/NCS/WWD-n/prj.conf'
+     - '/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/.config.sysbuild'
+    user-files:
+     - '/home/anders/Documents/NCS/WWD-n/prj.conf'
+  toolchain:
+    name: 'zephyr'
+    path: '/home/anders/ncs/toolchains/c5be9c56c7/opt/zephyr-sdk'
+  vendor-specific:
+    nordic:
+      svdfile: '/home/anders/ncs/v3.1.1/modules/hal/nordic/nrfx/mdk/nrf52.svd'
+  zephyr:
+    version: '4.1.99'
+    zephyr-base: '/home/anders/ncs/v3.1.1/zephyr'
+version: '0.1.0'

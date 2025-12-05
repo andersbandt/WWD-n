@@ -1,0 +1,13 @@
+# Target labels
+ WWD-n
+# Source files and their labels
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/CMakeFiles/WWD-n
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/CMakeFiles/WWD-n.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/CMakeFiles/WWD-n-complete.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/WWD-n-prefix/src/WWD-n-stamp/WWD-n-build.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/WWD-n-prefix/src/WWD-n-stamp/WWD-n-configure.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/WWD-n-prefix/src/WWD-n-stamp/WWD-n-download.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/WWD-n-prefix/src/WWD-n-stamp/WWD-n-install.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/WWD-n-prefix/src/WWD-n-stamp/WWD-n-mkdir.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/WWD-n-prefix/src/WWD-n-stamp/WWD-n-patch.rule
+/home/anders/Documents/NCS/WWD-n/build/_sysbuild/sysbuild/images/WWD-n-prefix/src/WWD-n-stamp/WWD-n-update.rule
