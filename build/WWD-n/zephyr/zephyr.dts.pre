@@ -771,8 +771,11 @@ lscon_96b_uart0: &uart0 {};
  aliases {
   led0 = &led0;
   led1 = &led1;
-  bt = &led1;
+  led2 = &led2;
   sw0 = &button0;
+  sw1 = &button1;
+  sw2 = &button2;
+  sw3 = &button3;
   watchdog0 = &wdt0;
  };
 
@@ -850,26 +853,20 @@ lscon_96b_uart0: &uart0 {};
  pinctrl-1 = <&uart0_sleep>;
  pinctrl-names = "default", "sleep";
 };
-
-&i2c0 {
- compatible = "nordic,nrf-twi";
- status = "okay";
- pinctrl-0 = <&i2c0_default>;
- pinctrl-1 = <&i2c0_sleep>;
- pinctrl-names = "default", "sleep";
-};
-
+# 126 "/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen.dts"
 &spi1 {
- compatible = "nordic,nrf-spi";
+ compatible = "nordic,nrf-spim";
  status = "okay";
  pinctrl-0 = <&spi1_default>;
  pinctrl-1 = <&spi1_sleep>;
  pinctrl-names = "default", "sleep";
- cs-gpios = <&gpio0 7 0>;
+ cs-gpios = <&gpio0 20 (1 << 0)>;
 };
 
-&flash0 {
 
+
+
+&flash0 {
  partitions {
   compatible = "fixed-partitions";
   #address-cells = <1>;
@@ -918,8 +915,19 @@ lscon_96b_uart0: &uart0 {};
     <((((((0) * 32U) + (8)) & 0x1FFU) << 0U) | ((6U & 0xFFU) << 24U))>;
  };
 };
-/delete-node/ &{/pin-controller/uart0_sleep/group1/};
-/delete-node/ &{/pin-controller/i2c0_sleep/group1/};
-/delete-node/ &{/pin-controller/i2c0_default/group1/};
+# 0 "<command-line>" 2
+# 1 "/home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay" 1
+# 25 "/home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay"
+&spi1 {
+    status = "okay";
+    mt29f: mt29f@0 {
+        compatible = "micron,mt29f";
+        reg = <0>;
+        label = "MT29F";
+        spi-max-frequency = <8000000>;
+        frame-format = <0>;
+        status = "okay";
+    };
+};
 # 0 "<command-line>" 2
 # 1 "/home/anders/ncs/v3.1.1/zephyr/misc/empty_file.c"

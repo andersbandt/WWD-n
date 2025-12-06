@@ -262,6 +262,11 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/serial/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/serial/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/serial/CMakeFiles/drivers__serial.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/spi/CMakeFiles/rebuild_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/spi/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/spi/CMakeFiles/drivers__spi.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/spi/spi_nxp_lpspi/CMakeFiles/rebuild_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/spi/spi_nxp_lpspi/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/timer/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/timer/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/timer/CMakeFiles/drivers__timer.dir

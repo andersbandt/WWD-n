@@ -27,4 +27,5 @@ empty_file.o: /home/anders/ncs/v3.1.1/zephyr/misc/empty_file.c \
  /home/anders/ncs/v3.1.1/zephyr/include/zephyr/dt-bindings/adc/nrf-saadc.h \
  /home/anders/ncs/v3.1.1/zephyr/include/zephyr/dt-bindings/regulator/nrf5x.h \
  /home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_lscon.dtsi \
- /home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi
+ /home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi \
+ /home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay

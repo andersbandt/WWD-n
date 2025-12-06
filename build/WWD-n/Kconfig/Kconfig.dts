@@ -4537,6 +4537,11 @@ DT_COMPAT_MICRON_MT25QU02G := micron,mt25qu02g
 config DT_HAS_MICRON_MT25QU02G_ENABLED
 	def_bool $(dt_compat_enabled,$(DT_COMPAT_MICRON_MT25QU02G))
 
+DT_COMPAT_MICRON_MT29F := micron,mt29f
+
+config DT_HAS_MICRON_MT29F_ENABLED
+	def_bool $(dt_compat_enabled,$(DT_COMPAT_MICRON_MT29F))
+
 DT_COMPAT_MIKRO_BUS := mikro-bus
 
 config DT_HAS_MIKRO_BUS_ENABLED

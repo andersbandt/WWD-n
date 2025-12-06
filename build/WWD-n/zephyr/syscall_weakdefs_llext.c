@@ -140,6 +140,8 @@ extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_sensor_get_decoder;
 extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_sensor_reconfigure_read_iodev;
 extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_sensor_sample_fetch;
 extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_sensor_sample_fetch_chan;
+extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_spi_release;
+extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_spi_transceive;
 extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_sys_clock_hw_cycles_per_sec_runtime_get;
 extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_uart_config_get;
 extern __weak ALIAS_OF(no_syscall_impl) void * const z_impl_uart_configure;

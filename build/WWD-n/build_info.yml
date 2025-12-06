@@ -11,15 +11,18 @@ cmake:
   devicetree:
     bindings-dirs:
      - '/home/anders/ncs/v3.1.1/nrf/dts/bindings'
+     - '/home/anders/Documents/NCS/WWD-n/dts/bindings'
      - '/home/anders/ncs/v3.1.1/zephyr/dts/bindings'
     files:
      - '/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen.dts'
+     - '/home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay'
     include-dirs:
      - '/home/anders/ncs/v3.1.1/nrf/include'
      - '/home/anders/ncs/v3.1.1/nrf/dts/common'
      - '/home/anders/ncs/v3.1.1/nrf/dts/riscv'
      - '/home/anders/ncs/v3.1.1/nrf/dts/arm'
      - '/home/anders/ncs/v3.1.1/nrf/dts'
+     - '/home/anders/Documents/NCS/WWD-n/dts'
      - '/home/anders/ncs/v3.1.1/zephyr/include'
      - '/home/anders/ncs/v3.1.1/zephyr/include/zephyr'
      - '/home/anders/ncs/v3.1.1/zephyr/dts/common'
@@ -34,6 +37,8 @@ cmake:
      - '/home/anders/ncs/v3.1.1/zephyr/dts/arm'
      - '/home/anders/ncs/v3.1.1/zephyr/dts/arc'
      - '/home/anders/ncs/v3.1.1/zephyr/dts'
+    user-files:
+     - '/home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay'
   kconfig:
     files:
      - '/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen_defconfig'
