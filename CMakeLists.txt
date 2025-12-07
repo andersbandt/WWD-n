@@ -11,6 +11,7 @@ file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 # Compile all of them
 target_sources(app PRIVATE 
     src/main.c
+    #src/peripheral/interrupt.c
     src/hardware/led.c
     src/memory/mt29f_nand.c
 )

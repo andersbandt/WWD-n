@@ -12,7 +12,7 @@
 /* standard C99 stuff */
 #include <unistd.h>
 
-/* Driver Header files  */
+/* Zephyr files  */
 #include <zephyr/drivers/gpio.h>
 
 
@@ -49,8 +49,8 @@ int led_init()
 	}
 
 	int ret = gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
-    ret |= gpio_pin_configure_dt(&led1, GPIO_OUTPUT_ACTIVE);
-    ret |= gpio_pin_configure_dt(&led2, GPIO_OUTPUT_ACTIVE);
+    //ret |= gpio_pin_configure_dt(&led1, GPIO_OUTPUT_ACTIVE);
+    //ret |= gpio_pin_configure_dt(&led2, GPIO_OUTPUT_ACTIVE);
 
 	if (ret < 0) {
 		return 0;

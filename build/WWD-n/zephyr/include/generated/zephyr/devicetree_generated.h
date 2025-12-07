@@ -1561,18 +1561,6 @@
 #define DT_N_S_zephyr_user_P_spi_cs_imu_gpios_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_zephyr_user, spi_cs_imu_gpios, 0, __VA_ARGS__)
 #define DT_N_S_zephyr_user_P_spi_cs_imu_gpios_LEN 1
 #define DT_N_S_zephyr_user_P_spi_cs_imu_gpios_EXISTS 1
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_IDX_0_EXISTS 1
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_IDX_0_VAL_pin 7
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_IDX_0_VAL_pin_EXISTS 1
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_IDX_0_VAL_flags 0
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_IDX_0_VAL_flags_EXISTS 1
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_FOREACH_PROP_ELEM(fn) fn(DT_N_S_zephyr_user, spi_cs_flash_gpios, 0)
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_zephyr_user, spi_cs_flash_gpios, 0)
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_zephyr_user, spi_cs_flash_gpios, 0, __VA_ARGS__)
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_zephyr_user, spi_cs_flash_gpios, 0, __VA_ARGS__)
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_LEN 1
-#define DT_N_S_zephyr_user_P_spi_cs_flash_gpios_EXISTS 1
 #define DT_N_S_zephyr_user_P_disp2_wr_gpios_IDX_0_EXISTS 1
 #define DT_N_S_zephyr_user_P_disp2_wr_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
 #define DT_N_S_zephyr_user_P_disp2_wr_gpios_IDX_0_VAL_pin 30
@@ -8273,7 +8261,7 @@
 
 /* Existence and alternate IDs: */
 #define DT_N_S_soc_S_spi_40003000_EXISTS 1
-#define DT_N_INST_0_nordic_nrf_spi DT_N_S_soc_S_spi_40003000
+#define DT_N_INST_1_nordic_nrf_spi DT_N_S_soc_S_spi_40003000
 #define DT_N_NODELABEL_spi0        DT_N_S_soc_S_spi_40003000
 
 /* Macros for properties that are special in the specification: */
@@ -8418,7 +8406,7 @@
 
 /* Existence and alternate IDs: */
 #define DT_N_S_soc_S_spi_40023000_EXISTS 1
-#define DT_N_INST_1_nordic_nrf_spi DT_N_S_soc_S_spi_40023000
+#define DT_N_INST_2_nordic_nrf_spi DT_N_S_soc_S_spi_40023000
 #define DT_N_NODELABEL_spi2        DT_N_S_soc_S_spi_40023000
 
 /* Macros for properties that are special in the specification: */
@@ -11583,8 +11571,8 @@
  *
  * Node identifier: DT_N_S_soc_S_spi_40004000
  *
- * Binding (compatible = nordic,nrf-spim):
- *   $ZEPHYR_BASE/dts/bindings/spi/nordic,nrf-spim.yaml
+ * Binding (compatible = nordic,nrf-spi):
+ *   $ZEPHYR_BASE/dts/bindings/spi/nordic,nrf-spi.yaml
  *
  * (Descriptions have moved to the Devicetree Bindings Index
  * in the documentation.)
@@ -11644,7 +11632,7 @@
 
 /* Existence and alternate IDs: */
 #define DT_N_S_soc_S_spi_40004000_EXISTS 1
-#define DT_N_INST_0_nordic_nrf_spim   DT_N_S_soc_S_spi_40004000
+#define DT_N_INST_0_nordic_nrf_spi    DT_N_S_soc_S_spi_40004000
 #define DT_N_NODELABEL_spi1           DT_N_S_soc_S_spi_40004000
 #define DT_N_NODELABEL_lscon_96b_spi0 DT_N_S_soc_S_spi_40004000
 
@@ -11664,11 +11652,11 @@
 #define DT_N_S_soc_S_spi_40004000_IRQ_IDX_0_VAL_priority_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_IRQ_IDX_0_CONTROLLER DT_N_S_soc_S_interrupt_controller_e000e100
 #define DT_N_S_soc_S_spi_40004000_IRQ_LEVEL 1
-#define DT_N_S_soc_S_spi_40004000_COMPAT_MATCHES_nordic_nrf_spim 1
+#define DT_N_S_soc_S_spi_40004000_COMPAT_MATCHES_nordic_nrf_spi 1
 #define DT_N_S_soc_S_spi_40004000_COMPAT_VENDOR_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_COMPAT_VENDOR_IDX_0 "Nordic Semiconductor"
 #define DT_N_S_soc_S_spi_40004000_COMPAT_MODEL_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_COMPAT_MODEL_IDX_0 "nrf-spim"
+#define DT_N_S_soc_S_spi_40004000_COMPAT_MODEL_IDX_0 "nrf-spi"
 #define DT_N_S_soc_S_spi_40004000_STATUS_okay 1
 
 /* Pin control (pinctrl-<i>, pinctrl-names) properties: */
@@ -11687,10 +11675,6 @@
 #define DT_N_S_soc_S_spi_40004000_PINCTRL_NAME_sleep_IDX_0_PH DT_N_S_pin_controller_S_spi1_sleep
 
 /* Generic property macros: */
-#define DT_N_S_soc_S_spi_40004000_P_anomaly_58_workaround 0
-#define DT_N_S_soc_S_spi_40004000_P_anomaly_58_workaround_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_P_rx_delay_supported 0
-#define DT_N_S_soc_S_spi_40004000_P_rx_delay_supported_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_P_reg {1073758208 /* 0x40004000 */, 4096 /* 0x1000 */}
 #define DT_N_S_soc_S_spi_40004000_P_reg_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_P_reg_IDX_0 1073758208
@@ -11733,7 +11717,7 @@
 	fn(DT_N_S_soc_S_spi_40004000, pinctrl_names, 1, __VA_ARGS__)
 #define DT_N_S_soc_S_spi_40004000_P_pinctrl_names_LEN 2
 #define DT_N_S_soc_S_spi_40004000_P_pinctrl_names_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_P_max_frequency 8000000
+#define DT_N_S_soc_S_spi_40004000_P_max_frequency 1000000
 #define DT_N_S_soc_S_spi_40004000_P_max_frequency_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_P_overrun_character 255
 #define DT_N_S_soc_S_spi_40004000_P_overrun_character_EXISTS 1
@@ -11743,7 +11727,7 @@
 #define DT_N_S_soc_S_spi_40004000_P_cross_domain_pins_supported_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_P_cs_gpios_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_P_cs_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
-#define DT_N_S_soc_S_spi_40004000_P_cs_gpios_IDX_0_VAL_pin 20
+#define DT_N_S_soc_S_spi_40004000_P_cs_gpios_IDX_0_VAL_pin 7
 #define DT_N_S_soc_S_spi_40004000_P_cs_gpios_IDX_0_VAL_pin_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_P_cs_gpios_IDX_0_VAL_flags 1
 #define DT_N_S_soc_S_spi_40004000_P_cs_gpios_IDX_0_VAL_flags_EXISTS 1
@@ -11767,12 +11751,12 @@
 #define DT_N_S_soc_S_spi_40004000_P_status_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_spi_40004000, status, 0, __VA_ARGS__)
 #define DT_N_S_soc_S_spi_40004000_P_status_LEN 1
 #define DT_N_S_soc_S_spi_40004000_P_status_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_P_compatible {"nordic,nrf-spim"}
+#define DT_N_S_soc_S_spi_40004000_P_compatible {"nordic,nrf-spi"}
 #define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0 "nordic,nrf-spim"
-#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0_STRING_UNQUOTED nordic,nrf-spim
-#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0_STRING_TOKEN nordic_nrf_spim
-#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0_STRING_UPPER_TOKEN NORDIC_NRF_SPIM
+#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0 "nordic,nrf-spi"
+#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0_STRING_UNQUOTED nordic,nrf-spi
+#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0_STRING_TOKEN nordic_nrf_spi
+#define DT_N_S_soc_S_spi_40004000_P_compatible_IDX_0_STRING_UPPER_TOKEN NORDIC_NRF_SPI
 #define DT_N_S_soc_S_spi_40004000_P_compatible_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_spi_40004000, compatible, 0)
 #define DT_N_S_soc_S_spi_40004000_P_compatible_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_spi_40004000, compatible, 0)
 #define DT_N_S_soc_S_spi_40004000_P_compatible_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_spi_40004000, compatible, 0, __VA_ARGS__)
@@ -11886,7 +11870,7 @@
 #define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_reg_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_reg_IDX_0 0
 #define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_reg_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_spi_max_frequency 8000000
+#define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_spi_max_frequency 1000000
 #define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_spi_max_frequency_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_duplex 0
 #define DT_N_S_soc_S_spi_40004000_S_mt29f_0_P_duplex_IDX_0_ENUM_IDX 0
@@ -12009,7 +11993,7 @@
 #define DT_COMPAT_HAS_OKAY_nordic_nrf_radio 1
 #define DT_COMPAT_HAS_OKAY_nordic_bt_hci_sdc 1
 #define DT_COMPAT_HAS_OKAY_nordic_nrf_uart 1
-#define DT_COMPAT_HAS_OKAY_nordic_nrf_spim 1
+#define DT_COMPAT_HAS_OKAY_nordic_nrf_spi 1
 #define DT_COMPAT_HAS_OKAY_micron_mt29f 1
 #define DT_COMPAT_HAS_OKAY_nordic_nrf_gpiote 1
 #define DT_COMPAT_HAS_OKAY_nordic_nrf_temp 1
@@ -12054,7 +12038,7 @@
 #define DT_N_INST_nordic_nrf_radio_NUM_OKAY 1
 #define DT_N_INST_nordic_bt_hci_sdc_NUM_OKAY 1
 #define DT_N_INST_nordic_nrf_uart_NUM_OKAY 1
-#define DT_N_INST_nordic_nrf_spim_NUM_OKAY 1
+#define DT_N_INST_nordic_nrf_spi_NUM_OKAY 1
 #define DT_N_INST_micron_mt29f_NUM_OKAY 1
 #define DT_N_INST_nordic_nrf_gpiote_NUM_OKAY 1
 #define DT_N_INST_nordic_nrf_temp_NUM_OKAY 1
@@ -12146,10 +12130,10 @@
 #define DT_FOREACH_OKAY_VARGS_nordic_nrf_uart(fn, ...) fn(DT_N_S_soc_S_uart_40002000, __VA_ARGS__)
 #define DT_FOREACH_OKAY_INST_nordic_nrf_uart(fn) fn(0)
 #define DT_FOREACH_OKAY_INST_VARGS_nordic_nrf_uart(fn, ...) fn(0, __VA_ARGS__)
-#define DT_FOREACH_OKAY_nordic_nrf_spim(fn) fn(DT_N_S_soc_S_spi_40004000)
-#define DT_FOREACH_OKAY_VARGS_nordic_nrf_spim(fn, ...) fn(DT_N_S_soc_S_spi_40004000, __VA_ARGS__)
-#define DT_FOREACH_OKAY_INST_nordic_nrf_spim(fn) fn(0)
-#define DT_FOREACH_OKAY_INST_VARGS_nordic_nrf_spim(fn, ...) fn(0, __VA_ARGS__)
+#define DT_FOREACH_OKAY_nordic_nrf_spi(fn) fn(DT_N_S_soc_S_spi_40004000)
+#define DT_FOREACH_OKAY_VARGS_nordic_nrf_spi(fn, ...) fn(DT_N_S_soc_S_spi_40004000, __VA_ARGS__)
+#define DT_FOREACH_OKAY_INST_nordic_nrf_spi(fn) fn(0)
+#define DT_FOREACH_OKAY_INST_VARGS_nordic_nrf_spi(fn, ...) fn(0, __VA_ARGS__)
 #define DT_FOREACH_OKAY_micron_mt29f(fn) fn(DT_N_S_soc_S_spi_40004000_S_mt29f_0)
 #define DT_FOREACH_OKAY_VARGS_micron_mt29f(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_mt29f_0, __VA_ARGS__)
 #define DT_FOREACH_OKAY_INST_micron_mt29f(fn) fn(0)
