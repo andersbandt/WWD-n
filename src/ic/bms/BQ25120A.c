@@ -136,7 +136,7 @@ void bq25120a_read_all(Display_Handle display) {
     }
 
     // Print the register values
-    Display_printf(display, 0, 0, "\nBMS: %x %x %x %x %x %x %x %x %x %x %x %x\r\n",
+    LOG_INF(display, 0, 0, "\nBMS: %x %x %x %x %x %x %x %x %x %x %x %x\r\n",
                    r_d[0],
                    r_d[1],
                    r_d[2],
@@ -160,7 +160,7 @@ void bq25120a_stat_read(Display_Handle display) {
     // bits 6 and 7 are status
     // NOTE: below logic is untested
     if ((reg_data >> 6) & 0x11) {
-        Display_printf(display, 0, 0, "\tBMS FAULT!", reg_data);
+        LOG_INF(display, 0, 0, "\tBMS FAULT!", reg_data);
     }
 
     // TODO: could possibly add some other conditions of the status bits to print out
@@ -168,12 +168,12 @@ void bq25120a_stat_read(Display_Handle display) {
     
     // bit 4 is reset condition
     if ((reg_data >> 4 ) & 0x01) {
-        Display_printf(display, 0, 0, "\tBMS RESET!", reg_data);
+        LOG_INF(display, 0, 0, "\tBMS RESET!", reg_data);
     }
 
     // bit 2 is VINDPM
     if ((reg_data >> 2 ) & 0x01) {
-        Display_printf(display, 0, 0, "\tVIN_DMP active!", reg_data);
+        LOG_INF(display, 0, 0, "\tVIN_DMP active!", reg_data);
     }
 }
 
@@ -216,13 +216,13 @@ int bq25120a_fault_read(Display_Handle display) {
 
     // bit 4 is reset condition
     if ((reg_data >> 4 ) & 0x01) {
-        Display_printf(display, 0, 0, "\tBMS_RESET fault", reg_data);
+        LOG_INF(display, 0, 0, "\tBMS_RESET fault", reg_data);
         return 1;
     }
 
     // bit 4 is reset condition
     if ((reg_data >> 3 ) & 0x01) {
-        Display_printf(display, 0, 0, "\tBMS_TIMER fault", reg_data);
+        LOG_INF(display, 0, 0, "\tBMS_TIMER fault", reg_data);
         return 2;
     }
 
@@ -232,19 +232,19 @@ int bq25120a_fault_read(Display_Handle display) {
 
     // bit 7 is VIN_OV fault
     if ((reg_data >> 7 ) & 0x01) {
-        Display_printf(display, 0, 0, "\t\tVIN_OV fault!");
+        LOG_INF(display, 0, 0, "\t\tVIN_OV fault!");
         return 3;
     }
 
     // bit 6 is VIN_UV fault
     if ((reg_data >> 6 ) & 0x01) {
-        Display_printf(display, 0, 0, "\t\tVIN_UV fault!");
+        LOG_INF(display, 0, 0, "\t\tVIN_UV fault!");
         return 4;
     }
 
     // bit 5 is BAT_UVLO fault
     if ((reg_data >> 5 ) & 0x01) {
-        Display_printf(display, 0, 0, "\t\tBAT_UVLO fault!");
+        LOG_INF(display, 0, 0, "\t\tBAT_UVLO fault!");
         return 5;
     }
 
@@ -255,17 +255,17 @@ int bq25120a_fault_read(Display_Handle display) {
     // bits 6 and 5 are for TS Fault mode
     uint8_t ts_fault = ((reg_data >> 5) & 0x03);
     if (ts_fault) {
-        Display_printf(display, 0, 0, "\t\tTS fault!");
+        LOG_INF(display, 0, 0, "\t\tTS fault!");
         switch(ts_fault)
             {
             case 1:
-                Display_printf(display, 0, 0, "\t\t\ttemp < TCOLD or temp > THOT. Charging suspended.");
+                LOG_INF(display, 0, 0, "\t\t\ttemp < TCOLD or temp > THOT. Charging suspended.");
                 break;
             case 2:
-                Display_printf(display, 0, 0, "\t\t\tTCOOL > temp > TCOLD. Charging current reduced by half.");
+                LOG_INF(display, 0, 0, "\t\t\tTCOOL > temp > TCOLD. Charging current reduced by half.");
                 break;
             case 3:
-                Display_printf(display, 0, 0, "\t\t\tTWARM < temp < THOT. Charging voltage reduced by 140 mV.");
+                LOG_INF(display, 0, 0, "\t\t\tTWARM < temp < THOT. Charging voltage reduced by 140 mV.");
                 break;
             }
         return 6;
@@ -280,7 +280,7 @@ void bq25120a_vindpm_timer_read(Display_Handle display) {
     uint8_t reg_data = 0;
     i2c_read(BMS_I2C_ADDR, BQ25120A_PUSHBUTTON, &reg_data, 1, display);
     i2c_read(BMS_I2C_ADDR, BQ25120A_VINDPM, &reg_data, 1,  display);
-    Display_printf(display, 0, 0, "register=%x", reg_data);
+    LOG_INF(display, 0, 0, "register=%x", reg_data);
 }
 
 /*

@@ -47,7 +47,7 @@ void process_lowpass(Circular_Buffer * buffer, Display_Handle display) {
     bool status = 1;
     while (status) {
 //        x_0 = circular_buffer_remove(buffer);
-        Display_printf(display, 0, 0, "Got this from circular buffer: %d", x_0);
+        LOG_INF(display, 0, 0, "Got this from circular buffer: %d", x_0);
 
         // the "magic"
 //        y_0 = (1 - a1) * y_m1 + a1*(x_0 + x_m1)/2;

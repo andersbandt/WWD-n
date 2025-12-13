@@ -62,9 +62,9 @@ int imu_init(Display_Handle display) {
     rc |= init_icm(display);
 
     imu_data_buffer = circular_buffer_init(200, sizeof(inv_imu_sensor_event_t));
-    Display_printf(display, 0, 0, "\nIMU data buffer setup");
-    Display_printf(display, 0, 0, "buffer = [%d]", imu_data_buffer->buffer);
-    Display_printf(display, 0, 0, "buffer_end = [%d]", imu_data_buffer->buffer_end);
+    LOG_INF(display, 0, 0, "\nIMU data buffer setup");
+    LOG_INF(display, 0, 0, "buffer = [%d]", imu_data_buffer->buffer);
+    LOG_INF(display, 0, 0, "buffer_end = [%d]", imu_data_buffer->buffer_end);
 
     if (!rc) {
         return 1;
@@ -81,10 +81,10 @@ int imu_init(Display_Handle display) {
 int imu_start(Display_Handle display) {
     int rc = 0;
 
-    Display_printf(display, 0, 0, "\nStarting accel...");
+    LOG_INF(display, 0, 0, "\nStarting accel...");
     rc |= startAccel(100, 16);     // ODR=100 Hz, full-scale range=16
 
-    Display_printf(display, 0, 0, "Starting gyro...");
+    LOG_INF(display, 0, 0, "Starting gyro...");
     rc |= startGyro(100, 2000);    // ODR=100 Hz, full-scale range=2000 dps
 
     if (!rc) {
@@ -127,7 +127,7 @@ void imu_process(Display_Handle display) {
     if (!circular_buffer_empty(imu_data_buffer)) {
         // get current buffer count
         /* size_t buf_count = circular_buffer_get_count(imu_data_buffer); */
-        /* Display_printf(display, 0, 0, "buf count: [%d]\n", buf_count); */
+        /* LOG_INF(display, 0, 0, "buf count: [%d]\n", buf_count); */
 
         while (!circular_buffer_empty(imu_data_buffer)) {
             circular_buffer_remove(imu_data_buffer, &event);
@@ -142,13 +142,13 @@ void write_to_flash() {
 /* if (flash_write_num % FLASH_INTEGRITY_WRITE_CYCLE == 0) { */
 /*     uint8_t flash_cycle_pad = 0xD8; */
 /*     status = nvs_write_auto_offset(&flash_cycle_pad, 1); */
-/*     Display_printf(display, 0, 0, "\tFlash cycle integrity write. Write status: [%d]", status); */
+/*     LOG_INF(display, 0, 0, "\tFlash cycle integrity write. Write status: [%d]", status); */
 //////////////////////////////////////////////
 // WRITE TO FLASH MEMORY /////////////////////
 //////////////////////////////////////////////
 /*     status = nvs_write_auto_offset(&a_x, 2); */
 /*     if (status != 0) { */
-/*         Display_printf(display, 0, 0, "\tERROR: NVS write for the IMU got status: [%d]", status); */
+/*         LOG_INF(display, 0, 0, "\tERROR: NVS write for the IMU got status: [%d]", status); */
 /*         nvs_error(status, 0, display); */
 /*     } */
         /*     flash_write_num++; */
@@ -159,9 +159,9 @@ void write_to_flash() {
  * imu_fifo_interrupts: Enables the FIFO interrupt on the IMU
  */
 void imu_fifo_interrupt(Display_Handle display) {
-    Display_printf(display, 0, 0, "\nEnabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
+    LOG_INF(display, 0, 0, "\nEnabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
     int status = enableFifoInterrupt(IMU_FIFO_WM, display);
-    Display_printf(display, 0, 0, "\nimu_fifo_interrupt error: %d\n", status);
+    LOG_INF(display, 0, 0, "\nimu_fifo_interrupt error: %d\n", status);
 }
 
 /*
@@ -172,7 +172,7 @@ void imu_reg_poll(Display_Handle display) {
 
     int error = getDataFromIMUReg(&imu_event, display);
     if (error) {
-        Display_printf(display, 0, 0, "\tgetDataFromIMUReg error: %d", error);
+        LOG_INF(display, 0, 0, "\tgetDataFromIMUReg error: %d", error);
     }
 
    event_print(display, &imu_event);
@@ -182,7 +182,7 @@ void imu_reg_poll(Display_Handle display) {
     circular_buffer_add(imu_data_buffer, &imu_event);
 
 //    if (!added) {
-//        Display_printf(display, 0, 0, "ERROR in adding to circular buffer. Probably full");
+//        LOG_INF(display, 0, 0, "ERROR in adding to circular buffer. Probably full");
 //    }
 }
 
@@ -190,12 +190,12 @@ void imu_reg_poll(Display_Handle display) {
  * get_fifo_data: reads data from the FIFO
  */
 void get_fifo_data(Display_Handle display) {
-    Display_printf(display, 0, 0, "IMU FIFO retrieve");
+    LOG_INF(display, 0, 0, "IMU FIFO retrieve");
 
     inv_imu_sensor_event_t imu_event;
     int fifo_status = getDataFromFifo(&imu_event, display);
-    Display_printf(display, 0, 0, "\tgot FIFO read status [%d] (0 is GOOD)", fifo_status);
-    Display_printf(display, 0, 0, "... done with IMU FIFO retrieve!");
+    LOG_INF(display, 0, 0, "\tgot FIFO read status [%d] (0 is GOOD)", fifo_status);
+    LOG_INF(display, 0, 0, "... done with IMU FIFO retrieve!");
 }
 
 /*

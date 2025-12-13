@@ -190,8 +190,8 @@ void print_time(Display_Handle display) {
     uint32_t cur_ms = get_ms();
     Time cur_time = get_current_time();
     
-    Display_printf(display, 0, 0, "\n%d,%u", ticks_overflow, prev_ticks);
-    Display_printf(display, 0, 0, "%u,%u,[%d:%d:%d]", raw_ms, cur_ms,
+    LOG_INF(display, 0, 0, "\n%d,%u", ticks_overflow, prev_ticks);
+    LOG_INF(display, 0, 0, "%u,%u,[%d:%d:%d]", raw_ms, cur_ms,
                    cur_time.hours,
                    cur_time.minutes,
                    cur_time.seconds);

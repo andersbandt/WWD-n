@@ -21,8 +21,8 @@
 
 /* My header files  */
 #include <src/comm/comm.h>
-#include <src/comm/spi.h>
 #include <src/circular_buffer.h>
+#include <zephyr/drivers/spi.h>
 
 
 /* IMU header files  */
@@ -51,6 +51,64 @@ uint32_t step_cnt_ovflw;
 uint8_t int_status3;
 bool apex_tilt_enable;
 bool apex_pedometer_enable;
+
+
+#define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(icm_42670)
+#define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! SPI and EVENT FUNCTIONS -------------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TODO: why does this thing take in the serif?
+int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, uint32_t len) {
+    //    return spi_write(reg, buf[0], 0);
+
+    const struct spi_buf_set tx_set = {
+        .buffers = spi_buf,
+        .count = len,
+	};
+    return spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+}
+
+
+int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_t len)  {
+    return spi_read(reg, buf, len, 0);
+}
+
+
+void event_print(Display_Handle display, inv_imu_sensor_event_t *evt) {
+    if (isAccelDataValid(evt) && isGyroDataValid(evt)) {
+        LOG_INF(display, 0, 0, "x-y-z-temp-timestamp: %d,%d,%d,%d,%d",
+                       event->accel[0],
+                       event->accel[1],
+                       event->accel[2],
+                       event->temperature,
+                       event->timestamp_fsync);
+    }
+    else {
+        LOG_INF(display, 0, 0, "Data invalid");
+    }
+}
+
+
+/*
+ * event_cb: callback for new event
+ */
+void event_cb(inv_imu_sensor_event_t *evt) {
+    memcpy(event, evt, sizeof(inv_imu_sensor_event_t)); // TODO: what is this memcpy doing? Nothing right?
+    
+    /* ADD TO CIRCULAR BUFFER */
+    circular_buffer_add(imu_data_buffer, event);
+    
+    //    bool added = circular_buffer_add(imu_data_buffer, event);
+    //    if (!added) {
+    //        while (1) {}
+    //    }
+}
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -147,10 +205,10 @@ int readIMUReg(int reg) {
 
 void dumpIMUReg(Display_Handle display) {
     int data = 0;
-    Display_printf(display, 0, 0, "IMU_reg,IMU_data");
+    LOG_INF(display, 0, 0, "IMU_reg,IMU_data");
     for (int reg = 0; reg < 0x13; reg++) {
         data = readIMUReg(reg);
-        Display_printf(display, 0, 0, "0x%x,0x%x", reg,data);
+        LOG_INF(display, 0, 0, "0x%x,0x%x", reg,data);
     }
 }
 
@@ -163,104 +221,59 @@ void checkInterruptIMU(Display_Handle display) {
 
     // check interrupt 1
     status |= inv_imu_get_config_int1(&icm_driver, &config_int);
-    Display_printf(display, 0, 0, "\nInterrupt 1.");
-    Display_printf(display, 0, 0, "INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
-    Display_printf(display, 0, 0, "INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
-    Display_printf(display, 0, 0, "INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
-    Display_printf(display, 0, 0, "INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
-    Display_printf(display, 0, 0, "INV_SMD: %d", config_int.INV_SMD);
-    Display_printf(display, 0, 0, "INV_WOM_X: %d", config_int.INV_WOM_X);
-    Display_printf(display, 0, 0, "INV_WOM_Y: %d", config_int.INV_WOM_Y);
-    Display_printf(display, 0, 0, "INV_WOM_Z: %d", config_int.INV_WOM_Z);
-    Display_printf(display, 0, 0, "INV_FF: %d", config_int.INV_FF);
-    Display_printf(display, 0, 0, "INV_LOWG: %d", config_int.INV_LOWG);
-    Display_printf(display, 0, 0, "INV_STEP_DET: %d", config_int.INV_STEP_DET);
-    Display_printf(display, 0, 0, "INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
-    Display_printf(display, 0, 0, "INV_TILT_DET: %d", config_int.INV_TILT_DET);
+    LOG_INF(display, 0, 0, "\nInterrupt 1.");
+    LOG_INF(display, 0, 0, "INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
+    LOG_INF(display, 0, 0, "INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
+    LOG_INF(display, 0, 0, "INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
+    LOG_INF(display, 0, 0, "INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
+    LOG_INF(display, 0, 0, "INV_SMD: %d", config_int.INV_SMD);
+    LOG_INF(display, 0, 0, "INV_WOM_X: %d", config_int.INV_WOM_X);
+    LOG_INF(display, 0, 0, "INV_WOM_Y: %d", config_int.INV_WOM_Y);
+    LOG_INF(display, 0, 0, "INV_WOM_Z: %d", config_int.INV_WOM_Z);
+    LOG_INF(display, 0, 0, "INV_FF: %d", config_int.INV_FF);
+    LOG_INF(display, 0, 0, "INV_LOWG: %d", config_int.INV_LOWG);
+    LOG_INF(display, 0, 0, "INV_STEP_DET: %d", config_int.INV_STEP_DET);
+    LOG_INF(display, 0, 0, "INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
+    LOG_INF(display, 0, 0, "INV_TILT_DET: %d", config_int.INV_TILT_DET);
 
     // check interrupt 2
     status |= inv_imu_get_config_int2(&icm_driver, &config_int);
-    Display_printf(display, 0, 0, "\nInterrupt 2.");
-    Display_printf(display, 0, 0, "INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
-    Display_printf(display, 0, 0, "INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
-    Display_printf(display, 0, 0, "INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
-    Display_printf(display, 0, 0, "INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
-    Display_printf(display, 0, 0, "INV_SMD: %d", config_int.INV_SMD);
-    Display_printf(display, 0, 0, "INV_WOM_X: %d", config_int.INV_WOM_X);
-    Display_printf(display, 0, 0, "INV_WOM_Y: %d", config_int.INV_WOM_Y);
-    Display_printf(display, 0, 0, "INV_WOM_Z: %d", config_int.INV_WOM_Z);
-    Display_printf(display, 0, 0, "INV_FF: %d", config_int.INV_FF);
-    Display_printf(display, 0, 0, "INV_LOWG: %d", config_int.INV_LOWG);
-    Display_printf(display, 0, 0, "INV_STEP_DET: %d", config_int.INV_STEP_DET);
-    Display_printf(display, 0, 0, "INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
-    Display_printf(display, 0, 0, "INV_TILT_DET: %d", config_int.INV_TILT_DET);
+    LOG_INF(display, 0, 0, "\nInterrupt 2.");
+    LOG_INF(display, 0, 0, "INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
+    LOG_INF(display, 0, 0, "INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
+    LOG_INF(display, 0, 0, "INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
+    LOG_INF(display, 0, 0, "INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
+    LOG_INF(display, 0, 0, "INV_SMD: %d", config_int.INV_SMD);
+    LOG_INF(display, 0, 0, "INV_WOM_X: %d", config_int.INV_WOM_X);
+    LOG_INF(display, 0, 0, "INV_WOM_Y: %d", config_int.INV_WOM_Y);
+    LOG_INF(display, 0, 0, "INV_WOM_Z: %d", config_int.INV_WOM_Z);
+    LOG_INF(display, 0, 0, "INV_FF: %d", config_int.INV_FF);
+    LOG_INF(display, 0, 0, "INV_LOWG: %d", config_int.INV_LOWG);
+    LOG_INF(display, 0, 0, "INV_STEP_DET: %d", config_int.INV_STEP_DET);
+    LOG_INF(display, 0, 0, "INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
+    LOG_INF(display, 0, 0, "INV_TILT_DET: %d", config_int.INV_TILT_DET);
 
     // check the actual interrupt status register
-    Display_printf(display, 0, 0, "Printing out some critical IMU interrupt registers ...");
+    LOG_INF(display, 0, 0, "Printing out some critical IMU interrupt registers ...");
     uint8_t reg_data = readIMUReg(INT_STATUS);
-    Display_printf(display, 0, 0, "\n\tINT_STATUS = [0x%x]", reg_data);
+    LOG_INF(display, 0, 0, "\n\tINT_STATUS = [0x%x]", reg_data);
     reg_data = readIMUReg(INT_CONFIG);
-    Display_printf(display, 0, 0, "\tINT_CONFIG[0x%x] = 0x%x", INT_CONFIG, reg_data);
+    LOG_INF(display, 0, 0, "\tINT_CONFIG[0x%x] = 0x%x", INT_CONFIG, reg_data);
     reg_data = readIMUReg(INT_CONFIG0_MREG1);
-    Display_printf(display, 0, 0, "\tINT_CONFIG0[0x%x] = 0x%x", INT_CONFIG0_MREG1, reg_data);
+    LOG_INF(display, 0, 0, "\tINT_CONFIG0[0x%x] = 0x%x", INT_CONFIG0_MREG1, reg_data);
     reg_data = readIMUReg(INT_CONFIG1_MREG1);
-    Display_printf(display, 0, 0, "\tINT_CONFIG1[0x%x] = 0x%x", INT_CONFIG1_MREG1, reg_data);
+    LOG_INF(display, 0, 0, "\tINT_CONFIG1[0x%x] = 0x%x", INT_CONFIG1_MREG1, reg_data);
 }
 
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//! -----------------------------------------------------------------------------------------------------------------------//
-//! FUNCTIONS -------------------------------------------------------------------------------------------------------------//
-//! -----------------------------------------------------------------------------------------------------------------------//
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, uint32_t len) {
-    return spi_write(reg, buf[0], 0);
-}
-
-
-int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_t len)  {
-    return spi_read(reg, buf, len, 0);
-}
-
-
-void event_print(Display_Handle display, inv_imu_sensor_event_t *evt) {
-    if (isAccelDataValid(evt) && isGyroDataValid(evt)) {
-        Display_printf(display, 0, 0, "x-y-z-temp-timestamp: %d,%d,%d,%d,%d",
-                       event->accel[0],
-                       event->accel[1],
-                       event->accel[2],
-                       event->temperature,
-                       event->timestamp_fsync);
-    }
-    else {
-        Display_printf(display, 0, 0, "Data invalid");
-    }
-}
-
-
-/*
- * event_cb: callback for new event
- */
-void event_cb(inv_imu_sensor_event_t *evt) {
-    memcpy(event, evt, sizeof(inv_imu_sensor_event_t)); // TODO: what is this memcpy doing? Nothing right?
-    
-    /* ADD TO CIRCULAR BUFFER */
-    circular_buffer_add(imu_data_buffer, event);
-    
-    //    bool added = circular_buffer_add(imu_data_buffer, event);
-    //    if (!added) {
-    //        while (1) {}
-    //    }
-}
 
 
 /*
  * init_icm: initializes the IMU. Sets some needed serial interface parameters and calls the driver init function
  */
 int init_icm(Display_Handle display) {
-    Display_printf(display, 0, 0, "\nInitialization IMU.");
+    LOG_INF(display, 0, 0, "\nInitialization IMU.");
     struct inv_imu_serif icm_serif;
     int rc = 0;
     uint8_t who_am_i;
@@ -279,7 +292,7 @@ int init_icm(Display_Handle display) {
 
     rc = inv_imu_init(&icm_driver, &icm_serif, event_cb, display);
     if (rc != INV_ERROR_SUCCESS) {
-        Display_printf(display, 0, 0, "Error with IMU initialization.");
+        LOG_INF(display, 0, 0, "Error with IMU initialization.");
         return rc;
     }
 
@@ -293,8 +306,8 @@ int init_icm(Display_Handle display) {
         return -3;
     }
 
-    Display_printf(display, 0, 0, "\tgot IMU WHOAMI: [0x%x]", who_am_i);    
-    Display_printf(display, 0, 0, "\nDone initializing IMU");
+    LOG_INF(display, 0, 0, "\tgot IMU WHOAMI: [0x%x]", who_am_i);    
+    LOG_INF(display, 0, 0, "\nDone initializing IMU");
     return 0;
 }
 
@@ -346,25 +359,25 @@ int enableFifoInterrupt(uint8_t fifo_watermark, Display_Handle display) {
     rc |= inv_imu_write_reg(&icm_driver, SENSOR_CONFIG3_MREG1, 1, &data);
 
     // do some Ders verification
-    Display_printf(display, 0, 0, "Printing out some critical IMU FIFO registers ...");
+    LOG_INF(display, 0, 0, "Printing out some critical IMU FIFO registers ...");
     int reg_data = readIMUReg(INTF_CONFIG0);
-    Display_printf(display, 0, 0, "\tINTF_CONFIG0[0x%x] = 0x%x", INTF_CONFIG0, reg_data);
+    LOG_INF(display, 0, 0, "\tINTF_CONFIG0[0x%x] = 0x%x", INTF_CONFIG0, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG1);
-    Display_printf(display, 0, 0, "\tFIFO_CONFIG1[0x%x] = 0x%x", FIFO_CONFIG1, reg_data);
+    LOG_INF(display, 0, 0, "\tFIFO_CONFIG1[0x%x] = 0x%x", FIFO_CONFIG1, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG2);
-    Display_printf(display, 0, 0, "\tFIFO_CONFIG2[0x%x] = 0x%x", FIFO_CONFIG2, reg_data);
+    LOG_INF(display, 0, 0, "\tFIFO_CONFIG2[0x%x] = 0x%x", FIFO_CONFIG2, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG3);
-    Display_printf(display, 0, 0, "\tFIFO_CONFIG3[0x%x] = 0x%x", FIFO_CONFIG3, reg_data);
+    LOG_INF(display, 0, 0, "\tFIFO_CONFIG3[0x%x] = 0x%x", FIFO_CONFIG3, reg_data);
 
     // read some registers from the MREG1
     reg_data = readIMUReg(TMST_CONFIG1_MREG1);
-    Display_printf(display, 0, 0, "\tTMST_CONFIG1[0x%x] = 0x%x", TMST_CONFIG1_MREG1, reg_data);
+    LOG_INF(display, 0, 0, "\tTMST_CONFIG1[0x%x] = 0x%x", TMST_CONFIG1_MREG1, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG5_MREG1);
-    Display_printf(display, 0, 0, "\tFIFO_CONFIG5[0x%x] = 0x%x", FIFO_CONFIG5_MREG1, reg_data);
+    LOG_INF(display, 0, 0, "\tFIFO_CONFIG5[0x%x] = 0x%x", FIFO_CONFIG5_MREG1, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG6_MREG1);
-    Display_printf(display, 0, 0, "\tFIFO_CONFIG6[0x%x] = 0x%x", FIFO_CONFIG6_MREG1, reg_data);
+    LOG_INF(display, 0, 0, "\tFIFO_CONFIG6[0x%x] = 0x%x", FIFO_CONFIG6_MREG1, reg_data);
     reg_data = readIMUReg(SENSOR_CONFIG3_MREG1);
-    Display_printf(display, 0, 0, "\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x", SENSOR_CONFIG3_MREG1, reg_data);
+    LOG_INF(display, 0, 0, "\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x", SENSOR_CONFIG3_MREG1, reg_data);
 
     // print out final interrupt configuration
     /* checkInterruptIMU(display); */
@@ -403,15 +416,15 @@ int startApex(Display_Handle display) {
     rc |= inv_imu_enable_wom(&icm_driver);
 
     // do some Ders verification
-    /* Display_printf(display, 0, 0, "Printing out some critical IMU APEX registers ..."); */
+    /* LOG_INF(display, 0, 0, "Printing out some critical IMU APEX registers ..."); */
     /* int reg_data = readIMUReg(APEX_CONFIG0); */
-    /* Display_printf(display, 0, 0, "\tAPEX_CONFIG0[0x%x] = 0x%x", APEX_CONFIG0, reg_data); */
+    /* LOG_INF(display, 0, 0, "\tAPEX_CONFIG0[0x%x] = 0x%x", APEX_CONFIG0, reg_data); */
     /* reg_data = readIMUReg(APEX_CONFIG1); */
-    /* Display_printf(display, 0, 0, "\tAPEX_CONFIG1[0x%x] = 0x%x", APEX_CONFIG1, reg_data); */
+    /* LOG_INF(display, 0, 0, "\tAPEX_CONFIG1[0x%x] = 0x%x", APEX_CONFIG1, reg_data); */
     /* reg_data = readIMUReg(SENSOR_CONFIG3_MREG1); */
-    /* Display_printf(display, 0, 0, "\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x - should be 0x00 for APEX", SENSOR_CONFIG3_MREG1, reg_data); */
+    /* LOG_INF(display, 0, 0, "\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x - should be 0x00 for APEX", SENSOR_CONFIG3_MREG1, reg_data); */
     /* reg_data = readIMUReg(WOM_CONFIG); */
-    /* Display_printf(display, 0, 0, "\tWOM_CONFIG[0x%x] = 0x%x", WOM_CONFIG, reg_data); */
+    /* LOG_INF(display, 0, 0, "\tWOM_CONFIG[0x%x] = 0x%x", WOM_CONFIG, reg_data); */
 
     // print out final interrupt configuration
     /* checkInterruptIMU(display); */
@@ -453,7 +466,7 @@ int getDataFromIMUReg(inv_imu_sensor_event_t* evt, Display_Handle display) {
 void getFifoCount(Display_Handle display) {
         int data1 = readIMUReg(FIFO_COUNTL);
         int data2 = readIMUReg(FIFO_COUNTH);
-        Display_printf(display, 0, 0, "FIFO count (high, low) --> (%d, %d)", data1, data2);    
+        LOG_INF(display, 0, 0, "FIFO count (high, low) --> (%d, %d)", data1, data2);    
 }
 
 

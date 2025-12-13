@@ -27,7 +27,6 @@
 
 
 /* Driver Header files  */
-#include <ti/display/Display.h>
 #include <stddef.h> /* NULL */
 
 //#include "imu/inv_imu_extfunc.h"
