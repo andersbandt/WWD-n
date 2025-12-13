@@ -13,7 +13,7 @@
 #include <stdbool.h>
 
 
-#include <src/ic/imu/inv_imu_driver.h>
+#include <inv_imu_driver.h>
 
 
 // This defines the handler called when retrieving a sample from the FIFO
@@ -39,7 +39,7 @@ int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_
 /**
  * @brief prints out an IMU event
  */
-void event_print(Display_Handle display, inv_imu_sensor_event_t *evt);
+void event_print(inv_imu_sensor_event_t *evt);
 
 
 /**
@@ -51,7 +51,7 @@ void event_cb(inv_imu_sensor_event_t *evt);
 /**
  * @brief initializes the IMU
  */
-int init_icm(Display_Handle display);
+int init_icm();
 
 
 /**
@@ -77,7 +77,7 @@ int startGyro(uint16_t odr, uint16_t fsr);
 /**
  * @brief starts the APEX (advanced motion features of IMU)
  */
-int startApex(Display_Handle display);
+int startApex();
 
 
 /**
@@ -89,31 +89,31 @@ int16_t getTempDataFromIMUReg();
 /**
  * @brief gets data from the IMU registers
  */
-int getDataFromIMUReg(inv_imu_sensor_event_t* evt, Display_Handle display);
+int getDataFromIMUReg(inv_imu_sensor_event_t* evt);
 
 
 /**
  * @brief configures the interrupt for the FIFO
  */
-int enableFifoInterrupt(uint8_t fifo_watermark, Display_Handle display);
+int enableFifoInterrupt(uint8_t fifo_watermark);
 
 
 /**
  * @brief displays the current IMU interrupt configuratoin
  */
-void checkInterruptIMU(Display_Handle display);
+void checkInterruptIMU();
 
 
 /**
  * @brief gets the current FIFO count in the buffer
  */
-void getFifoCount(Display_Handle display);
+void getFifoCount();
 
 
 /**
  * @brief gets IMU data from the FIFO
  */
-int getDataFromFifo(inv_imu_sensor_event_t *evt, Display_Handle display);
+int getDataFromFifo(inv_imu_sensor_event_t *evt);
 
 
 /*

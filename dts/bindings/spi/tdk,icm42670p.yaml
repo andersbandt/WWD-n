@@ -1,0 +1,8 @@
+
+description: This binding provides a raw SPI interface to the TDK ICM-42670-P IMU.
+
+compatible: "tdk,icm42670p"
+
+include: [spi-device.yaml]
+
+

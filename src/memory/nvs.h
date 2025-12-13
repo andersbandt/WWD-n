@@ -36,7 +36,7 @@ void nvs_close();
  *
  * @desc reads through flash memory until sequence of 0xFF is found
  */
-bool nvs_calc_offset(Display_Handle display);
+bool nvs_calc_offset();
 
 
 /**
@@ -72,7 +72,7 @@ int nvs_read(void * buffer, size_t offset, size_t num_bytes);
 /**
  * @brief erases the whole NVS region
  */
-void nvs_erase_region(Display_Handle display);
+void nvs_erase_region();
 
 
 /**
@@ -82,7 +82,7 @@ void nvs_erase_region(Display_Handle display);
  * @param[in]   report_success    flag for determining if we want to report success
  * @param[in]   display           Display handle
  */
-void nvs_error(int error_status, bool report_success, Display_Handle display);
+void nvs_error(int error_status, bool report_success);
 
 
 

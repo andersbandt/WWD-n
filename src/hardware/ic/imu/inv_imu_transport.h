@@ -39,7 +39,7 @@ extern "C" {
 #include <stdint.h>
 
 
-#include "src/ic/imu/inv_imu_defs.h"
+#include "inv_imu_defs.h"
 
 /* forward declaration */
 struct inv_imu_device;
@@ -120,7 +120,7 @@ int inv_imu_write_reg(struct inv_imu_device *s, uint32_t reg, uint32_t len, cons
 int inv_imu_switch_on_mclk(struct inv_imu_device *s);
 
 
-int inv_imu_switch_on_mclk_display(struct inv_imu_device *s, Display_Handle display);
+int inv_imu_switch_on_mclk_display(struct inv_imu_device *s);
 
 /** @brief Disable MCLK.
  *  @param[in] s  Pointer to device.

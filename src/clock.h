@@ -20,7 +20,6 @@
 
 #include <stdint.h>
 
-#include <ti/display/Display.h>
 
 
 uint8_t increment_second(uint8_t second);
@@ -37,7 +36,7 @@ typedef struct {
 
 // set initial time offset
 // global variables
-Time time_offset;
+extern Time time_offset;
 
 void init_time_offset();
 
@@ -95,7 +94,7 @@ void set_time_offset();
  * @brief prints the current time
  *
  */
-void print_time(Display_Handle display);
+void print_time();
 
 
 #endif

@@ -24,18 +24,19 @@
 #include <stddef.h>
 
 
-/* Driver Header files  */
-
+// Zephyr files
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
 
 /* IMU header files */
-#include <src/ic/imu/inv_imu_defs.h>
-//#include "src/ic/imu/inv_imu_extfunc.h"
-#include <src/ic/imu/inv_imu_driver.h>
-//#include "src/ic/imu/inv_imu_version.h"
-#include <src/ic/imu/inv_time.h>
+#include <inv_imu_defs.h>
+#include <inv_imu_driver.h>
+#include <inv_time.h>
+#include <ICM_42670.h> // plz delete this one just added it for event_print
 
-#include <src/ic/imu/ICM_42670.h> // plz delete this one just added it for event_print
+
+LOG_MODULE_REGISTER(inv_imu_driver, LOG_LEVEL_INF);
 
 
 /* Static functions declaration */
@@ -48,7 +49,7 @@ static int resume_dmp(struct inv_imu_device *s);
 
 
 int inv_imu_init(struct inv_imu_device *s, const struct inv_imu_serif *serif,
-                 void (*sensor_event_cb)(inv_imu_sensor_event_t *event), Display_Handle display)
+                 void (*sensor_event_cb)(inv_imu_sensor_event_t *event))
 {
 	int status = 0;
 
@@ -71,16 +72,16 @@ int inv_imu_init(struct inv_imu_device *s, const struct inv_imu_serif *serif,
 
 	/* Configure serial interface so we can trigger device reset */
 	status = configure_serial_interface(s);
-	LOG_INF(display, 0, 0, "... status1: %d\r\n", status);
+	LOG_INF("... status1: %d\r\n", status);
     
 	/* Reset device */
-	LOG_INF(display, 0, 0, "... issuing device reset");
+	LOG_INF("... issuing device reset");
 	status |= inv_imu_device_reset(s);
-    LOG_INF(display, 0, 0, "... status2: %d\r\n", status);
+    LOG_INF("... status2: %d\r\n", status);
 
 	/* Init transport layer */
 	status |= inv_imu_init_transport(s);
-    LOG_INF(display, 0, 0, "... status3: %d\r\n", status);
+    LOG_INF("... status3: %d\r\n", status);
 
 
     // DEBUG: read from MREG1 space
@@ -96,15 +97,15 @@ int inv_imu_init(struct inv_imu_device *s, const struct inv_imu_serif *serif,
     
 	/* Read and set endianness for further processing */
 	status |= inv_imu_get_endianness(s);
-    LOG_INF(display, 0, 0, "... status4: %d\r\n", status);
+    LOG_INF("... status4: %d\r\n", status);
 
 	/* Initialize hardware */
-	LOG_INF(display, 0, 0, "... initializing hardware");
+	LOG_INF("... initializing hardware");
 	status |= init_hardware_from_ui(s);
-    LOG_INF(display, 0, 0, "... status5: %d\r\n", status);
+    LOG_INF("... status5: %d\r\n", status);
 
 
-	LOG_INF(display, 0, 0, "... finished with sub function IMU config.");
+	LOG_INF("... finished with sub function IMU config.");
 
 	/* Set default value for sensor start/stop time */
 #if ICM_IS_GYRO_SUPPORTED
@@ -829,7 +830,7 @@ int16_t inv_imu_get_temp_register(struct inv_imu_device *s) {
 
 
 
-int inv_imu_get_data_from_registers(struct inv_imu_device *s, Display_Handle display) {
+int inv_imu_get_data_from_registers(struct inv_imu_device *s) {
 	int     status = 0;
 	uint8_t int_status;
     uint8_t temperature[2];
@@ -870,13 +871,13 @@ int inv_imu_get_data_from_registers(struct inv_imu_device *s, Display_Handle dis
 		    s->sensor_event_cb(&event);
 		}
 		else {
-		    LOG_INF(display, 0, 0, "\tFUCK no sensor event callback");
+		    LOG_INF("\tFUCK no sensor event callback");
 		}
 
 	}
 	/*else: Data Ready was not reached*/
 	else {
-	    LOG_INF(display, 0, 0, "\tdata not ready!\n");
+	    LOG_INF("\tdata not ready!\n");
 	}
 
 	return status;
@@ -886,7 +887,7 @@ int inv_imu_get_data_from_registers(struct inv_imu_device *s, Display_Handle dis
 /*
  * inv_imu_get_data_from_fifo: function for getting data from FIFO
  */
-int inv_imu_get_data_from_fifo(struct inv_imu_device *s, Display_Handle display) {
+int inv_imu_get_data_from_fifo(struct inv_imu_device *s) {
 	int      status = 0;
 	uint8_t  int_status;
 	uint16_t total_packet_count = 0;
@@ -919,7 +920,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s, Display_Handle display)
 
 		total_packet_count = (uint16_t)(data[0] | (data[1] << 8));
 		packet_count       = total_packet_count;
-        LOG_INF(display, 0, 0, "\tFIFO packet count is: %d\n", packet_count);
+        LOG_INF("\tFIFO packet count is: %d\n", packet_count);
 		while (packet_count > 0) {
 			uint16_t invalid_frame_cnt = 0;
 			/* Read FIFO only when data is expected in FIFO */
@@ -936,7 +937,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s, Display_Handle display)
 				 * Sensor data is in FIFO according to FIFO_COUNT but failed to read FIFO,
 				 * reset FIFO and try next chance
 				 */
-			    LOG_INF(display, 0, 0, "\tFIFO read failed. Reset FIFO.\n");
+			    LOG_INF("\tFIFO read failed. Reset FIFO.\n");
 				status |= inv_imu_reset_fifo(s);
 				status |= inv_imu_switch_off_mclk(s);
 				return status;
@@ -957,7 +958,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s, Display_Handle display)
                    and we do not wait the oscillator wake-up time so we will receive 1 invalid packet,
                    which we will read again upon next FIFO read operation thanks to while() loop*/
 				if (header->Byte == 0x80) {
-                    LOG_INF(display, 0, 0, "\tInvalid frame detected.");
+                    LOG_INF("\tInvalid frame detected.");
 					uint8_t is_invalid_frame = 1;
 					/* Check N-FIFO_HEADER_SIZE remaining bytes are all 0 to be invalid frame */
 					for (uint8_t j = 0; j < (packet_size - FIFO_HEADER_SIZE); j++) {
@@ -975,7 +976,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s, Display_Handle display)
 						/* MSG BIT set in FIFO header, Resetting FIFO */
 						status |= inv_imu_reset_fifo(s);
 						status |= inv_imu_switch_off_mclk(s);
-                        LOG_INF(display, 0, 0, "\tMSG bit was in FIFO header");
+                        LOG_INF("\tMSG bit was in FIFO header");
 						/* return status < 0 ? status : INV_ERROR; */
 					}
 
@@ -1111,9 +1112,9 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s, Display_Handle display)
 			return status;
 	}
     else {/*else: FIFO threshold was not reached and FIFO was not full (detected in INT_STATUS register)*/
-        LOG_INF(display, 0, 0, "\n\tFIFO threshold not reached or FIFO not full.");
-        LOG_INF(display, 0, 0, "\tregister contents of INT_STATUS was [0x%d]", int_status);
-        LOG_INF(display, 0, 0, "\tReturning total_packet_count (should be 0?)");
+        LOG_INF("\n\tFIFO threshold not reached or FIFO not full.");
+        LOG_INF("\tregister contents of INT_STATUS was [0x%d]", int_status);
+        LOG_INF("\tReturning total_packet_count (should be 0?)");
         return total_packet_count;
     }
     return 0;

@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-#include "src/ic/imu/inv_imu_driver.h"
+#include "inv_imu_driver.h"
 
 /** IMU APEX inputs parameters definition */
 typedef struct {

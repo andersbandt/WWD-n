@@ -13,12 +13,9 @@
 #include <unistd.h>
 
 
-/* Driver Header files  */
-#include <config/ti_drivers_config.h>
-#include <ti/display/Display.h>
 
 /* My header files  */
-#include <src/circular_buffer.h>
+#include <circular_buffer.h>
 
 
 
@@ -43,11 +40,10 @@ float a1 = 0.1;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-void process_lowpass(Circular_Buffer * buffer, Display_Handle display) {
+void process_lowpass(Circular_Buffer * buffer) {
     bool status = 1;
     while (status) {
 //        x_0 = circular_buffer_remove(buffer);
-        LOG_INF(display, 0, 0, "Got this from circular buffer: %d", x_0);
 
         // the "magic"
 //        y_0 = (1 - a1) * y_m1 + a1*(x_0 + x_m1)/2;

@@ -35,6 +35,8 @@ extern "C" {
  */
 
 #include <stdint.h>
+#include "inv_imu_regmap_rev_a.h"
+
 
 /* List whoami values for all device variants*/
 #define T1000_WHOAMI     0x30
@@ -96,8 +98,6 @@ extern "C" {
 #error "Please define which IMU variant is targeted."
 #endif
 
-
-#include "src/ic/imu/inv_imu_regmap_rev_a.h"
 
 
 /* ----------------------------------------------------------------------------

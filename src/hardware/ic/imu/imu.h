@@ -13,8 +13,8 @@
 
 
 /* My header files  */
-#include <src/ic/imu/inv_imu_driver.h>
-#include <src/circular_buffer.h>
+#include <inv_imu_driver.h>
+#include <circular_buffer.h>
 
 
 // FIFO configuration
@@ -23,7 +23,7 @@
 #define IMU_FIFO_WM          50
 
 
-Circular_Buffer *imu_data_buffer;
+extern Circular_Buffer *imu_data_buffer;
 
 extern volatile uint32_t step_count;
 
@@ -33,7 +33,7 @@ extern volatile uint32_t step_count;
  *
  * @return init status indictaor
  */
-int imu_init(Display_Handle display);
+int imu_init();
 
 
 /**
@@ -41,13 +41,13 @@ int imu_init(Display_Handle display);
  *
  * @return initialization status indicator
  */
-int imu_start(Display_Handle display);
+int imu_start();
 
 
 /**
  * @brief function for enabling APEX functionality
  */
-int imu_apex(Display_Handle display);
+int imu_apex();
 
 
 /**
@@ -59,7 +59,7 @@ inv_imu_sensor_event_t imu_deque();
 /**
  * @brief processes from the IMU receive buffer
  */
-void imu_process(Display_Handle dispay);
+void imu_process();
 
 
 /**
@@ -71,26 +71,26 @@ void imu_reg_poll();
 /**
  * @brief function for just getting temperature data from IMU
  */
-int16_t imu_get_temp(Display_Handle display);
+int16_t imu_get_temp();
 
 
 /**
  * @brief function for enabling the FIFO interrupt for the IMU
  */
-void imu_fifo_interrupt(Display_Handle display);
+void imu_fifo_interrupt();
 
 
 /**
  * @brief retrieve
  s the data from the FIFO
  */
-void get_fifo_data(Display_Handle display);
+void get_fifo_data();
 
 
 /**
  * @brief prints out pedometer info from the IMU
  */
-int imu_get_pedo(Display_Handle display);
+int imu_get_pedo();
 
 
 #endif /* SRC_IC_IMU_IMU_H_ */

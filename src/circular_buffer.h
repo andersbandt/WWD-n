@@ -13,11 +13,6 @@
 #include <stdlib.h>
 
 
-
-/* Driver Header files  */
-#include <ti/display/Display.h>
-
-
 typedef struct circular_buffer
 {
     void *buffer;     // data buffer

@@ -16,28 +16,29 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* Standard C99 stuff */
-#include "inv_imu_driver.h"
 #include <stdint.h>
 
-/* Driver Header files  */
-#include <config/ti_drivers_config.h>
-#include <ti/display/Display.h>
+// Zephyr files
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+
 
 /* My header files  */
-#include <src/interrupts.h>
-#include <src/circular_buffer.h>
-#include <src/memory/nvs.h>
-#include <src/clock.h>
+#include <peripheral/interrupt.h>
+#include <circular_buffer.h>
+#include <memory/nvs.h>
+#include <clock.h>
 
-#include <src/ic/imu/imu.h>
-#include <src/ic/imu/ICM_42670.h>
-#include <src/ic/imu/imu_process.h>
-#include <src/ic/imu/inv_imu_driver.h>
+/* IMU header files*/
+#include <imu.h>
+#include <ICM_42670.h>
+#include <imu_process.h>
+#include <inv_imu_driver.h>
 
+
+LOG_MODULE_REGISTER(imu, LOG_LEVEL_INF);
 
 uint8_t irq_received = 0;
-
-extern Circular_Buffer *imu_data_buffer;
 
 
 volatile uint32_t step_count;
@@ -57,14 +58,14 @@ int flash_write_num = 0;
 /*
  * imu_init: does register and data configuration for the IMU
  */
-int imu_init(Display_Handle display) {
+int imu_init() {
     int rc = 0;
-    rc |= init_icm(display);
+    rc |= init_icm();
 
     imu_data_buffer = circular_buffer_init(200, sizeof(inv_imu_sensor_event_t));
-    LOG_INF(display, 0, 0, "\nIMU data buffer setup");
-    LOG_INF(display, 0, 0, "buffer = [%d]", imu_data_buffer->buffer);
-    LOG_INF(display, 0, 0, "buffer_end = [%d]", imu_data_buffer->buffer_end);
+    LOG_INF("\nIMU data buffer setup");
+    LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
+    LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
 
     if (!rc) {
         return 1;
@@ -78,13 +79,13 @@ int imu_init(Display_Handle display) {
 /*
  * imu_start: actually starts the accelerometer and gyroscope
  */
-int imu_start(Display_Handle display) {
+int imu_start() {
     int rc = 0;
 
-    LOG_INF(display, 0, 0, "\nStarting accel...");
+    LOG_INF("\nStarting accel...");
     rc |= startAccel(100, 16);     // ODR=100 Hz, full-scale range=16
 
-    LOG_INF(display, 0, 0, "Starting gyro...");
+    LOG_INF("Starting gyro...");
     rc |= startGyro(100, 2000);    // ODR=100 Hz, full-scale range=2000 dps
 
     if (!rc) {
@@ -99,9 +100,9 @@ int imu_start(Display_Handle display) {
 /*
  * imu_apex: initializes APEX functionality
  */
-int imu_apex(Display_Handle display) {
+int imu_apex() {
     int rc = 0;
-    rc |= startApex(display);
+    rc |= startApex();
     return rc;
 }
 
@@ -121,7 +122,7 @@ inv_imu_sensor_event_t  imu_deque() {
  */
 /* // handle sample cycle spacing integrity check */
 /* } */
-void imu_process(Display_Handle display) {
+void imu_process() {
     inv_imu_sensor_event_t event;
 
     if (!circular_buffer_empty(imu_data_buffer)) {
@@ -131,7 +132,7 @@ void imu_process(Display_Handle display) {
 
         while (!circular_buffer_empty(imu_data_buffer)) {
             circular_buffer_remove(imu_data_buffer, &event);
-            event_print(display, &event);
+            event_print(&event);
         }
     }
 } // end of function
@@ -158,24 +159,24 @@ void write_to_flash() {
 /*
  * imu_fifo_interrupts: Enables the FIFO interrupt on the IMU
  */
-void imu_fifo_interrupt(Display_Handle display) {
-    LOG_INF(display, 0, 0, "\nEnabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
-    int status = enableFifoInterrupt(IMU_FIFO_WM, display);
-    LOG_INF(display, 0, 0, "\nimu_fifo_interrupt error: %d\n", status);
+void imu_fifo_interrupt() {
+    LOG_INF("\nEnabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
+    int status = enableFifoInterrupt(IMU_FIFO_WM);
+    LOG_INF("\nimu_fifo_interrupt error: %d\n", status);
 }
 
 /*
  * imu_reg_poll: polls data and adds it to the circular buffer
  */
-void imu_reg_poll(Display_Handle display) {
+void imu_reg_poll() {
     inv_imu_sensor_event_t imu_event;
 
-    int error = getDataFromIMUReg(&imu_event, display);
+    int error = getDataFromIMUReg(&imu_event);
     if (error) {
-        LOG_INF(display, 0, 0, "\tgetDataFromIMUReg error: %d", error);
+        LOG_INF("\tgetDataFromIMUReg error: %d", error);
     }
 
-   event_print(display, &imu_event);
+   event_print(&imu_event);
 
     /* ADD TO CIRCULAR BUFFER */
 //    bool added = 0;
@@ -189,19 +190,19 @@ void imu_reg_poll(Display_Handle display) {
 /*
  * get_fifo_data: reads data from the FIFO
  */
-void get_fifo_data(Display_Handle display) {
-    LOG_INF(display, 0, 0, "IMU FIFO retrieve");
+void get_fifo_data() {
+    LOG_INF("IMU FIFO retrieve");
 
     inv_imu_sensor_event_t imu_event;
-    int fifo_status = getDataFromFifo(&imu_event, display);
-    LOG_INF(display, 0, 0, "\tgot FIFO read status [%d] (0 is GOOD)", fifo_status);
-    LOG_INF(display, 0, 0, "... done with IMU FIFO retrieve!");
+    int fifo_status = getDataFromFifo(&imu_event);
+    LOG_INF("\tgot FIFO read status [%d] (0 is GOOD)", fifo_status);
+    LOG_INF("... done with IMU FIFO retrieve!");
 }
 
 /*
  * imu_get_temp: function to return temperature from IMU
  */
-int16_t imu_get_temp(Display_Handle display) {
+int16_t imu_get_temp() {
     int16_t imu_temp = getTempDataFromIMUReg();
     /* float temp_celsius = ((float)imu_temp / 128.0f) + 25.0f; */
     /* int16_t imu_c = (imu_temp / 128) + 25; */
@@ -213,7 +214,7 @@ int16_t imu_get_temp(Display_Handle display) {
 /*
  * imu_get_pedo
  */
-int imu_get_pedo(Display_Handle display) {
+int imu_get_pedo() {
     float step_cadence = 0;
     const char* activity = 0;
 

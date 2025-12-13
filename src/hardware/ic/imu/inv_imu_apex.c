@@ -15,9 +15,9 @@
  *
  */
 
-#include "src/ic/imu/inv_imu_apex.h"
+#include "inv_imu_apex.h"
 //#include "src/ic/imu/inv_imu_extfunc.h"
-#include "src/ic/imu/inv_time.h"
+#include "inv_time.h"
 
 int inv_imu_apex_enable_ff(inv_imu_device_t *s)
 {

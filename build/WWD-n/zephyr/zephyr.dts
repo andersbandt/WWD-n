@@ -75,7 +75,7 @@
 			compatible = "nordic,nrf-uicr"; /* in zephyr/dts/arm/nordic/nrf52832.dtsi:52 */
 			reg = < 0x10001000 0x1000 >;    /* in zephyr/dts/arm/nordic/nrf52832.dtsi:53 */
 			status = "okay";                /* in zephyr/dts/arm/nordic/nrf52832.dtsi:54 */
-			gpio-as-nreset;                 /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:93 */
+			gpio-as-nreset;                 /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:92 */
 		};
 
 		/* node '/soc/memory@20000000' defined in zephyr/dts/arm/nordic/nrf52832.dtsi:57 */
@@ -158,15 +158,15 @@
 
 		/* node '/soc/uart@40002000' defined in zephyr/dts/arm/nordic/nrf52832.dtsi:123 */
 		uart0: lscon_96b_uart0: uart@40002000 {
-			compatible = "nordic,nrf-uart"; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:105 */
+			compatible = "nordic,nrf-uart"; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:104 */
 			reg = < 0x40002000 0x1000 >;    /* in zephyr/dts/arm/nordic/nrf52832.dtsi:127 */
 			interrupts = < 0x2 0x1 >;       /* in zephyr/dts/arm/nordic/nrf52832.dtsi:128 */
-			status = "okay";                /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:107 */
-			current-speed = < 0x1c200 >;    /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:106 */
-			pinctrl-0 = < &uart0_default >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:108 */
-			pinctrl-1 = < &uart0_sleep >;   /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:109 */
+			status = "okay";                /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:106 */
+			current-speed = < 0x1c200 >;    /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:105 */
+			pinctrl-0 = < &uart0_default >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:107 */
+			pinctrl-1 = < &uart0_sleep >;   /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:108 */
 			pinctrl-names = "default",
-			                "sleep";        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:110 */
+			                "sleep";        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:109 */
 		};
 
 		/* node '/soc/i2c@40003000' defined in zephyr/dts/arm/nordic/nrf52832.dtsi:132 */
@@ -207,28 +207,38 @@
 
 		/* node '/soc/spi@40004000' defined in zephyr/dts/arm/nordic/nrf52832.dtsi:186 */
 		spi1: lscon_96b_spi0: spi@40004000 {
-			compatible = "nordic,nrf-spi"; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:116 */
+			compatible = "nordic,nrf-spi"; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:115 */
 			#address-cells = < 0x1 >;      /* in zephyr/dts/arm/nordic/nrf52832.dtsi:195 */
 			#size-cells = < 0x0 >;         /* in zephyr/dts/arm/nordic/nrf52832.dtsi:196 */
 			reg = < 0x40004000 0x1000 >;   /* in zephyr/dts/arm/nordic/nrf52832.dtsi:197 */
 			interrupts = < 0x4 0x1 >;      /* in zephyr/dts/arm/nordic/nrf52832.dtsi:198 */
-			max-frequency = < 0xf4240 >;   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:15 */
+			max-frequency = < 0xf4240 >;   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:23 */
 			easydma-maxcnt-bits = < 0x8 >; /* in zephyr/dts/arm/nordic/nrf52832.dtsi:200 */
-			status = "okay";               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:5 */
-			pinctrl-0 = < &spi1_default >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:118 */
-			pinctrl-1 = < &spi1_sleep >;   /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:119 */
+			status = "okay";               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:22 */
+			pinctrl-0 = < &spi1_default >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:117 */
+			pinctrl-1 = < &spi1_sleep >;   /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:118 */
 			pinctrl-names = "default",
-			                "sleep";       /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:120 */
-			cs-gpios = < &gpio0 0x7 0x1 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:121 */
+			                "sleep";       /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:119 */
+			cs-gpios = < &gpio0 0x7 0x1 >,
+			           < &gpio0 0x4 0x1 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:120 */
 
-			/* node '/soc/spi@40004000/mt29f@0' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:6 */
+			/* node '/soc/spi@40004000/mt29f@0' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:5 */
 			mt29f: mt29f@0 {
-				compatible = "micron,mt29f";     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:7 */
-				reg = < 0x0 >;                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:8 */
-				label = "MT29F";                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:9 */
-				spi-max-frequency = < 0xf4240 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:10 */
-				frame-format = < 0x0 >;          /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:11 */
-				status = "okay";                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:12 */
+				compatible = "micron,mt29f";     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:6 */
+				reg = < 0x0 >;                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:7 */
+				label = "MT29F";                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:8 */
+				spi-max-frequency = < 0xf4240 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:9 */
+				frame-format = < 0x0 >;          /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:10 */
+				status = "okay";                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:11 */
+			};
+
+			/* node '/soc/spi@40004000/icm42670@1' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:14 */
+			imu: icm42670@1 {
+				compatible = "tdk,icm42670p";      /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:15 */
+				reg = < 0x1 >;                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:16 */
+				label = "ICM-42670-P";             /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:17 */
+				spi-max-frequency = < 0x16e3600 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:18 */
+				status = "okay";                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:19 */
 			};
 		};
 
@@ -245,7 +255,7 @@
 			compatible = "nordic,nrf-gpiote"; /* in zephyr/dts/arm/nordic/nrf52832.dtsi:212 */
 			reg = < 0x40006000 0x1000 >;      /* in zephyr/dts/arm/nordic/nrf52832.dtsi:213 */
 			interrupts = < 0x6 0x5 >;         /* in zephyr/dts/arm/nordic/nrf52832.dtsi:214 */
-			status = "okay";                  /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:97 */
+			status = "okay";                  /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:96 */
 			instance = < 0x0 >;               /* in zephyr/dts/arm/nordic/nrf52832.dtsi:216 */
 			phandle = < 0x7 >;                /* in zephyr/dts/arm/nordic/nrf52832.dtsi:496 */
 		};
@@ -480,40 +490,40 @@
 				write-block-size = < 0x4 >;    /* in zephyr/dts/arm/nordic/nrf52832.dtsi:420 */
 				reg = < 0x0 0x80000 >;         /* in zephyr/dts/arm/nordic/nrf52832_qfaa.dtsi:11 */
 
-				/* node '/soc/flash-controller@4001e000/flash@0/partitions' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:127 */
+				/* node '/soc/flash-controller@4001e000/flash@0/partitions' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:126 */
 				partitions {
-					compatible = "fixed-partitions"; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:128 */
-					#address-cells = < 0x1 >;        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:129 */
-					#size-cells = < 0x1 >;           /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:130 */
+					compatible = "fixed-partitions"; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:127 */
+					#address-cells = < 0x1 >;        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:128 */
+					#size-cells = < 0x1 >;           /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:129 */
 
-					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@0' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:132 */
+					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@0' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:131 */
 					boot_partition: partition@0 {
-						label = "mcuboot";    /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:133 */
-						reg = < 0x0 0xa000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:134 */
+						label = "mcuboot";    /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:132 */
+						reg = < 0x0 0xa000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:133 */
 					};
 
-					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@a000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:136 */
+					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@a000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:135 */
 					slot0_partition: partition@a000 {
-						label = "image-0";        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:137 */
-						reg = < 0xa000 0x33000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:138 */
+						label = "image-0";        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:136 */
+						reg = < 0xa000 0x33000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:137 */
 					};
 
-					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@3d000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:140 */
+					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@3d000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:139 */
 					slot1_partition: partition@3d000 {
-						label = "image-1";         /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:141 */
-						reg = < 0x3d000 0x33000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:142 */
+						label = "image-1";         /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:140 */
+						reg = < 0x3d000 0x33000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:141 */
 					};
 
-					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@70000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:144 */
+					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@70000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:143 */
 					scratch_partition: partition@70000 {
-						label = "image-scratch";  /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:145 */
-						reg = < 0x70000 0xa000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:146 */
+						label = "image-scratch";  /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:144 */
+						reg = < 0x70000 0xa000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:145 */
 					};
 
-					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@7a000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:155 */
+					/* node '/soc/flash-controller@4001e000/flash@0/partitions/partition@7a000' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:154 */
 					storage_partition: partition@7a000 {
-						label = "storage";        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:156 */
-						reg = < 0x7a000 0x6000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:157 */
+						label = "storage";        /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:155 */
+						reg = < 0x7a000 0x6000 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:156 */
 					};
 				};
 			};
@@ -590,10 +600,10 @@
 			gpio-controller;                /* in zephyr/dts/arm/nordic/nrf52832.dtsi:491 */
 			reg = < 0x50000000 0x1000 >;    /* in zephyr/dts/arm/nordic/nrf52832.dtsi:492 */
 			#gpio-cells = < 0x2 >;          /* in zephyr/dts/arm/nordic/nrf52832.dtsi:493 */
-			status = "okay";                /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:101 */
+			status = "okay";                /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:100 */
 			port = < 0x0 >;                 /* in zephyr/dts/arm/nordic/nrf52832.dtsi:495 */
 			gpiote-instance = < &gpiote >;  /* in zephyr/dts/arm/nordic/nrf52832.dtsi:496 */
-			phandle = < 0x6 >;              /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:121 */
+			phandle = < 0x6 >;              /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:120 */
 		};
 	};
 
@@ -603,18 +613,18 @@
 
 		/* node '/pin-controller/uart0_default' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:7 */
 		uart0_default: uart0_default {
-			phandle = < 0x2 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:108 */
+			phandle = < 0x2 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:107 */
 
 			/* node '/pin-controller/uart0_default/group1' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:8 */
 			group1 {
 				psels = < 0x1000012 >,
-				        < 0x13 >;      /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:164 */
+				        < 0x13 >;      /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:163 */
 			};
 		};
 
 		/* node '/pin-controller/uart0_sleep' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:16 */
 		uart0_sleep: uart0_sleep {
-			phandle = < 0x3 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:109 */
+			phandle = < 0x3 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:108 */
 
 			/* node '/pin-controller/uart0_sleep/group1' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:17 */
 			group1 {
@@ -649,19 +659,19 @@
 
 		/* node '/pin-controller/spi1_default' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:41 */
 		spi1_default: spi1_default {
-			phandle = < 0x4 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:118 */
+			phandle = < 0x4 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:117 */
 
 			/* node '/pin-controller/spi1_default/group1' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:42 */
 			group1 {
 				psels = < 0x4000005 >,
 				        < 0x5000006 >,
-				        < 0x6000008 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:21 */
+				        < 0x6000008 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:30 */
 			};
 		};
 
 		/* node '/pin-controller/spi1_sleep' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:49 */
 		spi1_sleep: spi1_sleep {
-			phandle = < 0x5 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:119 */
+			phandle = < 0x5 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:118 */
 
 			/* node '/pin-controller/spi1_sleep/group1' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:50 */
 			group1 {
@@ -754,7 +764,7 @@
 
 		/* node '/leds/led_1' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:47 */
 		led1: led_1 {
-			gpios = < &gpio0 0x10 0x0 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:28 */
+			gpios = < &gpio0 0x10 0x0 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:38 */
 			label = "LED2";              /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:49 */
 		};
 
@@ -797,10 +807,9 @@
 
 	/* node '/zephyr,user' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:83 */
 	zephyr,user {
-		IMU_INT1-gpios = < &gpio0 0x9 0x0 >;     /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:84 */
-		IMU_INT2-gpios = < &gpio0 0x3 0x0 >;     /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:85 */
-		SPI_CS_IMU-gpios = < &gpio0 0x4 0x0 >;   /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:86 */
-		DISP2_WR-gpios = < &gpio0 0x1e 0x0 >;    /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:87 */
-		DISP2_RESET-gpios = < &gpio0 0x1f 0x0 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:88 */
+		imu_int1_gpios = < &gpio0 0x9 0x0 >;     /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:84 */
+		imu_int2_gpios = < &gpio0 0x3 0x0 >;     /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:85 */
+		DISP2_WR-gpios = < &gpio0 0x1e 0x0 >;    /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:86 */
+		DISP2_RESET-gpios = < &gpio0 0x1f 0x0 >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:87 */
 	};
 };

@@ -21,8 +21,7 @@
 #include <string.h>
 
 /* Driver header files */
-#include <ti/drivers/GPIO.h>
-#include <config/ti_drivers_config.h>
+
 
 /* My header files */
 #include "circular_buffer.h"

@@ -25,14 +25,11 @@
 #include <string.h>
 
 
-/* Driver Header files  */
-#include <ti/display/Display.h>
-
 
 /* IMU header files  */
-#include "src/ic/imu/inv_imu_defs.h"
-#include "src/ic/imu/inv_imu_transport.h"
-#include "src/ic/imu/Invn/InvError.h"
+#include "inv_imu_defs.h"
+#include "inv_imu_transport.h"
+#include "Invn/InvError.h"
 
 
 /** Max FSR values for accel */
@@ -147,7 +144,7 @@ typedef struct {
  *  @return                     0 on success, negative value on error.
  */
 int inv_imu_init(struct inv_imu_device *s, const struct inv_imu_serif *serif,
-                 void (*sensor_event_cb)(inv_imu_sensor_event_t *event), Display_Handle displa);
+                 void (*sensor_event_cb)(inv_imu_sensor_event_t *event));
 
 /** @brief Reset device by reloading OTPs.
  *  @param[in] s  Pointer to device.
@@ -319,7 +316,7 @@ int16_t inv_imu_get_temp_register(struct inv_imu_device *s);
  *  @param[in] s  Pointer to device.
  *  @return       0 on success, negative value on error.
  */
-int inv_imu_get_data_from_registers(struct inv_imu_device *s, Display_Handle display);
+int inv_imu_get_data_from_registers(struct inv_imu_device *s);
 
 /** @brief Read all available packets from the FIFO. 
  *         For each packet function builds a sensor event containing packet data 
@@ -328,7 +325,7 @@ int inv_imu_get_data_from_registers(struct inv_imu_device *s, Display_Handle dis
  *  @param[in] s  Pointer to device.
  *  @return       Number of valid packets read on success, negative value on error.
  */
-int inv_imu_get_data_from_fifo(struct inv_imu_device *s, Display_Handle display);
+int inv_imu_get_data_from_fifo(struct inv_imu_device *s);
 
 /** @brief Converts ACCEL_CONFIG0_ODR_t or GYRO_CONFIG0_ODR_t enums to period expressed in us.
  *  @param[in] odr_bitfield An ACCEL_CONFIG0_ODR_t or GYRO_CONFIG0_ODR_t enum.

@@ -468,3 +468,7 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/cmake/reports/CMakeFiles/ram_report.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/cmake/reports/CMakeFiles/footprint.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/cmake/reports/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/src/memory/CMakeFiles/rebuild_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/src/memory/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/src/hardware/ic/imu/CMakeFiles/rebuild_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/src/hardware/ic/imu/CMakeFiles/edit_cache.dir

@@ -17,13 +17,9 @@
 /* Standard C99 stuff */
 #include <stdint.h>
 
-/* Driver Header files  */
-#include <ti/drivers/dpl/ClockP.h>
-#include <ti/display/Display.h>
-#include "config/ti_drivers_config.h"
 
 /* My header files  */
-#include <src/clock.h>
+#include <clock.h>
 
 uint32_t raw_ms = 0;
 static int ticks_overflow = 0;
@@ -186,12 +182,12 @@ uint32_t get_current_time_uint32() {
 /*
  *
  */
-void print_time(Display_Handle display) {
+void print_time() {
     uint32_t cur_ms = get_ms();
     Time cur_time = get_current_time();
     
-    LOG_INF(display, 0, 0, "\n%d,%u", ticks_overflow, prev_ticks);
-    LOG_INF(display, 0, 0, "%u,%u,[%d:%d:%d]", raw_ms, cur_ms,
+    LOG_INF("\n%d,%u", ticks_overflow, prev_ticks);
+    LOG_INF("%u,%u,[%d:%d:%d]", raw_ms, cur_ms,
                    cur_time.hours,
                    cur_time.minutes,
                    cur_time.seconds);

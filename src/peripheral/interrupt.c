@@ -48,11 +48,17 @@ volatile int BUTTON_2_INT_FLAG;
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static const struct gpio_dt_spec imu_int1 =
-    GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), IMU_INT1_gpios);
+/* The devicetree node identifier for the "led0" alias. */
+// #define IMU_INT1_NODE DT_ALIAS(imu_int1)
+// #define IMU_INT2_NODE DT_ALIAS(imu_int2)
 
-static const struct gpio_dt_spec imu_int2 =
-    GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), IMU_INT2_gpios);
+
+// static const struct gpio_dt_spec imu_int1 = GPIO_DT_SPEC_GET(IMU_INT1_NODE, gpios);
+// static const struct gpio_dt_spec imu_int2 = GPIO_DT_SPEC_GET(IMU_INT2_NODE, gpios);
+
+
+static const struct gpio_dt_spec imu_int1 = GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), imu_int1_gpios);
+static const struct gpio_dt_spec imu_int2 = GPIO_DT_SPEC_GET(DT_PATH(zephyr_user), imu_int2_gpios);
 
 
 
