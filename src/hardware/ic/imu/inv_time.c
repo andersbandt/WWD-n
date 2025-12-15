@@ -22,7 +22,7 @@
 
 
 /* My header files  */
-#include <src/clock.h>
+#include <clock.h>
 
 
 

@@ -24,15 +24,17 @@
 
 /* Standard C99 stuff */
 #include <unistd.h>
+#include <stddef.h>
 
 
-/* Driver Header files  */
-#include <stddef.h> /* NULL */
+/* Zephyr files */
+#include <zephyr/kernel.h>
+
 
 //#include "imu/inv_imu_extfunc.h"
-#include "src/ic/imu/inv_imu_transport.h"
-#include "src/ic/imu/Invn/InvError.h"
-#include <src/ic/imu/inv_time.h>
+#include <inv_imu_transport.h>
+#include <Invn/InvError.h>
+#include <inv_time.h>
 
 
 
@@ -271,7 +273,7 @@ static int read_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t rd_
 
 	// Have IMU not in IDLE mode to access MCLK domain
 	status |= inv_imu_switch_on_mclk(s);
-    usleep(10); // added by Anders
+    k_usleep(10); // added by Anders
 
 	// optimize by changing BLK_SEL only if not NULL
 	if (blk_sel)
@@ -279,9 +281,9 @@ static int read_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t rd_
 
 	data = (regaddr & 0x00FF);
 	status |= write_sreg(s, (uint8_t)MADDR_R, 1, &data);
-	usleep(10);
+	k_usleep(10);
     status |= read_sreg(s, (uint8_t)M_R | 0x80, rd_cnt, buf); // OR operation with 0x80 masks bit 7 to 1 for R operation
-    usleep(10);
+    k_usleep(10);
     
 	if (blk_sel) {
 		data = 0;
@@ -318,7 +320,7 @@ static int write_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t wr
 	status |= write_sreg(s, (uint8_t)MADDR_W, 1, &data);
 	for (uint8_t i = 0; i < wr_cnt; i++) {
 		status |= write_sreg(s, (uint8_t)M_W, 1, &buf[i]);
-		usleep(10);
+		k_usleep(10);
 	}
 
 	if (blk_sel) {

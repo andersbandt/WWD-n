@@ -33,7 +33,8 @@
 #include <inv_imu_defs.h>
 #include <inv_imu_driver.h>
 #include <inv_time.h>
-#include <ICM_42670.h> // plz delete this one just added it for event_print
+#include <inv_imu_transport.h>
+#include <ICM_42670.h> // TODO: plz delete this one just added it for event_print
 
 
 LOG_MODULE_REGISTER(inv_imu_driver, LOG_LEVEL_INF);
@@ -62,7 +63,7 @@ int inv_imu_init(struct inv_imu_device *s, const struct inv_imu_serif *serif,
 	s->transport.serif = *serif;
 
 	/* Supply ramp time max is 3 ms */
-	usleep(3000);
+	k_msleep(3);
 
 	/* Register sensor event callback */
 	s->sensor_event_cb = sensor_event_cb;
@@ -131,7 +132,7 @@ int inv_imu_device_reset(struct inv_imu_device *s)
 	status |= inv_imu_write_reg(s, SIGNAL_PATH_RESET, 1, &data);
 
 	/* Wait 1ms for soft reset to be effective */
-	usleep(1000);
+	k_usleep(1000);
 
 	/* Re-configure serial interface since it was reset */
 	status |= configure_serial_interface(s);
@@ -188,7 +189,7 @@ int inv_imu_enable_accel_low_power_mode(struct inv_imu_device *s)
 	pwr_mgmt0_reg &= ~PWR_MGMT0_ACCEL_MODE_MASK;
 	pwr_mgmt0_reg |= PWR_MGMT0_ACCEL_MODE_LP;
 	status |= inv_imu_write_reg(s, PWR_MGMT0, 1, &pwr_mgmt0_reg);
-	usleep(200);
+	k_usleep(200);
 
 	if ((accel_mode != PWR_MGMT0_ACCEL_MODE_LP)
 #if ICM_IS_GYRO_SUPPORTED
@@ -200,7 +201,7 @@ int inv_imu_enable_accel_low_power_mode(struct inv_imu_device *s)
 		 * if ODR is smaller than 200 us, we already waited for one ODR above. 
 		 */
 		if (accel_odr_us > 200)
-			usleep(accel_odr_us - 200);
+			k_usleep(accel_odr_us - 200);
 		status |= select_wuosc(s);
 	}
 
@@ -253,7 +254,7 @@ int inv_imu_enable_accel_low_noise_mode(struct inv_imu_device *s)
 		/* Select the RC OSC as clock source for the accelerometer */
 		status |= select_rcosc(s);
 		/* Wait one accel ODR before switching to low noise mode */
-		usleep(accel_odr_us);
+		k_usleep(accel_odr_us);
 	}
 
 	/* Enable/Switch the accelerometer in/to low noise mode */
@@ -262,7 +263,7 @@ int inv_imu_enable_accel_low_noise_mode(struct inv_imu_device *s)
 	pwr_mgmt0_reg &= ~PWR_MGMT0_ACCEL_MODE_MASK;
 	pwr_mgmt0_reg |= PWR_MGMT0_ACCEL_MODE_LN;
 	status |= inv_imu_write_reg(s, PWR_MGMT0, 1, &pwr_mgmt0_reg);
-	usleep(200);
+	k_usleep(200);
 
 	if (accel_mode == PWR_MGMT0_ACCEL_MODE_OFF && s->fifo_is_used) {
 		/* 
@@ -325,7 +326,7 @@ int inv_imu_disable_accel(struct inv_imu_device *s)
 		fifo_cfg_6_reg |= ((1 & FIFO_CONFIG6_RCOSC_REQ_ON_FIFO_THS_DIS_MASK)
 		                   << FIFO_CONFIG6_RCOSC_REQ_ON_FIFO_THS_DIS_POS);
 		status |= inv_imu_write_reg(s, FIFO_CONFIG6_MREG1, 1, &fifo_cfg_6_reg);
-		usleep(accel_odr_us);
+		k_usleep(accel_odr_us);
 	}
 
 	pwr_mgmt0_reg &= ~PWR_MGMT0_ACCEL_MODE_MASK;
@@ -440,7 +441,7 @@ int inv_imu_enable_gyro_low_noise_mode(struct inv_imu_device *s)
 		/* Select the RC OSC as clock source for the accelerometer */
 		status |= select_rcosc(s);
 		/* Wait one accel ODR before enabling the gyroscope */
-		usleep(accel_odr_us);
+		k_usleep(accel_odr_us);
 	}
 
 	/* Enable/Switch the gyroscope in/to low noise mode */
@@ -449,7 +450,7 @@ int inv_imu_enable_gyro_low_noise_mode(struct inv_imu_device *s)
 	pwr_mgmt0_reg &= ~PWR_MGMT0_GYRO_MODE_MASK;
 	pwr_mgmt0_reg |= (uint8_t)PWR_MGMT0_GYRO_MODE_LN;
 	status |= inv_imu_write_reg(s, PWR_MGMT0, 1, &pwr_mgmt0_reg);
-	usleep(200);
+	k_usleep(200);
 
 	if (gyro_mode == PWR_MGMT0_GYRO_MODE_OFF && s->fifo_is_used) {
 		/* 
@@ -517,7 +518,7 @@ int inv_imu_disable_gyro(struct inv_imu_device *s)
 		fifo_cfg_6_reg |= ((1 & FIFO_CONFIG6_RCOSC_REQ_ON_FIFO_THS_DIS_MASK)
 		                   << FIFO_CONFIG6_RCOSC_REQ_ON_FIFO_THS_DIS_POS);
 		status |= inv_imu_write_reg(s, FIFO_CONFIG6_MREG1, 1, &fifo_cfg_6_reg);
-		usleep(gyro_odr_us);
+		k_usleep(gyro_odr_us);
 	}
 
 	/* Read a new time because select_rcosc() modified it */
@@ -528,7 +529,7 @@ int inv_imu_disable_gyro(struct inv_imu_device *s)
 
 	if (accel_mode == PWR_MGMT0_ACCEL_MODE_LP) {
 		/* Wait based on accelerometer ODR */
-		usleep(2 * accel_odr_us);
+		k_usleep(2 * accel_odr_us);
 		/* Select the WU OSC as clock source for the accelerometer */
 		status |= select_wuosc(s);
 	}
@@ -1191,7 +1192,7 @@ int inv_imu_reset_fifo(struct inv_imu_device *s)
 	status |= inv_imu_switch_on_mclk(s);
 
 	status |= inv_imu_write_reg(s, SIGNAL_PATH_RESET, 1, &fifo_flush_status);
-	usleep(10);
+	k_usleep(10);
 
 	/* Wait for FIFO flush (idle bit will go high at appropriate time and unlock flush) */
 	while ((status == 0) && ((fifo_flush_status & SIGNAL_PATH_RESET_FIFO_FLUSH_MASK) ==
@@ -1437,11 +1438,11 @@ int inv_imu_reset_dmp(struct inv_imu_device *s, const APEX_CONFIG0_DMP_MEM_RESET
 	value |= (sram_reset & APEX_CONFIG0_DMP_MEM_RESET_EN_MASK);
 	status |= inv_imu_write_reg(s, APEX_CONFIG0, 1, &value);
 
-	usleep(1000);
+	k_usleep(1000);
 
 	// Make sure reset procedure has finished by reading back mem_reset_en bit
 	do {
-		usleep(10);
+		k_usleep(10);
 		status |= inv_imu_read_reg(s, APEX_CONFIG0, 1, &data_dmp_reset);
 	} while (
 	    ((data_dmp_reset & APEX_CONFIG0_DMP_MEM_RESET_EN_MASK) != APEX_CONFIG0_DMP_MEM_RESET_DIS) &&
@@ -1663,7 +1664,7 @@ static int resume_dmp(struct inv_imu_device *s)
 	start = inv_imu_get_time_us();
 	do {
 		inv_imu_read_reg(s, APEX_CONFIG0, 1, &value);
-		usleep(100);
+		k_usleep(100);
 
 		if ((value & APEX_CONFIG0_DMP_INIT_EN_MASK) == 0)
 			break;

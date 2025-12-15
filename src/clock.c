@@ -102,7 +102,9 @@ uint32_t get_slope() {
  *
  */
 uint32_t get_raw_ms() {
-    uint32_t ticks = ClockP_getSystemTicks();
+    //uint32_t ticks = ClockP_getSystemTicks();
+    uint32_t ticks = 0;
+    // TODO: need another way to get system ticks
 
     // handle overflow condition
     if (ticks < prev_ticks) {

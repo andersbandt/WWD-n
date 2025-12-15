@@ -85,10 +85,6 @@ int circular_buffer_get_tail(Circular_Buffer *cb) {
 }
 
 
-
-
-
-
 //*****************************************************************************
 // Returns true if the circular buffer is empty.  Returns false if it is not.
 //
@@ -102,7 +98,6 @@ bool circular_buffer_empty(Circular_Buffer *buffer)
     }
     return 0;
 }
-
 
 
 //*****************************************************************************

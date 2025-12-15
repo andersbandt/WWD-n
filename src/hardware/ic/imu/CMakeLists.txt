@@ -6,6 +6,8 @@ target_sources(app PRIVATE
     inv_imu_driver.c
     inv_imu_apex.c
     imu_process.c
+    inv_imu_transport.c
+    inv_time.c
 )
 
 

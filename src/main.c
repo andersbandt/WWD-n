@@ -20,6 +20,7 @@
 
 // my driver files
 #include <hardware/led.h>
+#include <imu.h>
 #include <memory/mt29f_nand.h>
 
 
@@ -80,6 +81,9 @@ int main(void)
     led_init();
 	led_fast_blink(10);
     LOG_INF("Starting WWD program!");
+
+    // init hardware
+    int err = imu_init();
 
 	flash_init();
     uint8_t data = 8;

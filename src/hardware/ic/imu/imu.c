@@ -41,11 +41,15 @@ LOG_MODULE_REGISTER(imu, LOG_LEVEL_INF);
 uint8_t irq_received = 0;
 
 
+Circular_Buffer * imu_data_buffer = NULL;
+
 volatile uint32_t step_count;
 
 
 #define FLASH_INTEGRITY_WRITE_CYCLE              10
 int flash_write_num = 0;
+
+
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -62,7 +66,7 @@ int imu_init() {
     int rc = 0;
     rc |= init_icm();
 
-    imu_data_buffer = circular_buffer_init(200, sizeof(inv_imu_sensor_event_t));
+    
     LOG_INF("\nIMU data buffer setup");
     LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
     LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
