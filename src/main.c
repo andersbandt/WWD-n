@@ -9,18 +9,19 @@
 //*****************************************************************************
 
 
-// standard C file
+/* standard C file */
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 
-// Zephyr files
+/* Zephyr files */
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
-// my driver files
+/* My driver files */
 #include <hardware/led.h>
-#include <imu.h>
+//#include <imu.h>
+#include <icm42670.h>
 #include <memory/mt29f_nand.h>
 
 
@@ -82,18 +83,33 @@ int main(void)
 	led_fast_blink(10);
     LOG_INF("Starting WWD program!");
 
-    // init hardware
-    int err = imu_init();
 
-	flash_init();
-    uint8_t data = 8;
+    struct icm42670_data sensor_data;
+    int ret;
+
+    printk("Starting ICM42670 application\n");
+
+    /* Initialize the sensor */
+    ret = icm42670_init();
+    if (ret != 0) {
+        printk("Failed to initialize ICM42670\n");
+        return;
+    }
+
+
+    // init hardware
+    //int err = imu_init();
+    //LOG_INF("IMU init error = [%d]", err);
+
+	//flash_init();
+    //uint8_t data = 8;
 	//log_append(&data, 1);
 
     // main loop
     while (1) {
-        flash_init();
-        led_fast_blink(30);
         LOG_INF("heartbeat ...");
+        led_fast_blink(30);
+
         k_msleep(3000);
     }
 	return 0;

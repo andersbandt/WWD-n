@@ -1,12 +1,12 @@
 {
-  "toolchainPath": "/home/anders/ncs/toolchains/c5be9c56c7",
+  "toolchainPath": "/home/anders/ncs/toolchains/b2ecd2435d",
   "sdkPath": "/home/anders/ncs/v3.1.1",
   "board": "96b_nitrogen/nrf52832",
   "boardDir": "/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen",
   "boardDirs": [
     "/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen"
   ],
-  "optimizations": "none",
+  "optimizations": "debug",
   "cmakeArgs": [],
   "confFiles": [],
   "buildDirectory": "build",

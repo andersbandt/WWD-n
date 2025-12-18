@@ -59,10 +59,11 @@ bool apex_tilt_enable;
 bool apex_pedometer_enable;
 
 
-#define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(tdk_icm42670p)
-#define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+// #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(tdk_icm42670p)
+// #define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_WORD_SET(8) | SPI_LINES_SINGLE
 
-static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
+// static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
+static struct spi_dt_spec spi_dev = NULL;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -76,7 +77,7 @@ int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, 
     tx_data[0] = reg;
     memcpy(&tx_data[1], buf, len);
 
-        // Single spi_buf pointing to entire tx_data
+    // Single spi_buf pointing to entire tx_data
     struct spi_buf tx_buf = {
         .buf = tx_data,
         .len = len + 1,
@@ -113,7 +114,7 @@ int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_
     };
 
     return spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
-    }
+}
 
 
 void event_print(inv_imu_sensor_event_t *evt) {

@@ -18,8 +18,17 @@
 #include <stdint.h>
 
 
-/* My header files  */
+/* Zephyr files */
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+
+
+/* my driver files */
 #include <clock.h>
+
+
+LOG_MODULE_REGISTER(clock, LOG_LEVEL_INF);
+
 
 uint32_t raw_ms = 0;
 static int ticks_overflow = 0;

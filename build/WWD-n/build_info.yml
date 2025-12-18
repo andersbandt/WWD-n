@@ -43,12 +43,13 @@ cmake:
     files:
      - '/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen/96b_nitrogen_defconfig'
      - '/home/anders/Documents/NCS/WWD-n/prj.conf'
+     - '/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/misc/generated/extra_kconfig_options.conf'
      - '/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/.config.sysbuild'
     user-files:
      - '/home/anders/Documents/NCS/WWD-n/prj.conf'
   toolchain:
     name: 'zephyr'
-    path: '/home/anders/ncs/toolchains/c5be9c56c7/opt/zephyr-sdk'
+    path: '/home/anders/ncs/toolchains/b2ecd2435d/opt/zephyr-sdk'
   vendor-specific:
     nordic:
       svdfile: '/home/anders/ncs/v3.1.1/modules/hal/nordic/nrfx/mdk/nrf52.svd'

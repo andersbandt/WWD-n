@@ -17,6 +17,6 @@ cmake:
      - '/home/anders/Documents/NCS/WWD-n/build/_sysbuild/empty.conf'
 version: '0.1.0'
 west:
-  command: '/home/anders/ncs/toolchains/c5be9c56c7/usr/local/bin/west build --build-dir /home/anders/Documents/NCS/WWD-n/build /home/anders/Documents/NCS/WWD-n --pristine --board 96b_nitrogen/nrf52832 --sysbuild --'
+  command: '/home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin/west build --build-dir /home/anders/Documents/NCS/WWD-n/build /home/anders/Documents/NCS/WWD-n --pristine --board 96b_nitrogen/nrf52832 -- -DCONFIG_DEBUG_OPTIMIZATIONS=y -DCONFIG_DEBUG_THREAD_INFO=y'
   topdir: '/home/anders/ncs/v3.1.1'
   version: '1.4.0'

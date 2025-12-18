@@ -9,7 +9,7 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/Kconfig/soc/Kconfig
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/Kconfig/soc/Kconfig.defconfig
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/Kconfig/soc/Kconfig.soc
-/home/anders/ncs/toolchains/c5be9c56c7/opt/zephyr-sdk/cmake/zephyr/Kconfig
+/home/anders/ncs/toolchains/b2ecd2435d/opt/zephyr-sdk/cmake/zephyr/Kconfig
 /home/anders/ncs/v3.1.1/modules/crypto/oberon-psa-crypto/Kconfig.oberon_psa_crypto
 /home/anders/ncs/v3.1.1/modules/debug/percepio/DFM/kernelports/Zephyr/Kconfig
 /home/anders/ncs/v3.1.1/modules/debug/percepio/DFM/kernelports/Zephyr/storageports/Filesystem/Kconfig

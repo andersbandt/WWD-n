@@ -212,9 +212,9 @@
 			#size-cells = < 0x0 >;         /* in zephyr/dts/arm/nordic/nrf52832.dtsi:196 */
 			reg = < 0x40004000 0x1000 >;   /* in zephyr/dts/arm/nordic/nrf52832.dtsi:197 */
 			interrupts = < 0x4 0x1 >;      /* in zephyr/dts/arm/nordic/nrf52832.dtsi:198 */
-			max-frequency = < 0xf4240 >;   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:23 */
+			max-frequency = < 0x7a1200 >;  /* in zephyr/dts/arm/nordic/nrf52832.dtsi:199 */
 			easydma-maxcnt-bits = < 0x8 >; /* in zephyr/dts/arm/nordic/nrf52832.dtsi:200 */
-			status = "okay";               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:22 */
+			status = "okay";               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:36 */
 			pinctrl-0 = < &spi1_default >; /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:117 */
 			pinctrl-1 = < &spi1_sleep >;   /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:118 */
 			pinctrl-names = "default",
@@ -232,13 +232,18 @@
 				status = "okay";                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:11 */
 			};
 
-			/* node '/soc/spi@40004000/icm42670@1' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:14 */
-			imu: icm42670@1 {
-				compatible = "tdk,icm42670p";      /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:15 */
-				reg = < 0x1 >;                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:16 */
-				label = "ICM-42670-P";             /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:17 */
-				spi-max-frequency = < 0x16e3600 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:18 */
-				status = "okay";                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:19 */
+			/* node '/soc/spi@40004000/icm42670p@1' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:14 */
+			icm42670p: icm42670p@1 {
+				compatible = "invensense,icm42670p"; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:15 */
+				reg = < 0x1 >;                       /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:16 */
+				spi-max-frequency = < 0xf4240 >;     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:17 */
+				int-gpios = < &gpio0 0x9 0x1 >,
+				            < &gpio0 0x3 0x1 >;      /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:18 */
+				status = "okay";                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:19 */
+				accel-hz = < 0x64 >;                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:22 */
+				gyro-hz = < 0x64 >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:23 */
+				accel-fs = < 0x2 >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:24 */
+				gyro-fs = < 0xfa >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:25 */
 			};
 		};
 
@@ -617,8 +622,8 @@
 
 			/* node '/pin-controller/uart0_default/group1' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen-pinctrl.dtsi:8 */
 			group1 {
-				psels = < 0x1000012 >,
-				        < 0x13 >;      /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:163 */
+				psels = < 0x1000013 >,
+				        < 0x12 >;      /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:163 */
 			};
 		};
 
@@ -665,7 +670,7 @@
 			group1 {
 				psels = < 0x4000005 >,
 				        < 0x5000006 >,
-				        < 0x6000008 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:30 */
+				        < 0x6000008 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:44 */
 			};
 		};
 
@@ -764,7 +769,7 @@
 
 		/* node '/leds/led_1' defined in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:47 */
 		led1: led_1 {
-			gpios = < &gpio0 0x10 0x0 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:38 */
+			gpios = < &gpio0 0x10 0x0 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:52 */
 			label = "LED2";              /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:49 */
 		};
 
