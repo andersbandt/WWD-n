@@ -20,7 +20,8 @@
 
 /* My driver files */
 #include <hardware/led.h>
-//#include <imu.h>
+#include <peripheral/interrupt.h>
+// #include <imu.h>
 #include <icm42670.h>
 #include <memory/mt29f_nand.h>
 
@@ -80,26 +81,33 @@ int main(void)
 {
     // run initialization functions
     led_init();
-	led_fast_blink(10);
+	// led_fast_blink(10);
+    led_blink(1);
+    led_blink(2);
+    led_blink(3);
+
+    // initialize interrupts
+    config_all_interrupts();
     LOG_INF("Starting WWD program!");
 
-
     struct icm42670_data sensor_data;
-    int ret;
 
     printk("Starting ICM42670 application\n");
 
     /* Initialize the sensor */
-    ret = icm42670_init();
-    if (ret != 0) {
+    int ret = 0;
+    ret |= icm42670_init();
+    // ret |= imu_init();
+
+
+    if (ret == 0) {
+        printk("Initialized IMU\n");
+    }
+    else {
         printk("Failed to initialize ICM42670\n");
-        return;
+        // return;
     }
 
-
-    // init hardware
-    //int err = imu_init();
-    //LOG_INF("IMU init error = [%d]", err);
 
 	//flash_init();
     //uint8_t data = 8;
@@ -108,9 +116,18 @@ int main(void)
     // main loop
     while (1) {
         LOG_INF("heartbeat ...");
-        led_fast_blink(30);
+        // led_fast_blink(30);
+        // k_msleep(3000);
 
-        k_msleep(3000);
+
+        if (BUTTON_1_INT_FLAG) {
+            led_blink(2);
+            BUTTON_1_INT_FLAG = 0;
+        }
+        if (BUTTON_2_INT_FLAG) {
+            led_blink(3);
+            BUTTON_2_INT_FLAG = 0;
+        }
     }
 	return 0;
 }

@@ -51,7 +51,4 @@ void config_all_interrupts(void);
 
 
 
-
-
-
 #endif /* SRC_PERIPHERALS_INTERRUPTS_H_ */

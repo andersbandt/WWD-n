@@ -772,10 +772,6 @@ lscon_96b_uart0: &uart0 {};
   led0 = &led0;
   led1 = &led1;
   led2 = &led2;
-  sw0 = &button0;
-  sw1 = &button1;
-  sw2 = &button2;
-  sw3 = &button3;
   watchdog0 = &wdt0;
  };
 
@@ -784,42 +780,33 @@ lscon_96b_uart0: &uart0 {};
 
   led0: led_0 {
    gpios = <&gpio0 15 (1 << 4)>;
-   label = "LED1";
   };
 
   led1: led_1 {
    gpios = <&gpio0 16 0>;
-   label = "LED2";
   };
 
   led2: led2 {
    gpios = <&gpio0 17 0>;
-   label = "LED3";
   };
  };
 
  buttons {
   compatible = "gpio-keys";
-  button0: button_0 {
-
-   gpios = <&gpio0 11 (1 << 0)>;
-   label = "BUTTON1";
-   zephyr,code = <11>;
-  };
-
   button1: button_1 {
-   gpios = <&gpio0 12 0>;
-   label = "BUTTON2";
+   gpios = <&gpio0 11 ((1 << 0) | (1 << 4))>;
   };
 
   button2: button_2 {
-   gpios = <&gpio0 13 0>;
-   label = "BUTTON3";
+   gpios = <&gpio0 12 (1 << 4)>;
   };
 
   button3: button_3 {
-   gpios = <&gpio0 14 0>;
-   label = "BUTTON4";
+   gpios = <&gpio0 13 (1 << 4)>;
+  };
+
+  button4: button_4 {
+   gpios = <&gpio0 14 (1 << 4)>;
   };
  };
 

@@ -64,18 +64,12 @@ int flash_write_num = 0;
 int imu_init() {
     int rc = 0;
     rc |= init_icm();
-
     
-    LOG_INF("\nIMU data buffer setup");
-    LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
-    LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
+    // LOG_INF("\nIMU data buffer setup");
+    // LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
+    // LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
 
-    if (!rc) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
+    return rc;
 }
  
 

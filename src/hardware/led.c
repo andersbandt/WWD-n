@@ -49,8 +49,8 @@ int led_init()
 	}
 
 	int ret = gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
-    //ret |= gpio_pin_configure_dt(&led1, GPIO_OUTPUT_ACTIVE);
-    //ret |= gpio_pin_configure_dt(&led2, GPIO_OUTPUT_ACTIVE);
+    ret |= gpio_pin_configure_dt(&led1, GPIO_OUTPUT_ACTIVE);
+    ret |= gpio_pin_configure_dt(&led2, GPIO_OUTPUT_ACTIVE);
 
 	if (ret < 0) {
 		return 0;
@@ -62,17 +62,30 @@ int led_init()
 
 
 
+const struct gpio_dt_spec *pick_led(int num)
+{
+    switch (num) {
+    case 1: return &led0;
+    case 2: return &led1;
+    case 3: return &led2;
+    default: return NULL;
+    }
+}
+
+
 /*
  * blinks the led rapidly and also leaves it in an OFF state
  */
-void led_blink()
+void led_blink(int led)
 {
-    for(int i=0; i<12; i++) {
+    const struct gpio_dt_spec * led_dt = pick_led(led);
+
+    for (int i=0; i<12; i++) {
         // toggle LED
-        gpio_pin_toggle_dt(&led0);
+        gpio_pin_toggle_dt(led_dt);
         k_usleep(100000);
     }
-    gpio_pin_set_dt(&led0, 0);
+    gpio_pin_set_dt(led_dt, 0);
 }
 
 
@@ -88,7 +101,6 @@ void led_fast_blink(int mult)
     }
     gpio_pin_set_dt(&led0, 0);
 }
-
 
 
 
