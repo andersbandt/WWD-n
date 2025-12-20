@@ -16,6 +16,7 @@ target_sources(app PRIVATE
     src/clock.c
     src/peripheral/interrupt.c
     src/hardware/led.c
+    src/display/st7789.c
 )
 
 add_subdirectory(src/memory)

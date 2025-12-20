@@ -81,14 +81,34 @@ int main(void)
 {
     // run initialization functions
     led_init();
-	// led_fast_blink(10);
-    led_blink(1);
-    led_blink(2);
-    led_blink(3);
+	led_fast_blink(10);
 
     // initialize interrupts
     config_all_interrupts();
     LOG_INF("Starting WWD program!");
+
+
+
+
+    // LCD INIT
+    // ----------------------------------------------------------
+    ST7789_Init (&lcd, ST77XX_ROTATE_270 | ST77XX_RGB);
+
+    // DRAWING
+    // ----------------------------------------------------------
+    ST7789_ClearScreen (&lcd, WHITE);
+    for (i=0; i<Screen.height; i=i+5) {
+        ST7789_DrawLine (&lcd, 0, Screen.width, 0, i, RED);
+    }
+    for (i=0; i<Screen.height; i=i+5) {
+        ST7789_DrawLine (&lcd, 0, Screen.width, i, 0, BLUE);
+    }
+    for (i=0; i<30; i++) {
+        ST7789_FastLineHorizontal (&lcd, 0, Screen.width, i, BLACK);
+    }
+    ST7789_SetPosition (75, 5);
+    ST7789_DrawString (&lcd, "ST7789V2 DRIVER", WHITE, X3);
+
 
     struct icm42670_data sensor_data;
 
