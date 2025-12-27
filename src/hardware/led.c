@@ -48,9 +48,9 @@ int led_init()
 		return 0;
 	}
 
-	int ret = gpio_pin_configure_dt(&led0, GPIO_OUTPUT_ACTIVE);
-    ret |= gpio_pin_configure_dt(&led1, GPIO_OUTPUT_ACTIVE);
-    ret |= gpio_pin_configure_dt(&led2, GPIO_OUTPUT_ACTIVE);
+	int ret = gpio_pin_configure_dt(&led0, GPIO_OUTPUT_INACTIVE);
+    ret |= gpio_pin_configure_dt(&led1, GPIO_OUTPUT_INACTIVE);
+    ret |= gpio_pin_configure_dt(&led2, GPIO_OUTPUT_INACTIVE);
 
 	if (ret < 0) {
 		return 0;
@@ -71,6 +71,15 @@ const struct gpio_dt_spec *pick_led(int num)
     default: return NULL;
     }
 }
+
+
+
+void led_set(int led, int state) {
+    const struct gpio_dt_spec * led_dt = pick_led(led);
+
+    gpio_pin_set_dt(led_dt, state);
+}
+
 
 
 /*

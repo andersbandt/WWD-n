@@ -60,9 +60,9 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/crc/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/CMakeFiles/edit_cache.dir
-/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/picolibc/CMakeFiles/rebuild_cache.dir
-/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/picolibc/CMakeFiles/edit_cache.dir
-/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/picolibc/CMakeFiles/lib__libc__picolibc.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/newlib/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/newlib/CMakeFiles/rebuild_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/newlib/CMakeFiles/lib__libc__newlib.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/common/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/common/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/lib/libc/common/CMakeFiles/lib__libc__common.dir

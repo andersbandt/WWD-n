@@ -81,7 +81,7 @@
 #define DIE_1 0x40
 
 #define MANUFACTURER_ID  0x2C
-#define DEVICE_ID        0x46
+#define DEVICE_ID        0x24
 
 #define BLOCK_OFFSET  0x40000
 #define PAGE_OFFSET   0x1000

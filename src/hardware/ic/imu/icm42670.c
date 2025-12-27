@@ -35,12 +35,12 @@ int icm42670_init(void)
 
     if (icm42670_dev == NULL) {
         printk("Error: Device not found in devicetree\n");
-        return -ENODEV;
+        return ENODEV;
     }
 
     if (!device_is_ready(icm42670_dev)) {
         printk("Error: Device not ready\n");
-        return -ENODEV;
+        return EBUSY;
     }
 
     printk("ICM42670 initialized successfully\n");

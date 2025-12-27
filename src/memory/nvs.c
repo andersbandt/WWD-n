@@ -8,91 +8,88 @@
 //!
 //*****************************************************************************
 
-
 /* Standard C99 stuff */
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
 
-
+/* Zephyr files */
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
 /* My header files  */
 #include <nvs.h>
+#include <mt29f_nand.h>
+
+
+LOG_MODULE_REGISTER(nvs, LOG_LEVEL_INF);
+
 
 #define OFFSET_STARTUP_READ   (0)
+// int addr_offset = 0;
+// bool offset_status = 0;
 
 
-// NVS_Handle nvsHandle;
-// NVS_Attrs regionAttrs;
-// NVS_Params nvsParams;
+static const mt29f_cfg_t cfg = {
+    .num_dies = 2,
+    .blocks_per_die = 1024,
+    .pages_per_block = 64,
+    .bytes_per_page = 2176,
+    .oob_bytes = 128
+};
 
-
-int addr_offset = 0;
-bool offset_status = 0;
+static off_t write_addr = 0;
+static off_t read_addr = 0;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
-//! FUNCTIONS -------------------------------------------------------------------------------------------------------------//
+//! GLOBAL FUNCTIONS -------------------------------------------------------------------------------------------------------------//
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
-int nvs_init() {
-    // NVS_init();
-    // NVS_Params_init(&nvsParams);
-    // nvsHandle = NVS_open(CONFIG_NVS_0, &nvsParams);
-
-    // if (nvsHandle == NULL) {
-    //     LOG_INFO("NVS_open() failed.");
-    //     return -1;
-    // }
-
-    // // populate a NVS_Attrs structure with properties specific to a NVS_Handle
-    // //  like region base address, region size, sector size
-    // NVS_getAttrs(nvsHandle, &regionAttrs);
-    // /* Display the NVS region attributes */
-    // LOG_INFO("Region Base Address: 0x%x", regionAttrs.regionBase);
-    // LOG_INFO("Region Size: 0x%x", regionAttrs.regionSize);
-    // LOG_INFO("Sector Size: 0x%x", regionAttrs.sectorSize);
-    // LOG_INFO("NUM sectors: %d\n", regionAttrs.regionSize/regionAttrs.sectorSize);
-
-    // // try to get "fresh" address offset
-    // offset_status = nvs_calc_offset(display);
-    // LOG_INFO("Offset address search status: %d", offset_status);
-    // LOG_INFO("\taddress set at: [%d]", addr_offset);
-
-	// // add data start signifier
-	// if (addr_offset == 0) {
-	//   LOG_INFO("Fresh address space detected. Writing 3 bytes for start.");
-	//   uint8_t flash_start_sig[3];
-	//   flash_start_sig[0] = 0xAB;
-	//   flash_start_sig[1] = 0xCD;
-	//   flash_start_sig[2] = 0xEF;
-	//   nvs_write_auto_offset(flash_start_sig, 3);
-	// }
-	
-    // // perform read to end of non-writable space
-    // if (OFFSET_STARTUP_READ) {
-    //     LOG_INFO("\n\tPerforming reads until offset plus 10\%");
-    //     uint8_t reg_read[1];
-    //     for(int i = 0; i < (int)addr_offset*1.1; i++) {
-    //         nvs_read(reg_read, i, 1); // read 1 byte at a time
-    //         LOG_INFO("\taddr offset[%d]: [0x%x]", i, reg_read[0]);
-    //     }
-    // }
-
-    // return
-    return 1;
+void nvs_init(void)
+{
+    mt29f_init(&cfg);
 }
 
 
 /*
- * nvs_close: closes an NVS instance
+ * nvs_write: performs a write on an NVS memory instance
  */
-void nvs_close() {
-    // NVS_close(nvsHandle);
+int nvs_write(void * data, size_t len) {
+    mt29f_write(write_addr, data, len);
+    write_addr += len;
 }
+
+
+/*
+ * nvs_write_auto_offsets: performs a write operation with auto-increment of the "fresh space" offset
+ */
+int nvs_write_auto_offset(void * data, size_t num_bytes) {
+//     if (addr_offset > regionAttrs.regionSize) {
+//         return -1;
+//     }
+
+//   int status = NVS_write(nvsHandle, // handle
+//                          addr_offset, // offset - AUTOMATIC based on set `addr_offset` variable
+//                          data, // buffer
+//                          num_bytes, // number of bytes
+//                          NVS_WRITE_POST_VERIFY); // write flags
+
+//     addr_offset += num_bytes; // increment the offset up by 1
+//     return status;
+}
+
+
+/*
+ * nvs_read: performs a read on an NVS memory instance
+ */
+int nvs_read(void * buffer, size_t len, off_t addr) {
+    mt29f_read(addr, buffer, len);
+    return len;
+}
+
 
 
 /*
@@ -132,55 +129,7 @@ size_t nvs_get_region_size() {
 }
 
 
-/*
- * nvs_write: performs a write on an NVS memory instance
- */
-int nvs_write(void * data, size_t offset, size_t num_bytes) {
-    // write "Hello" to the base address of region 0, verify after write
-//    status = NVS_write(nvsRegion, 0, "Hello", strlen("Hello")+1, NVS_WRITE_POST_VERIFY);
 
-//     int status = NVS_write(nvsHandle, // handle
-//                        offset, // offset
-//                        data, // buffer
-//                        num_bytes, // number of bytes
-// //                       NVS_WRITE_ERASE);
-// //                       NVS_WRITE_POST_VERIFY); // write flags
-//                        NVS_WRITE_PRE_VERIFY);
-//     return status;
-}
-
-
-/*
- * nvs_write_auto_offsets: performs a write operation with auto-increment of the "fresh space" offset
- */
-int nvs_write_auto_offset(void * data, size_t num_bytes) {
-//     if (addr_offset > regionAttrs.regionSize) {
-//         return -1;
-//     }
-
-//   int status = NVS_write(nvsHandle, // handle
-//                          addr_offset, // offset - AUTOMATIC based on set `addr_offset` variable
-//                          data, // buffer
-//                          num_bytes, // number of bytes
-//                          NVS_WRITE_POST_VERIFY); // write flags
-
-//     addr_offset += num_bytes; // increment the offset up by 1
-//     return status;
-}
-
-
-/*
- * nvs_read: performs a read on an NVS memory instance
- */
-int nvs_read(void * buffer, size_t offset, size_t num_bytes) {
-    /*
-     * Copy "sizeof(signature)" bytes from the NVS region base address into
-     * buffer. An offset of 0 specifies the offset from region base address.
-     * Therefore, the bytes are copied from regionAttrs.regionBase.
-     */
-    // NVS_read(nvsHandle, offset, (void *)buffer, num_bytes);
-    return 1;
-}
 
 
 /*
@@ -200,6 +149,15 @@ void nvs_erase_region() {
     // // regenerate the address offset
     // nvs_calc_offset(display);
     // LOG_INFO("\tnew write offset set at: [%d]", addr_offset);
+}
+
+
+
+/*
+ * nvs_close: closes an NVS instance
+ */
+void nvs_close() {
+    // NVS_close(nvsHandle);
 }
 
 

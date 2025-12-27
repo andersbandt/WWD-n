@@ -40,6 +40,7 @@ typedef uint16_t mt29f_col_addr_t;
 
 static mt29f_cfg_t inst = {0};
 
+
 static int spi_nand_get_feature(const uint8_t addr, uint8_t *val)
 {
   uint8_t tx_data[] = {COMMAND_GET_FEATURE, addr};

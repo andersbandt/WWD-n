@@ -843,7 +843,7 @@ lscon_96b_uart0: &uart0 {};
 
 &spi1 {
  compatible = "nordic,nrf-spi";
-
+ status = "okay";
  pinctrl-0 = <&spi1_default>;
  pinctrl-1 = <&spi1_sleep>;
  pinctrl-names = "default", "sleep";
@@ -921,7 +921,15 @@ lscon_96b_uart0: &uart0 {};
   accel-fs = <2>;
   gyro-fs = <250>;
  };
-# 36 "/home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay"
+
+    imu:icm42670@2 {
+        compatible = "tdk,icm42670p";
+        reg = <1>;
+        label = "ICM-42670-P";
+        spi-max-frequency = <500000>;
+        status = "okay";
+    };
+
     status = "okay";
 
 };

@@ -21,7 +21,7 @@
 /**
  * @brief initializes the NVS handle
  */
-int nvs_init();
+void nvs_init();
 
 
 
@@ -54,7 +54,7 @@ size_t nvs_get_region_size();
 /**
  * @brief performs an NVS write
  */
-int nvs_write(void * data, size_t offset, size_t num_bytes);
+int nvs_write(void * data, size_t len);
 
 
 /**
@@ -66,7 +66,7 @@ int nvs_write_auto_offset(void * data, size_t num_bytes);
 /**
  * @brief reads the NVS
  */
-int nvs_read(void * buffer, size_t offset, size_t num_bytes);
+int nvs_read(void * buffer, size_t len, off_t addr);
 
 
 /**

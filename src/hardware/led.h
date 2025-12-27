@@ -17,6 +17,8 @@
 int led_init();
 
 
+void led_set(int led, int state);
+
 void led_blink(int led);
 
 

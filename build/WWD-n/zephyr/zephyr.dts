@@ -241,6 +241,15 @@
 				accel-fs = < 0x2 >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:24 */
 				gyro-fs = < 0xfa >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:25 */
 			};
+
+			/* node '/soc/spi@40004000/icm42670@2' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:28 */
+			imu: icm42670@2 {
+				compatible = "tdk,icm42670p";    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:29 */
+				reg = < 0x1 >;                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:30 */
+				label = "ICM-42670-P";           /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:31 */
+				spi-max-frequency = < 0x7a120 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:32 */
+				status = "okay";                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:33 */
+			};
 		};
 
 		/* node '/soc/nfct@40005000' defined in zephyr/dts/arm/nordic/nrf52832.dtsi:204 */
