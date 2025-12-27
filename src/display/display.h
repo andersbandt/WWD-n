@@ -12,8 +12,9 @@
 #define SRC_HARDWARE_DISPLAY_H_
 
 
+/* standard C file */
 #include <stdint.h>
-#include <ti/display/Display.h>
+
 
 
 
@@ -22,7 +23,7 @@
  *
  * @returns None (void)
  */
-void init_display(Display_Handle display);
+void init_display();
 
 
 /**

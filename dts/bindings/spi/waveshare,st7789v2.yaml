@@ -1,0 +1,28 @@
+
+description: This binding provides a raw SPI interface to the 1.69inch LCD module from waveshare, using the ST7789V2 LCD controller
+
+compatible: "waveshare,st7789v2"
+
+
+properties:
+  dc-gpios:
+    type: phandle-array
+    required: true
+  reset-gpios:
+    type: phandle-array
+    required: true
+  bl-gpios:
+    type: phandle-array
+    required: true
+  cs-gpios:
+    type: phandle-array
+    required: true
+
+
+include: [spi-device.yaml]
+
+
+
+      
+
+

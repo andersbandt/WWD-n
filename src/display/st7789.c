@@ -1,29 +1,43 @@
-/**
- * --------------------------------------------------------------------------------------------+
- * @name        ST7789 1.69" LCD Driver
- * --------------------------------------------------------------------------------------------+
- *              Copyright (C) 2023 Marian Hrinko.
- *              Written by Marian Hrinko (mato.hrinko@gmail.com)
- *
- * @author      Marian Hrinko
- * @date        03.12.2023
- * @file        st7789.c
- * @version     1.0
- * @tested      AVR Atmega328
- *
- * @depend      st7789.h
- *
- * --------------------------------------------------------------------------------------------+
- * @descr       Version 1.0
- * --------------------------------------------------------------------------------------------+
- * @inspir
- */
-#include "st7789.h"
+//*****************************************************************************
+//!
+//! @file led.c
+//! @brief st7789v2 driver
+//! @author Marian Hrinko
+//! @author Anders Bandt
+//! @version 2.0
+//! @date March 2023
+//! @note Updated December 2025 for use with Zephyr
+//!
+//*****************************************************************************
 
+/* standard C file */
+#include <stddef.h>
 
-/* Zephyr files */
+ /* Zephyr files */
 #include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/spi.h>
+#include <zephyr/logging/log.h>
 
+/* My driver files */
+ #include "st7789.h"
+
+
+// SPI parameters
+//SPI_Init (SPI_MASTER | SPI_MODE_0 | SPI_MSB_FIRST | SPI_FOSC_DIV_4);
+#define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(waveshare_st7789v2)
+#define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+
+static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
+
+// configure GPIO
+#define DISP_NODE DT_ALIAS(display0)
+
+static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP_NODE, dc_gpios);
+static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP_NODE, reset_gpios);
+static const struct gpio_dt_spec cs_dt = GPIO_DT_SPEC_GET(DISP_NODE, cs_gpios);
+static const struct gpio_dt_spec bl_dt = GPIO_DT_SPEC_GET(DISP_NODE, bl_gpios);
 
 
 /**
@@ -34,18 +48,10 @@
  *
  * @return  void
  */
-void SPI_Init (uint8_t settings)
-{
-  // // SPI PORT Init
-  // // ----------------------------------------------------------------
-  // SPI_DDR |= (1 << SPI_MOSI) | (1 << SPI_SCK);
-  // SPI_DDR &= ~(1 << SPI_MISO);
-  // SPI_PORT |= (1 << SPI_MISO);
-
-  // // SPI init
-  // // ----------------------------------------------------------------
-  // SPI_SPCR = settings | (1 << SPE);
-  // SPI_SPSR |= (1 << SPI2X);
+void SPI_Init () {
+  if (!spi_is_ready_dt(&spi_dev)) {
+    // TODO: figure out how to handle this error
+  }
 }
 
 /**
@@ -57,13 +63,27 @@ void SPI_Init (uint8_t settings)
  */
 uint8_t SPI_Transfer (uint8_t data)
 {
-  // SPI_SPDR = data;
-  // while(!(SPI_SPSR & (1<<SPIF))) 
-  // ;
-  // return SPI_SPDR;
-  return 0;
-}
+    uint8_t tx_data[1];
+    tx_data[0] = data;
+    struct spi_buf tx_buf = {
+        .buf = tx_data,
+        .len = 1};
+    struct spi_buf_set tx_set = {
+        .buffers = &tx_buf,
+        .count = 1};
 
+    uint8_t rx_data[1];
+    struct spi_buf rx_buf = {
+          .buf = rx_data,
+          .len = 1};
+
+    struct spi_buf_set rx_set = {
+        .buffers = &rx_buf,
+        .count = 1,
+    };
+
+    return spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+}
 
 
 /** @array Init command */
@@ -98,14 +118,25 @@ struct S_SCREEN Screen = {
  * +------------------------------------------------------------------------------------+
  */
 /* Chip Select Active */
-static inline void ST7789_CS_Active (struct st7789 * lcd) { CLR_BIT (*(lcd->cs->port), lcd->cs->pin); }
+static inline void ST7789_CS_Active() {
+  gpio_pin_set_dt(&cs_dt, 0);
+}
+
 /* Chip Select Idle */
-static inline void ST7789_CS_Idle (struct st7789 * lcd) { SET_BIT (*(lcd->cs->port), lcd->cs->pin); }
+static inline void ST7789_CS_Idle() {
+  gpio_pin_set_dt(&cs_dt, 1);
+}
 
 /* Command Active */
-static inline void ST7789_DC_Command (struct st7789 * lcd) { CLR_BIT (*(lcd->dc->port), lcd->dc->pin); }
+static inline void ST7789_DC_Command() { 
+  gpio_pin_set_dt(&dc_dt, 0);
+}
+
 /* Data Active */
-static inline void ST7789_DC_Data (struct st7789 * lcd) { SET_BIT (*(lcd->dc->port), lcd->dc->pin); }
+static inline void ST7789_DC_Data () { 
+  gpio_pin_set_dt(&dc_dt, 1);
+}
+
 
 /**
  * +------------------------------------------------------------------------------------+
@@ -183,8 +214,7 @@ uint8_t ST7789_DrawString (struct st7789 * lcd, char * str, uint16_t color, enum
  *
  * @return  void
  */
-char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum S_SIZE size)
-{
+char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum S_SIZE size) {
   uint8_t letter, idxCol, idxRow;                       // variables
   
   if ((character < 0x20) &&
@@ -195,14 +225,14 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
   idxCol = CHARS_COLS_LEN;                              // last column of character array - 5 columns 
   idxRow = CHARS_ROWS_LEN;                              // last row of character array - 8 rows / bits
 
-  ST7789_CS_Active (lcd);                               // chip enable - active low
+  ST7789_CS_Active(lcd);                               // chip enable - active low
 
   // --------------------------------------
   // SIZE X1 - normal font 1x high, 1x wide
   // --------------------------------------
   if (size == X1) { 
     while (idxCol--) {
-      letter = pgm_read_byte (&FONTS[character - 32][idxCol]);
+      letter = FONTS[character - 32][idxCol];
       while (idxRow--) {
         if (letter & (1 << idxRow)) {
           ST7789_Set_Window (lcd, cacheIndexCol+idxCol, cacheIndexCol+idxCol, cacheIndexRow+idxRow, cacheIndexRow+idxRow);
@@ -217,7 +247,7 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
   // --------------------------------------
   } else if (size == X2) {
     while (idxCol--) {
-      letter = pgm_read_byte (&FONTS[character - 32][idxCol]);
+      letter = FONTS[character - 32][idxCol];
       while (idxRow--) {
         if (letter & (1 << idxRow)) {
           ST7789_Set_Window (lcd, cacheIndexCol+idxCol, cacheIndexCol+idxCol, cacheIndexRow+(idxRow<<1), cacheIndexRow+(idxRow<<1)+1);
@@ -260,8 +290,8 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
  */
 void ST7789_ClearScreen (struct st7789 * lcd, uint16_t color) 
 {
-  ST7789_CS_Active (lcd);                               // chip enable - active low
-  ST7789_Set_Window (lcd, 0, Screen.width, 0, Screen.height);
+  ST7789_CS_Active(lcd);                               // chip enable - active low
+  ST7789_Set_Window(lcd, 0, Screen.width, 0, Screen.height);
   ST7789_Send_Color_565 (lcd, color, WINDOW_PIXELS);
   ST7789_CS_Idle (lcd);                                 // chip disable - idle high
 }
@@ -461,36 +491,25 @@ void ST7789_InvertColorOff (struct st7789 * lcd)
  */
 void ST7789_Init (struct st7789 * lcd, uint8_t madctl)
 {
-  // SPI Init (cs, settings)
-  // ----------------------------------------------------------------
-  // SPI_Init (SPI_MASTER | SPI_MODE_0 | SPI_MSB_FIRST | SPI_FOSC_DIV_4);
+  // initialize the SPI interface
+  SPI_Init();
 
-  // DDR
-  // --------------------------------------
-  SET_BIT (*(lcd->rs->ddr), lcd->rs->pin);              // Reset
-  SET_BIT (*(lcd->cs->ddr), lcd->cs->pin);              // Chip Select
-  SET_BIT (*(lcd->bl->ddr), lcd->bl->pin);              // BackLight
-  SET_BIT (*(lcd->dc->ddr), lcd->dc->pin);              // Data/Command
-  // PORT
-  // --------------------------------------
-  SET_BIT (*(lcd->rs->port), lcd->rs->pin);             // Reset hold H
-  SET_BIT (*(lcd->cs->port), lcd->cs->pin);             // Chip Select H
-  SET_BIT (*(lcd->bl->port), lcd->bl->pin);             // BackLigt ON
+  // initialize GPIO
+  gpio_pin_set_dt(&bl_dt, 1);
+  gpio_pin_set_dt(&rs_dt, 1);
+  gpio_pin_set_dt(&dc_dt, 1);
+  gpio_pin_set_dt(&cs_dt, 1);
+  
+  // power up time delay
+  k_msleep (10);
 
-  // POWER UP
-  // --------------------------------------
-  k_msleep (10);                                       // power up time delay +/- no limit
-
-  // HW RESET
-  // --------------------------------------
+  // HW reset
   ST7789_Reset_HW (lcd->rs);
 
-  // INIT SEQUENCE
-  // --------------------------------------
+  // init sequence
   ST7789_Init_Sequence (lcd, INIT_ST7789);
   
-  // SET CONFIGURATION
-  // --------------------------------------
+  // set configuration
   ST7789_Set_MADCTL (lcd, madctl);
 }
 
@@ -611,10 +630,10 @@ void ST7789_Send_Color_565 (struct st7789 * lcd, uint16_t color, uint32_t count)
  */
 void ST7789_Reset_HW (struct signal * reset)
 {
-  CLR_BIT (*(reset->port), reset->pin);                 // Reset Impulse
-  _delay_us (100);                                      // >10us
-  SET_BIT (*(reset->port), reset->pin);                 //
-  _delay_ms (120);                                      // >120 ms
+  gpio_pin_set_dt(&rs_dt, 0);
+  k_usleep(100);  // >10us
+  gpio_pin_set_dt(&rs_dt, 1);
+  k_msleep(120);  // >120 ms
 }
 
 /**
@@ -685,9 +704,8 @@ void ST7789_Send_Data_Byte (struct st7789 * lcd, uint8_t data)
  *
  * @return  void
  */
-void ST7789_Delay_ms (uint8_t time)
-{
+void ST7789_Delay_ms (uint8_t time) {
   while (time--) {
-    _delay_ms(1);                                         // 1ms delay
+    k_msleep(1);                                         // 1ms delay
   }
 }

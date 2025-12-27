@@ -47,23 +47,23 @@ int main(void)
     /*
     IMU CONFIG BLOCK
     */
-    struct icm42670_data sensor_data;
-    int ret = 0;
-    ret |= icm42670_init();
-        // ret |= imu_init();
-    if (ret == 0) {
-        printk("Initialized IMU\n");
-        imu_status = true;
-        /* Set initial sample rates */
-        ret = icm42670_set_accel_rate(100); /* 100 Hz */
-        ret |= icm42670_set_gyro_rate(100); /* 100 Hz */
+    // struct icm42670_data sensor_data;
+    // int ret = 0;
+    // ret |= icm42670_init();
+    //     // ret |= imu_init();
+    // if (ret == 0) {
+    //     printk("Initialized IMU\n");
+    //     imu_status = true;
+    //     /* Set initial sample rates */
+    //     ret = icm42670_set_accel_rate(100); /* 100 Hz */
+    //     ret |= icm42670_set_gyro_rate(100); /* 100 Hz */
 
-    }
-    else {
-        printk("Failed to initialize ICM42670 with code [%d]\n", ret);
-        imu_status = false;
-        led_set(1, 1);
-    }
+    // }
+    // else {
+    //     printk("Failed to initialize ICM42670 with code [%d]\n", ret);
+    //     imu_status = false;
+    //     led_set(1, 1);
+    // }
     /*
     END OF IMU CONFIG BLOCK
     */
@@ -72,16 +72,16 @@ int main(void)
     /*
     NVS CONFIG BLOCK
     */
-	nvs_init();
-    static uint8_t data[2176];
-    data[0] = 8;
-    data[1] = 9;
-    nvs_write(&data, 2176);
-    ret = nvs_read(data, 2176, 0);
-    for (int i = 0; i < 10; i++) {
-        printk("%02X ", data[i]);
-    }
-    printk("\n");
+	// nvs_init();
+    // static uint8_t data[2176];
+    // data[0] = 8;
+    // data[1] = 9;
+    // nvs_write(&data, 2176);
+    // ret = nvs_read(data, 2176, 0);
+    // for (int i = 0; i < 10; i++) {
+    //     printk("%02X ", data[i]);
+    // }
+    // printk("\n");
     /*
     END OF NVS CONFIG BLOCK
     */

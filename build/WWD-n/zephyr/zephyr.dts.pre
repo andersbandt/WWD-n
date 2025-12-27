@@ -773,15 +773,14 @@ lscon_96b_uart0: &uart0 {};
   led1 = &led1;
   led2 = &led2;
   watchdog0 = &wdt0;
+        display0 = &st7789v2;
  };
 
  leds {
   compatible = "gpio-leds";
-
   led0: led_0 {
    gpios = <&gpio0 15 (1 << 4)>;
   };
-
   led1: led_1 {
    gpios = <&gpio0 16 0>;
   };
@@ -847,9 +846,8 @@ lscon_96b_uart0: &uart0 {};
  pinctrl-0 = <&spi1_default>;
  pinctrl-1 = <&spi1_sleep>;
  pinctrl-names = "default", "sleep";
- cs-gpios = <&gpio0 7 (1 << 0)>, <&gpio0 4 (1 << 0)>;
+ cs-gpios = <&gpio0 7 (1 << 0)>, <&gpio0 4 (1 << 0)>, <&gpio0 27 (1 << 0)>;
 };
-
 
 
 &flash0 {
@@ -888,6 +886,7 @@ lscon_96b_uart0: &uart0 {};
  };
 };
 
+
 &uart0_default {
  group1 {
   psels = <((((((0) * 32U) + (19)) & 0x1FFU) << 0U) | ((1U & 0xFFU) << 24U))>, <((((((0) * 32U) + (18)) & 0x1FFU) << 0U) | ((0U & 0xFFU) << 24U))>;
@@ -911,27 +910,33 @@ lscon_96b_uart0: &uart0 {};
     icm42670p: icm42670p@1 {
   compatible = "invensense,icm42670p";
   reg = <1>;
-  spi-max-frequency = <1000000>;
+  spi-max-frequency = <800000>;
         int-gpios = <&gpio0 9 (1 << 0)>, <&gpio0 3 (1 << 0)>;
-  status = "okay";
 
 
   accel-hz = <100>;
   gyro-hz = <100>;
   accel-fs = <2>;
   gyro-fs = <250>;
+
+        status = "okay";
  };
 
-    imu:icm42670@2 {
-        compatible = "tdk,icm42670p";
-        reg = <1>;
-        label = "ICM-42670-P";
-        spi-max-frequency = <500000>;
+    st7789v2:st7789v2@2 {
+        compatible = "waveshare,st7789v2";
+        reg = <2>;
+        spi-max-frequency = <800000>;
+
+        cs-gpios = <&gpio0 27 (0 << 0)>;
+
+        dc-gpios = <&gpio0 10 (0 << 0)>;
+        reset-gpios = <&gpio0 11 (1 << 0)>;
+        bl-gpios = <&gpio0 12 (0 << 0)>;
+
         status = "okay";
     };
 
     status = "okay";
-
 };
 
 
@@ -942,11 +947,6 @@ lscon_96b_uart0: &uart0 {};
                 <((((((0) * 32U) + (6)) & 0x1FFU) << 0U) | ((5U & 0xFFU) << 24U))>,
                 <((((((0) * 32U) + (8)) & 0x1FFU) << 0U) | ((6U & 0xFFU) << 24U))>;
     };
-};
-
-
-&led1 {
-    gpios = <&gpio0 16 0>;
 };
 # 0 "<command-line>" 2
 # 1 "/home/anders/ncs/v3.1.1/zephyr/misc/empty_file.c"

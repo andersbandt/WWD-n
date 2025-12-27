@@ -14,27 +14,33 @@
     icm42670p: icm42670p@1 {
 		compatible = "invensense,icm42670p";
 		reg = <1>;
-		spi-max-frequency = <1000000>;         /* Reduced to 8MHz for stability */
+		spi-max-frequency = <800000>; /* Reduced to 8MHz for stability */
         int-gpios = <&gpio0 9 GPIO_ACTIVE_LOW>, <&gpio0 3 GPIO_ACTIVE_LOW>;
-		status = "okay";
-		
+
 		/* Required properties based on binding file */
 		accel-hz = <100>;    /* Reduced to 100 Hz for initial testing */
 		gyro-hz = <100>;     /* Reduced to 100 Hz for initial testing */
 		accel-fs = <2>;      /* Reduced to ±2g for initial testing */
 		gyro-fs = <250>;     /* Reduced to 250 dps for initial testing */
+
+        status = "okay";
 	};
 
-    imu:icm42670@2 {
-        compatible = "tdk,icm42670p";
-        reg = <1>;
-        label = "ICM-42670-P";
-        spi-max-frequency = <500000>;
+    st7789v2:st7789v2@2 {
+        compatible = "waveshare,st7789v2";
+        reg = <2>;
+        spi-max-frequency = <800000>;
+
+        cs-gpios = <&gpio0 27 GPIO_ACTIVE_HIGH>;
+
+        dc-gpios = <&gpio0 10 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
+        bl-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
+
         status = "okay";
     };
 
     status = "okay";
-    //max-frequency = <DT_FREQ_M(1)>;
 };
 
 
@@ -48,6 +54,3 @@
 };
 
 
-&led1 {
-    gpios = <&gpio0 16 0>;
-};

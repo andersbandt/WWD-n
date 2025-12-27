@@ -8,13 +8,11 @@
 //!
 //*****************************************************************************
 
-
 /* standard C99 stuff */
 #include <unistd.h>
 
 /* Zephyr files  */
 #include <zephyr/drivers/gpio.h>
-
 
 /* My header files */
 #include <hardware/led.h>

@@ -14,7 +14,7 @@
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// C header files
+/* standard C file */
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -22,11 +22,18 @@
 #include <math.h>
 #include <time.h>
 
+/* Zephyr files */
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+
+
 /* My header files */
 #include <src/comm/i2c.h>
 #include <src/display.h>
 #include <src/st7789.h>
 
+
+LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -49,12 +56,27 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+void init_display() {
+    // LCD INIT
+    // ----------------------------------------------------------
+    ST7789_Init (ST77XX_ROTATE_270 | ST77XX_RGB);
 
+    // DRAWING
+    // ----------------------------------------------------------
+    uint16_t i;
+    ST7789_ClearScreen (&lcd, WHITE);
+    for (i=0; i<Screen.height; i=i+5) {
+    ST7789_DrawLine (&lcd, 0, Screen.width, 0, i, RED);
+    }
+    for (i=0; i<Screen.height; i=i+5) {
+    ST7789_DrawLine (&lcd, 0, Screen.width, i, 0, BLUE);
+    }
+    for (i=0; i<30; i++) {
+    ST7789_FastLineHorizontal (&lcd, 0, Screen.width, i, BLACK);
+    }
+    ST7789_SetPosition (75, 5);
+    ST7789_DrawString (&lcd, "ST7789V2 DRIVER", WHITE, X3);
 
-
-
-void init_display(Display_Handle display) {
-    ssd1306Init(1, display);
 }
 
 
