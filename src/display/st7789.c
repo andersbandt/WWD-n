@@ -489,7 +489,7 @@ void ST7789_InvertColorOff (struct st7789 * lcd)
  *
  * @return  void
  */
-void ST7789_Init (struct st7789 * lcd, uint8_t madctl)
+void ST7789_Init(uint8_t madctl)
 {
   // initialize the SPI interface
   SPI_Init();
@@ -504,13 +504,13 @@ void ST7789_Init (struct st7789 * lcd, uint8_t madctl)
   k_msleep (10);
 
   // HW reset
-  ST7789_Reset_HW (lcd->rs);
+  ST7789_Reset_HW();
 
   // init sequence
-  ST7789_Init_Sequence (lcd, INIT_ST7789);
+  ST7789_Init_Sequence(INIT_ST7789);
   
   // set configuration
-  ST7789_Set_MADCTL (lcd, madctl);
+  ST7789_Set_MADCTL(madctl);
 }
 
 /**

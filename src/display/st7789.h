@@ -171,7 +171,7 @@
    *
    * @return  uint8_t
    */
-  uint8_t ST7789_DrawString (struct st7789 *, char *, uint16_t, enum S_SIZE);
+  uint8_t ST7789_DrawString(struct st7789 *, char *, uint16_t, enum S_SIZE);
 
   /**
    * @desc    Set text position x, y
@@ -181,7 +181,7 @@
    *
    * @return  char
    */
-  char ST7789_SetPosition (uint8_t, uint8_t);
+  char ST7789_SetPosition(uint8_t, uint8_t);
 
   /**
    * @desc    Draw character
@@ -192,7 +192,7 @@
    *
    * @return  void
    */
-  char ST7789_DrawChar (struct st7789 *, char, uint16_t, enum S_SIZE);
+  char ST7789_DrawChar(struct st7789 *, char, uint16_t, enum S_SIZE);
 
   /**
    * @desc    Clear screen
@@ -202,7 +202,7 @@
    *
    * @return  void
    */
-  void ST7789_ClearScreen (struct st7789 *, uint16_t);
+  void ST7789_ClearScreen(struct st7789 *, uint16_t);
 
   /**
    * @desc    Draw line by Bresenham algoritm
@@ -217,7 +217,7 @@
    *
    * @return  void
    */
-  char ST7789_DrawLine (struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t, uint16_t);
+  char ST7789_DrawLine(struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t, uint16_t);
 
   /**
    * @desc    Fast Draw Line Horizontal
@@ -230,7 +230,7 @@
    *
    * @return void
    */
-  void ST7789_FastLineHorizontal (struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t);
+  void ST7789_FastLineHorizontal(struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t);
 
   /**
    * @desc    Fast Draw Line Vertical
@@ -243,7 +243,7 @@
    *
    * @return  void
    */
-  void ST7789_FastLineVertical (struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t);
+  void ST7789_FastLineVertical(struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t);
 
   /**
    * @desc    Draw Pixel
@@ -255,17 +255,16 @@
    *
    * @return  void
    */
-  void ST7789_DrawPixel (struct st7789 *, uint16_t, uint8_t, uint16_t);
+  void ST7789_DrawPixel(struct st7789 *, uint16_t, uint8_t, uint16_t);
 
   /**
    * @desc    Init LCD
    *
-   * @param   struct st7789 *
-   * @param   uint8_t
+   * @param   uint8_t madctl
    *
    * @return  void
    */
-  void ST7789_Init (struct st7789 *, uint8_t);
+  void ST7789_Init(uint8_t madctl);
 
   /**
    * @desc    RAM Content Show

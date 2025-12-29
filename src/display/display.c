@@ -28,9 +28,8 @@
 
 
 /* My header files */
-#include <src/comm/i2c.h>
-#include <src/display.h>
-#include <src/st7789.h>
+#include <display.h>
+#include <st7789.h>
 
 
 LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
@@ -59,12 +58,12 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 void init_display() {
     // LCD INIT
     // ----------------------------------------------------------
-    ST7789_Init (ST77XX_ROTATE_270 | ST77XX_RGB);
+    ST7789_Init(ST77XX_ROTATE_270 | ST77XX_RGB);
 
     // DRAWING
     // ----------------------------------------------------------
     uint16_t i;
-    ST7789_ClearScreen (&lcd, WHITE);
+    ST7789_ClearScreen(WHITE);
     for (i=0; i<Screen.height; i=i+5) {
     ST7789_DrawLine (&lcd, 0, Screen.width, 0, i, RED);
     }
@@ -87,7 +86,7 @@ void init_display() {
 // TODO: refactor this from `clearDisplay` to `clear_display`
 void clearDisplay()
 {
-    ssd1306ClearDisplay();  // clear the display
+    // ssd1306ClearDisplay();  // clear the display
 }
 
 
@@ -100,7 +99,7 @@ void printToScreen(char * text, const uint32_t posY, const uint32_t posX)
         return;
     }
 
-    ssd1306PrintString(text, posY, posX, source_pro_set);
+    // ssd1306PrintString(text, posY, posX, source_pro_set);
 }
 
 
@@ -113,7 +112,7 @@ void printLine(char * text, const uint32_t lineNum, const uint32_t posX)
         return;
     }
 
-    ssd1306PrintString(text, lineNum, posX, source_pro_set);
+    // ssd1306PrintString(text, lineNum, posX, source_pro_set);
 }
 
 
@@ -134,18 +133,18 @@ void printToScreenInverted(char * text, int posY, int posX)
         return;
     }
 
-    ssd1306PrintStringInverted(text, posY, posX, source_pro_set);
+    // ssd1306PrintStringInverted(text, posY, posX, source_pro_set);
 }
 
 
 
 void changeContrast(const uint8_t contrast) {
-    ssd1306AdjustContrast(contrast);
+    // ssd1306AdjustContrast(contrast);
 }
 
 
 void switchDisplay(const bool on) {
-    ssd1306SwitchDisplay(on);
+    // ssd1306SwitchDisplay(on);
 }
 
 

@@ -16,8 +16,10 @@ target_sources(app PRIVATE
     src/clock.c
     src/peripheral/interrupt.c
     src/hardware/led.c
-    src/display/st7789.c
+    # src/display/display.c
+    # src/display/st7789.c
 )
 
+add_subdirectory(src/display)
 add_subdirectory(src/memory)
 add_subdirectory(src/hardware/ic/imu)
