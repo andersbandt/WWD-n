@@ -27,7 +27,7 @@
 // SPI parameters
 //SPI_Init (SPI_MASTER | SPI_MODE_0 | SPI_MSB_FIRST | SPI_FOSC_DIV_4);
 #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(waveshare_st7789v2)
-#define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+#define SPI_OP SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE
 
 static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
@@ -36,54 +36,7 @@ static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP_NODE, dc_gpios);
 static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP_NODE, reset_gpios);
-static const struct gpio_dt_spec cs_dt = GPIO_DT_SPEC_GET(DISP_NODE, cs_gpios);
 static const struct gpio_dt_spec bl_dt = GPIO_DT_SPEC_GET(DISP_NODE, bl_gpios);
-
-
-/**
- * @desc    SPI Init
- *
- * @param   uint8_t
- * @param   uint8_t
- *
- * @return  void
- */
-void SPI_Init () {
-  if (!spi_is_ready_dt(&spi_dev)) {
-    // TODO: figure out how to handle this error
-  }
-}
-
-/**
- * @desc    SPI Send & Receive Byte
- *
- * @param   uint8_t
- *
- * @return  uint8_t
- */
-uint8_t SPI_Transfer (uint8_t data)
-{
-    uint8_t tx_data[1];
-    tx_data[0] = data;
-    struct spi_buf tx_buf = {
-        .buf = tx_data,
-        .len = 1};
-    struct spi_buf_set tx_set = {
-        .buffers = &tx_buf,
-        .count = 1};
-
-    uint8_t rx_data[1];
-    struct spi_buf rx_buf = {
-          .buf = rx_data,
-          .len = 1};
-
-    struct spi_buf_set rx_set = {
-        .buffers = &rx_buf,
-        .count = 1,
-    };
-
-    return spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
-}
 
 
 /** @array Init command */
@@ -112,20 +65,48 @@ struct S_SCREEN Screen = {
   .marginY = ST7789_MARGIN_Y
 };
 
+
 /**
- * +------------------------------------------------------------------------------------+
- * |== STATIC FUNCTIONS ================================================================|
- * +------------------------------------------------------------------------------------+
+ * @desc    SPI Init
+ *
+ * @return  void
  */
-/* Chip Select Active */
-static inline void ST7789_CS_Active() {
-  gpio_pin_set_dt(&cs_dt, 0);
+void SPI_Init () {
+  if (!spi_is_ready_dt(&spi_dev)) {
+    // TODO: figure out how to handle this error
+    while (1) { }
+  }
 }
 
-/* Chip Select Idle */
-static inline void ST7789_CS_Idle() {
-  gpio_pin_set_dt(&cs_dt, 1);
+/**
+ * @desc    SPI Send & Receive Byte
+ *
+ * @param   uint8_t
+ *
+ * @return  uint8_t
+ */
+uint8_t SPI_Transfer(uint8_t data)
+{
+    struct spi_buf buf = {
+        .buf = &data,
+        .len = 1,
+    };
+    struct spi_buf_set set = {
+        .buffers = &buf,
+        .count = 1,
+    };
+
+    return spi_write_dt(&spi_dev, &set);
 }
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! STATIC FUNCTIONS ------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// TODO: are the delays in the DC functions below needed?
 
 /* Command Active */
 static inline void ST7789_DC_Command() { 
@@ -138,11 +119,53 @@ static inline void ST7789_DC_Data () {
 }
 
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! PUBLIC FUNCTIONS ------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 /**
- * +------------------------------------------------------------------------------------+
- * |== PUBLIC FUNCTIONS ================================================================|
- * +------------------------------------------------------------------------------------+
+ * @desc    Init st7789 driver
+ *
+ * @param   uint8_t madctl
+ *
+ * @return  void
  */
+void ST7789_Init(uint8_t madctl)
+{
+  // initialize the SPI interface
+  SPI_Init();
+
+  // initialize GPIO
+  // TODO: make this cleaner and take up less lines
+    if (!gpio_is_ready_dt(&dc_dt)) {
+		return 0;
+	}
+    if (!gpio_is_ready_dt(&bl_dt)) {
+		return 0;
+	}
+    if (!gpio_is_ready_dt(&rs_dt)) {
+		return 0;
+	}
+  gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_ACTIVE);
+  gpio_pin_configure_dt(&bl_dt, GPIO_OUTPUT_ACTIVE);
+  gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
+
+  // power up time delay
+  k_msleep(10);
+
+  // reset
+  // ST7789_Reset_HW();
+  ST7789_Reset_SW();
+
+  // init sequence
+  ST7789_Init_Sequence(INIT_ST7789);
+  
+  // set configuration
+  ST7789_Set_MADCTL(madctl);
+}
+
 
 /**
  * @desc    Set text position x, y
@@ -171,14 +194,13 @@ char ST7789_SetPosition (uint8_t x, uint8_t y)
 /**
  * @desc    Draw String
  *
- * @param   struct st7789 *
- * @param   char * string 
+ * @param   char * string
  * @param   uint16_t color
  * @param   enum S_SIZE (X1, X2, X3)
  *
  * @return  uint8_t
  */
-uint8_t ST7789_DrawString (struct st7789 * lcd, char * str, uint16_t color, enum S_SIZE size)
+uint8_t ST7789_DrawString(char * str, uint16_t color, enum S_SIZE size)
 {
   uint8_t delta_y = CHARS_ROWS_LEN + (size >> 4);
   uint16_t i = 0;
@@ -199,7 +221,7 @@ uint8_t ST7789_DrawString (struct st7789 * lcd, char * str, uint16_t color, enum
       } 
     }
     
-    ST7789_DrawChar (lcd, str[i++], color, size);
+    ST7789_DrawChar (str[i++], color, size);
   }
 
   return ST77XX_SUCCESS;
@@ -208,13 +230,12 @@ uint8_t ST7789_DrawString (struct st7789 * lcd, char * str, uint16_t color, enum
 /**
  * @desc    Draw character
  *
- * @param   struct st7789 *
  * @param   char character
  * @param   uint16_t color
  *
  * @return  void
  */
-char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum S_SIZE size) {
+char ST7789_DrawChar(char character, uint16_t color, enum S_SIZE size) {
   uint8_t letter, idxCol, idxRow;                       // variables
   
   if ((character < 0x20) &&
@@ -225,7 +246,6 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
   idxCol = CHARS_COLS_LEN;                              // last column of character array - 5 columns 
   idxRow = CHARS_ROWS_LEN;                              // last row of character array - 8 rows / bits
 
-  ST7789_CS_Active(lcd);                               // chip enable - active low
 
   // --------------------------------------
   // SIZE X1 - normal font 1x high, 1x wide
@@ -235,8 +255,8 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
       letter = FONTS[character - 32][idxCol];
       while (idxRow--) {
         if (letter & (1 << idxRow)) {
-          ST7789_Set_Window (lcd, cacheIndexCol+idxCol, cacheIndexCol+idxCol, cacheIndexRow+idxRow, cacheIndexRow+idxRow);
-          ST7789_Send_Color_565 (lcd, color, 1);
+          ST7789_Set_Window (cacheIndexCol+idxCol, cacheIndexCol+idxCol, cacheIndexRow+idxRow, cacheIndexRow+idxRow);
+          ST7789_Send_Color_565 (color, 1);
         }
       }
       idxRow = CHARS_ROWS_LEN;
@@ -250,8 +270,8 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
       letter = FONTS[character - 32][idxCol];
       while (idxRow--) {
         if (letter & (1 << idxRow)) {
-          ST7789_Set_Window (lcd, cacheIndexCol+idxCol, cacheIndexCol+idxCol, cacheIndexRow+(idxRow<<1), cacheIndexRow+(idxRow<<1)+1);
-          ST7789_Send_Color_565 (lcd, color, 2);
+          ST7789_Set_Window (cacheIndexCol+idxCol, cacheIndexCol+idxCol, cacheIndexRow+(idxRow<<1), cacheIndexRow+(idxRow<<1)+1);
+          ST7789_Send_Color_565 (color, 2);
         }
       }
       idxRow = CHARS_ROWS_LEN;
@@ -263,11 +283,11 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
   // --------------------------------------
   } else if (size == X3) {
     while (idxCol--) {
-      letter = pgm_read_byte (&FONTS[character - 32][idxCol]);
+      letter = FONTS[character - 32][idxCol];
       while (idxRow--) {
         if (letter & (1 << idxRow)) {
-          ST7789_Set_Window (lcd, cacheIndexCol+(idxCol<<1), cacheIndexCol+(idxCol<<1)+1, cacheIndexRow+(idxRow<<1), cacheIndexRow+(idxRow<<1)+1);
-          ST7789_Send_Color_565 (lcd, color, 4);
+          ST7789_Set_Window (cacheIndexCol+(idxCol<<1), cacheIndexCol+(idxCol<<1)+1, cacheIndexRow+(idxRow<<1), cacheIndexRow+(idxRow<<1)+1);
+          ST7789_Send_Color_565 (color, 4);
         }
       }
       idxRow = CHARS_ROWS_LEN;
@@ -275,32 +295,26 @@ char ST7789_DrawChar (struct st7789 * lcd, char character, uint16_t color, enum 
     cacheIndexCol += CHARS_COLS_LEN + CHARS_COLS_LEN + 1;
   }
 
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
-
   return ST77XX_SUCCESS;
 }
 
 /**
  * @desc    Clear screen
  *
- * @param   struct st7789 *
  * @param   uint16_t color
  *
  * @return  void
  */
-void ST7789_ClearScreen (struct st7789 * lcd, uint16_t color) 
+void ST7789_ClearScreen(uint16_t color)
 {
-  ST7789_CS_Active(lcd);                               // chip enable - active low
-  ST7789_Set_Window(lcd, 0, Screen.width, 0, Screen.height);
-  ST7789_Send_Color_565 (lcd, color, WINDOW_PIXELS);
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
+  ST7789_Set_Window(0, Screen.width, 0, Screen.height);
+  ST7789_Send_Color_565(color, WINDOW_PIXELS);
 }
 
 /**
  * @desc    Draw line by Bresenham algoritm
  * @surce   https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
  *
- * @param   struct st7789 *
  * @param   uint16_t x start position / 0 <= cols <= MAX_X-1
  * @param   uint16_t x end position   / 0 <= cols <= MAX_X-1
  * @param   uint16_t y start position / 0 <= rows <= MAX_Y-1
@@ -309,7 +323,7 @@ void ST7789_ClearScreen (struct st7789 * lcd, uint16_t color)
  *
  * @return  void
  */
-char ST7789_DrawLine (struct st7789 * lcd, uint16_t x1, uint16_t x2, uint16_t y1, uint16_t y2, uint16_t color)
+char ST7789_DrawLine(uint16_t x1, uint16_t x2, uint16_t y1, uint16_t y2, uint16_t color)
 {
   int16_t D;                                            // determinant
   int16_t delta_x, delta_y;                             // deltas
@@ -330,11 +344,10 @@ char ST7789_DrawLine (struct st7789 * lcd, uint16_t x1, uint16_t x2, uint16_t y1
 
   // Bresenham condition for m < 1 (dy < dx)
   // ---------------------------------------
-  ST7789_CS_Active (lcd);                               // chip enable - active low
   if (delta_y < delta_x) {
     D = (delta_y << 1) - delta_x;                       // calculate determinant
-    ST7789_Set_Window (lcd, x1, x1, y1, y1);            // set window
-    ST7789_Send_Color_565 (lcd, color, 1);              // draw pixel by 565 mode
+    ST7789_Set_Window(x1, x1, y1, y1);            // set window
+    ST7789_Send_Color_565(color, 1);              // draw pixel by 565 mode
     while (x1 != x2) {                                  // check if x1 equal x2
       x1 += trace_x;                                    // update x1
       if (D >= 0) {                                     // check if determinant is positive
@@ -342,15 +355,15 @@ char ST7789_DrawLine (struct st7789 * lcd, uint16_t x1, uint16_t x2, uint16_t y1
         D -= 2*delta_x;                                 // update determinant
       }
       D += 2*delta_y;                                   // update deteminant
-      ST7789_Set_Window (lcd, x1, x1, y1, y1);          // set window
-      ST7789_Send_Color_565 (lcd, color, 1);            // draw pixel by 565 mode
+      ST7789_Set_Window(x1, x1, y1, y1);          // set window
+      ST7789_Send_Color_565(color, 1);            // draw pixel by 565 mode
     }
   // Bresenham condition for m > 1 (dy > dx)
   // ---------------------------------------
   } else {
     D = delta_y - (delta_x << 1);                       // calculate determinant
-    ST7789_Set_Window (lcd, x1, x1, y1, y1);            // set window
-    ST7789_Send_Color_565 (lcd, color, 1);              // draw pixel by 565 mode
+    ST7789_Set_Window (x1, x1, y1, y1);            // set window
+    ST7789_Send_Color_565 (color, 1);              // draw pixel by 565 mode
     while (y1 != y2) {                                  // check if y2 equal y1
       y1 += trace_y;                                    // update y1
       if (D <= 0) {                                     // check if determinant is positive
@@ -358,11 +371,10 @@ char ST7789_DrawLine (struct st7789 * lcd, uint16_t x1, uint16_t x2, uint16_t y1
         D += 2*delta_y;                                 // update determinant
       }
       D -= 2*delta_x;                                   // update deteminant
-      ST7789_Set_Window (lcd, x1, x1, y1, y1);          // set window
-      ST7789_Send_Color_565 (lcd, color, 1);            // draw pixel by 565 mode
+      ST7789_Set_Window (x1, x1, y1, y1);          // set window
+      ST7789_Send_Color_565 (color, 1);            // draw pixel by 565 mode
     }
   }
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
 
   return ST77XX_SUCCESS;                                // success return
 }
@@ -370,7 +382,6 @@ char ST7789_DrawLine (struct st7789 * lcd, uint16_t x1, uint16_t x2, uint16_t y1
 /**
  * @desc    Fast Draw Line Horizontal
  *
- * @param   struct st7789 *
  * @param   uint16_t xs - start position
  * @param   uint16_t xe - end position
  * @param   uint16_t y - position
@@ -378,23 +389,20 @@ char ST7789_DrawLine (struct st7789 * lcd, uint16_t x1, uint16_t x2, uint16_t y1
  *
  * @return void
  */
-void ST7789_FastLineHorizontal (struct st7789 * lcd, uint16_t xs, uint16_t xe, uint16_t y, uint16_t color)
+void ST7789_FastLineHorizontal(uint16_t xs, uint16_t xe, uint16_t y, uint16_t color)
 {
   if (xs > xe) {                                        // check if start is > as end
     uint8_t temp = xs;                                  // temporary safe
     xe = xs;                                            // start change for end
     xs = temp;                                          // end change for start
   }
-  ST7789_CS_Active (lcd);                               // chip enable - active low
-  ST7789_Set_Window (lcd, xs, xe, y, y);                // set window
-  ST7789_Send_Color_565 (lcd, color, xe - xs);          // draw pixel by 565 mode
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
+  ST7789_Set_Window(xs, xe, y, y);                // set window
+  ST7789_Send_Color_565(color, xe - xs);          // draw pixel by 565 mode
 }
 
 /**
  * @desc    Fast Draw Line Vertical
  *
- * @param   struct st7789 *
  * @param   uint16_t x - position
  * @param   uint16_t ys - start position
  * @param   uint16_t ye - end position
@@ -402,116 +410,72 @@ void ST7789_FastLineHorizontal (struct st7789 * lcd, uint16_t xs, uint16_t xe, u
  *
  * @return  void
  */
-void ST7789_FastLineVertical (struct st7789 * lcd, uint16_t x, uint16_t ys, uint16_t ye, uint16_t color)
+void ST7789_FastLineVertical(uint16_t x, uint16_t ys, uint16_t ye, uint16_t color)
 {
   if (ys > ye) {                                        // check if start is > as end
     uint8_t temp = ys;                                  // temporary safe
     ye = ys;                                            // start change for end
     ys = temp;                                          // end change for start
   }
-  ST7789_CS_Active (lcd);                               // chip enable - active low
-  ST7789_Set_Window (lcd, x, x, ys, ye);                // set window
-  ST7789_Send_Color_565 (lcd, color, ye - ys);          // draw pixel by 565 mode
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
+  ST7789_Set_Window(x, x, ys, ye);                // set window
+  ST7789_Send_Color_565(color, ye - ys);          // draw pixel by 565 mode
 }
 
 /**
  * @desc    Draw pixel
  *
- * @param   struct st7789 * lcd
  * @param   uint16_t x position / 0 <= cols <= MAX_X-1
  * @param   uint8_t y position / 0 <= rows <= MAX_Y-1
  * @param   uint16_t color
  *
  * @return  void
  */
-void ST7789_DrawPixel (struct st7789 * lcd, uint16_t x, uint8_t y, uint16_t color)
+void ST7789_DrawPixel (uint16_t x, uint8_t y, uint16_t color)
 {
-  ST7789_CS_Active (lcd);                               // chip enable - active low
-  ST7789_Set_Window (lcd, x, x, y, y);                  // set window
-  ST7789_Send_Color_565 (lcd, color, 1);                // draw pixel by 565 mode
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
+  ST7789_Set_Window(x, x, y, y);                  // set window
+  ST7789_Send_Color_565(color, 1);                // draw pixel by 565 mode
 }
 
 /**
  * @desc    RAM Content Show
  *
- * @param   struct st7789 * lcd
- *
  * @return  void
  */
-void ST7789_RAM_ContentShow (struct st7789 * lcd)
+void ST7789_RAM_ContentShow (void)
 {
-  ST7789_Send_Command (lcd, ST77XX_DISPON);             // display content on
+  ST7789_Send_Command(ST77XX_DISPON);             // display content on
 }
 
 /**
  * @desc    RAM Content Hide
  *
- * @param   struct st7789 * lcd
- *
  * @return  void
  */
-void ST7789_RAM_ContentHide (struct st7789 * lcd)
+void ST7789_RAM_ContentHide(void)
 {
-  ST7789_Send_Command (lcd, ST77XX_DISPOFF);            // display content off
+  ST7789_Send_Command(ST77XX_DISPOFF);            // display content off
 }
 
 /**
  * @desc    Inversion On
  *
- * @param   struct st7789 * lcd
- *
  * @return  void
  */
-void ST7789_InvertColorOn (struct st7789 * lcd)
+void ST7789_InvertColorOn(void)
 {
-  ST7789_Send_Command (lcd, ST77XX_INVON);              // inversion on
+  ST7789_Send_Command(ST77XX_INVON);              // inversion on
 }
 
 /**
  * @desc    Inversion Off
  *
- * @param   struct st7789 * lcd
- *
  * @return  void
  */
-void ST7789_InvertColorOff (struct st7789 * lcd)
+void ST7789_InvertColorOff (void)
 {
-  ST7789_Send_Command (lcd, ST77XX_INVOFF);             // inversion off
+  ST7789_Send_Command(ST77XX_INVOFF);             // inversion off
 }
 
-/**
- * @desc    Init st7789 driver
- *
- * @param   struct st7789 *
- * @param   uint8_t
- *
- * @return  void
- */
-void ST7789_Init(uint8_t madctl)
-{
-  // initialize the SPI interface
-  SPI_Init();
-
-  // initialize GPIO
-  gpio_pin_set_dt(&bl_dt, 1);
-  gpio_pin_set_dt(&rs_dt, 1);
-  gpio_pin_set_dt(&dc_dt, 1);
-  gpio_pin_set_dt(&cs_dt, 1);
-  
-  // power up time delay
-  k_msleep (10);
-
-  // HW reset
-  ST7789_Reset_HW();
-
-  // init sequence
-  ST7789_Init_Sequence(INIT_ST7789);
-  
-  // set configuration
-  ST7789_Set_MADCTL(madctl);
-}
 
 /**
  * --------------------------------------------------------------------------------------------+
@@ -522,19 +486,16 @@ void ST7789_Init(uint8_t madctl)
 /**
  * @desc    Set Configuration LCD
  *
- * @param   struct st7789 * lcd
  * @param   uint8_t
  *
  * @return  void
  */
-void ST7789_Set_MADCTL (struct st7789 * lcd, uint8_t madctl)
+void ST7789_Set_MADCTL(uint8_t madctl)
 {
-  ST7789_CS_Active (lcd);                               // chip enable - active low
-  ST7789_DC_Command (lcd);                              // command (active low)
-  SPI_Transfer (ST77XX_MADCTL);                         // Memory Data Access Control
-  ST7789_DC_Data (lcd);                                 // data (active high)
-  SPI_Transfer (madctl);                                // set configuration like rotation, refresh,...
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
+  ST7789_DC_Command ();                              // command (active low)
+  SPI_Transfer(ST77XX_MADCTL);                         // Memory Data Access Control
+  ST7789_DC_Data ();                                 // data (active high)
+  SPI_Transfer(madctl);                                // set configuration like rotation, refresh,...
 
   if (((0xF0 & madctl) == ST77XX_ROTATE_90) ||
       ((0xF0 & madctl) == ST77XX_ROTATE_270)) {
@@ -548,7 +509,6 @@ void ST7789_Set_MADCTL (struct st7789 * lcd, uint8_t madctl)
 /**
  * @desc    Set window
  *
- * @param   struct st7789 * lcd
  * @param   uint16_t xs - start position
  * @param   uint16_t xe - end position
  * @param   uint16_t ys - start position
@@ -556,7 +516,7 @@ void ST7789_Set_MADCTL (struct st7789 * lcd, uint8_t madctl)
  *
  * @return  uint8_t
  */
-uint8_t ST7789_Set_Window (struct st7789 * lcd, uint16_t xs, uint16_t xe, uint16_t ys, uint16_t ye)
+uint8_t ST7789_Set_Window (uint16_t xs, uint16_t xe, uint16_t ys, uint16_t ye)
 {
   if ((xs > xe) || (xe > Screen.width) ||
       (ys > ye) || (ye > Screen.height)) {
@@ -565,25 +525,24 @@ uint8_t ST7789_Set_Window (struct st7789 * lcd, uint16_t xs, uint16_t xe, uint16
 
   // CASET
   // --------------------------------------
-  ST7789_DC_Command (lcd);                              // command (active low)
-  SPI_Transfer (ST77XX_CASET);                          // command
-  
-  ST7789_DC_Data (lcd);                                 // data (active high)
-  SPI_Transfer ((uint8_t) (xs >> 8));                   // transfer High Byte
-  SPI_Transfer ((uint8_t) xs);                          // transfer low Byte
-  SPI_Transfer ((uint8_t) (xe >> 8));                   // transfer High Byte
-  SPI_Transfer ((uint8_t) xe);                          // transfer low Byte
-  
+  ST7789_DC_Command();                              // command (active low)
+  SPI_Transfer(ST77XX_CASET);                          // command
+
+  ST7789_DC_Data();                                 // data (active high)
+  SPI_Transfer((uint8_t) (xs >> 8));                   // transfer High Byte
+  SPI_Transfer((uint8_t) xs);                          // transfer low Byte
+  SPI_Transfer((uint8_t) (xe >> 8));                   // transfer High Byte
+  SPI_Transfer((uint8_t) xe);                          // transfer low Byte
+
   // RASET
-  // --------------------------------------
-  ST7789_DC_Command (lcd);                              // command (active low)
-  SPI_Transfer (ST77XX_RASET);                          // command
-  
-  ST7789_DC_Data (lcd);                                 // data (active high)
-  SPI_Transfer ((uint8_t) (ys >> 8));                   // transfer High Byte
-  SPI_Transfer ((uint8_t) ys);                          // transfer low Byte
-  SPI_Transfer ((uint8_t) (ye >> 8));                   // transfer High Byte
-  SPI_Transfer ((uint8_t) ye);                          // transfer low Byte
+  ST7789_DC_Command();                              // command (active low)
+  SPI_Transfer(ST77XX_RASET);                          // command
+
+  ST7789_DC_Data();                                 // data (active high)
+  SPI_Transfer((uint8_t) (ys >> 8));                   // transfer High Byte
+  SPI_Transfer((uint8_t) ys);                          // transfer low Byte
+  SPI_Transfer((uint8_t) (ye >> 8));                   // transfer High Byte
+  SPI_Transfer((uint8_t) ye);                          // transfer low Byte
 
   return ST77XX_SUCCESS;                                // success
 }
@@ -591,23 +550,22 @@ uint8_t ST7789_Set_Window (struct st7789 * lcd, uint16_t xs, uint16_t xe, uint16
 /**
  * @desc    Write Color Pixels
  *
- * @param   struct st7789 * lcd
  * @param   uint16_t color
  * @param   uint32_t counter
  *
  * @return  void
  */
-void ST7789_Send_Color_565 (struct st7789 * lcd, uint16_t color, uint32_t count)
+void ST7789_Send_Color_565(uint16_t color, uint32_t count)
 {
   // RAMWR
   // --------------------------------------
-  ST7789_DC_Command (lcd);                              // command (active low)
-  SPI_Transfer (ST77XX_RAMWR);                          // command
-  
-  ST7789_DC_Data (lcd);                                 // data (active high)
+  ST7789_DC_Command();                              // command (active low)
+  SPI_Transfer(ST77XX_RAMWR);                          // command
+
+  ST7789_DC_Data();                                 // data (active high)
   while (count--) {
-    SPI_Transfer ((uint8_t) (color >> 8));              // transfer High Byte
-    SPI_Transfer ((uint8_t) color);                     // transfer low Byte
+    SPI_Transfer((uint8_t) (color >> 8));              // transfer High Byte
+    SPI_Transfer((uint8_t) color);                     // transfer low Byte
   }
 }
 
@@ -624,11 +582,9 @@ void ST7789_Send_Color_565 (struct st7789 * lcd, uint16_t color, uint32_t count)
  *          ----        --------
  *              \______/
  *
- * @param   struct signal *
- *
  * @return  void
  */
-void ST7789_Reset_HW (struct signal * reset)
+void ST7789_Reset_HW(void)
 {
   gpio_pin_set_dt(&rs_dt, 0);
   k_usleep(100);  // >10us
@@ -636,65 +592,69 @@ void ST7789_Reset_HW (struct signal * reset)
   k_msleep(120);  // >120 ms
 }
 
+
+void ST7789_Reset_SW(void)
+{
+  ST7789_Send_Command(ST77XX_SWRESET);
+  k_msleep(120);
+  ST7789_Send_Command(ST77XX_SLPOUT);
+  k_msleep(120);
+}
+
+
+
 /**
  * @desc    Init sequence
  *
- * @param   struct st7789 *
  * @param   const uint8_t *
  *
  * @return  void
  */
-void ST7789_Init_Sequence (struct st7789 * lcd, const uint8_t * list)
+void ST7789_Init_Sequence(const uint8_t * list)
 {
   uint8_t arguments;
-  uint8_t commands = pgm_read_byte (list++);
+  uint8_t commands = *list++;
 
   while (commands--) {
     // COMMAND
     // ------------------------------------
-    ST7789_Send_Command (lcd, pgm_read_byte (list++));
+    ST7789_Send_Command(*list++);
     // ARGUMENTS
     // ------------------------------------
-    arguments = pgm_read_byte (list++);
+    arguments = *list++;
     while (arguments--) {
-      ST7789_Send_Data_Byte (lcd, pgm_read_byte (list++));
+      ST7789_Send_Data_Byte(*list++);
     }
     // DELAY
     // ------------------------------------
-    ST7789_Delay_ms (pgm_read_byte (list++));
+    ST7789_Delay_ms(*list++);
   }
 }
 
 /**
  * @desc    Command send
  *
- * @param   struct st7789 *
  * @param   uint8_t
  *
  * @return  void
  */
-void ST7789_Send_Command (struct st7789 * lcd, uint8_t data)
+void ST7789_Send_Command(uint8_t data)
 {
-  ST7789_CS_Active (lcd);                               // chip enable - active low
-  ST7789_DC_Command (lcd);                              // command (active low)
-  SPI_Transfer (data);                                  // transfer
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
+  ST7789_DC_Command();
+  SPI_Transfer(data);
 }
 
 /**
  * @desc    8bits data send
  *
- * @param   struct st7789 *
  * @param   uint8_t
  *
  * @return  void
  */
-void ST7789_Send_Data_Byte (struct st7789 * lcd, uint8_t data)
+void ST7789_Send_Data_Byte(uint8_t data)
 {
-  ST7789_CS_Active (lcd);                               // chip enable - active low
-  ST7789_DC_Data (lcd);                                 // data (active high)
-  SPI_Transfer (data);                                  // transfer
-  ST7789_CS_Idle (lcd);                                 // chip disable - idle high
+  ST7789_DC_Data();
+  SPI_Transfer (data);
 }
 
 /**

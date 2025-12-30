@@ -27,7 +27,6 @@
 
 
 
-
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 
@@ -44,6 +43,9 @@ int main(void)
     config_all_interrupts();
     LOG_INF("Starting WWD program!");
 
+    led_set(1, 1);
+    init_display();
+    led_set(1, 0);
 
     /*
     IMU CONFIG BLOCK
@@ -90,7 +92,7 @@ int main(void)
     // main loop
     while (1) {
         // LOG_INF("heartbeat ...");
-        // led_fast_blink(30);
+        led_fast_blink(30);
 
         // process IMU
         // if (imu_status) {
@@ -119,6 +121,7 @@ int main(void)
         }
 
         k_msleep(30);
+        k_msleep(3000);
     }
 	return 0;
 }

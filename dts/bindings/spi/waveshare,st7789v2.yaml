@@ -14,9 +14,6 @@ properties:
   bl-gpios:
     type: phandle-array
     required: true
-  cs-gpios:
-    type: phandle-array
-    required: true
 
 
 include: [spi-device.yaml]

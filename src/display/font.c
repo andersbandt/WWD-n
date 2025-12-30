@@ -16,7 +16,7 @@
 #include "font.h"
 
 /** @array Charset */
-const uint8_t FONTS[][CHARS_COLS_LENGTH] PROGMEM = {
+const uint8_t FONTS[][CHARS_COLS_LENGTH] = {
   { 0x00, 0x00, 0x00, 0x00, 0x00 }, // 20 space
   { 0x81, 0x81, 0x18, 0x81, 0x81 }, // 21 !
   { 0x00, 0x07, 0x00, 0x07, 0x00 }, // 22 "

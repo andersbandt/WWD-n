@@ -21,10 +21,6 @@
 #ifndef __ST7789_H__
 #define __ST7789_H__
 
-  // #include <avr/io.h>
-  // #include <avr/pgmspace.h>
-  // #include <util/delay.h>
-  // #include "spi.h"
   #include "font.h"
 
   // Success / Error
@@ -164,14 +160,13 @@
   /**
    * @desc    Draw String
    *
-   * @param   struct st7789 *
-   * @param   char * string 
+   * @param   char * string
    * @param   uint16_t color
    * @param   enum S_SIZE (X1, X2, X3)
    *
    * @return  uint8_t
    */
-  uint8_t ST7789_DrawString(struct st7789 *, char *, uint16_t, enum S_SIZE);
+  uint8_t ST7789_DrawString(char *, uint16_t, enum S_SIZE);
 
   /**
    * @desc    Set text position x, y
@@ -186,29 +181,26 @@
   /**
    * @desc    Draw character
    *
-   * @param   struct st7789 *
    * @param   char character
    * @param   uint16_t color
    *
    * @return  void
    */
-  char ST7789_DrawChar(struct st7789 *, char, uint16_t, enum S_SIZE);
+  char ST7789_DrawChar(char, uint16_t, enum S_SIZE);
 
   /**
    * @desc    Clear screen
    *
-   * @param   struct st7789 *
    * @param   uint16_t
    *
    * @return  void
    */
-  void ST7789_ClearScreen(struct st7789 *, uint16_t);
+  void ST7789_ClearScreen(uint16_t);
 
   /**
    * @desc    Draw line by Bresenham algoritm
    * @surce   https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm
    *
-   * @param   struct st7789 *
    * @param   uint16_t x start position / 0 <= cols <= MAX_X-1
    * @param   uint16_t x end position   / 0 <= cols <= MAX_X-1
    * @param   uint16_t y start position / 0 <= rows <= MAX_Y-1
@@ -217,12 +209,11 @@
    *
    * @return  void
    */
-  char ST7789_DrawLine(struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t, uint16_t);
+  char ST7789_DrawLine(uint16_t, uint16_t, uint16_t, uint16_t, uint16_t);
 
   /**
    * @desc    Fast Draw Line Horizontal
    *
-   * @param   struct st7789 *
    * @param   uint16_t xs - start position
    * @param   uint16_t xe - end position
    * @param   uint16_t y - position
@@ -230,12 +221,11 @@
    *
    * @return void
    */
-  void ST7789_FastLineHorizontal(struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t);
+  void ST7789_FastLineHorizontal(uint16_t, uint16_t, uint16_t, uint16_t);
 
   /**
    * @desc    Fast Draw Line Vertical
    *
-   * @param   struct st7789 *
    * @param   uint16_t x - position
    * @param   uint16_t ys - start position
    * @param   uint16_t ye - end position
@@ -243,19 +233,18 @@
    *
    * @return  void
    */
-  void ST7789_FastLineVertical(struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t);
+  void ST7789_FastLineVertical(uint16_t, uint16_t, uint16_t, uint16_t);
 
   /**
    * @desc    Draw Pixel
    *
-   * @param   struct st7789 * lcd
    * @param   uint16_t x position / 0 <= cols <= MAX_X-1
    * @param   uint8_t y position / 0 <= rows <= MAX_Y-1
    * @param   uint16_t color
    *
    * @return  void
    */
-  void ST7789_DrawPixel(struct st7789 *, uint16_t, uint8_t, uint16_t);
+  void ST7789_DrawPixel(uint16_t, uint8_t, uint16_t);
 
   /**
    * @desc    Init LCD
@@ -269,38 +258,30 @@
   /**
    * @desc    RAM Content Show
    *
-   * @param   struct st7789 * lcd
-   *
    * @return  void
    */
-  void ST7789_RAM_ContentShow (struct st7789 *);
+  void ST7789_RAM_ContentShow (void);
 
   /**
    * @desc    RAM Content Hide
    *
-   * @param   struct st7789 * lcd
-   *
    * @return  void
    */
-  void ST7789_RAM_ContentHide (struct st7789 *);
+  void ST7789_RAM_ContentHide (void);
 
   /**
    * @desc    Inversion On
    *
-   * @param   struct st7789 * lcd
-   *
    * @return  void
    */
-  void ST7789_InvertColorOn (struct st7789 *);
+  void ST7789_InvertColorOn (void);
 
   /**
    * @desc    Inversion Off
    *
-   * @param   struct st7789 * lcd
-   *
    * @return  void
    */
-  void ST7789_InvertColorOff (struct st7789 *);
+  void ST7789_InvertColorOff (void);
 
   /**
    * --------------------------------------------------------------------------------------------+
@@ -311,17 +292,15 @@
   /**
    * @desc    Set Configuration LCD
    *
-   * @param   struct st7789 * lcd
    * @param   uint8_t
    *
    * @return  void
    */
-  void ST7789_Set_MADCTL (struct st7789 *, uint8_t);
+  void ST7789_Set_MADCTL (uint8_t);
 
   /**
    * @desc    Set Window
    *
-   * @param   struct st7789 * lcd
    * @param   uint16_t xs - start position
    * @param   uint16_t xe - end position
    * @param   uint16_t ys - start position
@@ -329,18 +308,17 @@
    *
    * @return  uint8_t
    */
-  uint8_t ST7789_Set_Window (struct st7789 *, uint16_t, uint16_t, uint16_t, uint16_t);
+  uint8_t ST7789_Set_Window (uint16_t, uint16_t, uint16_t, uint16_t);
 
   /**
    * @desc    Write Color Pixels
    *
-   * @param   struct st7789 * lcd
    * @param   uint16_t color
    * @param   uint32_t counter
    *
    * @return  void
    */
-  void ST7789_Send_Color_565 (struct st7789 *, uint16_t, uint32_t);
+  void ST7789_Send_Color_565(uint16_t, uint32_t);
 
   /**
    * --------------------------------------------------------------------------------------------+
@@ -351,41 +329,36 @@
   /**
    * @desc    Hardware Reset
    *
-   * @param   struct signal *
-   *
    * @return  void
    */
-  void ST7789_Reset_HW (struct signal *);
+  void ST7789_Reset_HW(void);
 
   /**
    * @desc    Init sequence
    *
-   * @param   struct st7789 *
    * @param   const uint8_t *
    *
    * @return  void
    */
-  void ST7789_Init_Sequence (struct st7789 *, const uint8_t *);
+  void ST7789_Init_Sequence (const uint8_t *);
 
   /**
    * @desc    Command send
    *
-   * @param   struct st7789 *
    * @param   uint8_t
    *
    * @return  void
    */
-  void ST7789_Send_Command (struct st7789 *, uint8_t);
+  void ST7789_Send_Command (uint8_t);
 
   /**
    * @desc    8bits data send
    *
-   * @param   struct st7789 *
    * @param   uint8_t
    *
    * @return  void
    */
-  void ST7789_Send_Data_Byte (struct st7789 *, uint8_t);
+  void ST7789_Send_Data_Byte (uint8_t);
 
   /**
    * @desc    Delay

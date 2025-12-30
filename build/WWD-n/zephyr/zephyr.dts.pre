@@ -910,7 +910,7 @@ lscon_96b_uart0: &uart0 {};
     icm42670p: icm42670p@1 {
   compatible = "invensense,icm42670p";
   reg = <1>;
-  spi-max-frequency = <800000>;
+  spi-max-frequency = <8000000>;
         int-gpios = <&gpio0 9 (1 << 0)>, <&gpio0 3 (1 << 0)>;
 
 
@@ -925,12 +925,11 @@ lscon_96b_uart0: &uart0 {};
     st7789v2:st7789v2@2 {
         compatible = "waveshare,st7789v2";
         reg = <2>;
-        spi-max-frequency = <800000>;
+        spi-max-frequency = <1000000>;
 
-        cs-gpios = <&gpio0 31 (0 << 0)>;
         dc-gpios = <&gpio0 30 (0 << 0)>;
+        bl-gpios = <&gpio0 31 (0 << 0)>;
         reset-gpios = <&gpio0 11 (1 << 0)>;
-        bl-gpios = <&gpio0 12 (0 << 0)>;
 
         status = "okay";
     };

@@ -14,7 +14,7 @@
     icm42670p: icm42670p@1 {
 		compatible = "invensense,icm42670p";
 		reg = <1>;
-		spi-max-frequency = <800000>; /* Reduced to 8MHz for stability */
+		spi-max-frequency = <8000000>; /* Reduced to 8MHz for stability */
         int-gpios = <&gpio0 9 GPIO_ACTIVE_LOW>, <&gpio0 3 GPIO_ACTIVE_LOW>;
 
 		/* Required properties based on binding file */
@@ -29,12 +29,11 @@
     st7789v2:st7789v2@2 {
         compatible = "waveshare,st7789v2";
         reg = <2>;
-        spi-max-frequency = <800000>;
+        spi-max-frequency = <1000000>;
 
-        cs-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
         dc-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
+        bl-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
         reset-gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
-        bl-gpios = <&gpio0 12 GPIO_ACTIVE_HIGH>;
 
         status = "okay";
     };
