@@ -1,5 +1,6 @@
 target_sources(app PRIVATE
     display.c
+    st7735s.c
     st7789.c
     font.c
 )

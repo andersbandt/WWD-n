@@ -25,6 +25,7 @@
 /* Zephyr files */
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/drivers/display.h>
 
 
 /* My header files */

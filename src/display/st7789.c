@@ -32,7 +32,7 @@
 static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 // configure GPIO
-#define DISP_NODE DT_ALIAS(display0)
+#define DISP_NODE DT_ALIAS(display1)
 
 static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP_NODE, dc_gpios);
 static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP_NODE, reset_gpios);
