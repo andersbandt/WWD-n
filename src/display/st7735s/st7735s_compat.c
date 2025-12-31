@@ -1,61 +1,104 @@
+//*****************************************************************************
+//!
+//! @file st7735s.c
+//! @brief st7735 driver
+//! @author Anders Bandt
+//! @version 2.0
+//! @date December 31st, 2025
+//!
+//*****************************************************************************
+
+/* standard C file */
+#include <stddef.h>
+
+ /* Zephyr files */
+#include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/spi.h>
+
+
+/* My driver files */
 #include "st7735s_compat.h"
-#include "spi.h"
-#include "tim.h"
-
-uint32_t tim_period = 32768;
-uint32_t tim_pulse;
 
 
-#ifndef _Pin_Init
-#define _Pin_Init(name) LL_GPIO_SetPinMode(name ## _GPIO_Port, name ## _Pin, LL_GPIO_MODE_OUTPUT)
-#define _Pin_Toggle(name) LL_GPIO_TogglePin(name ## _GPIO_Port, name ## _Pin)
-#define _Pin_High(name) LL_GPIO_SetOutputPin(name ## _GPIO_Port, name ## _Pin);
-#define _Pin_Low(name) LL_GPIO_ResetOutputPin(name ##_GPIO_Port, name ## _Pin);
-#endif
+
+/* SPI definitions */
+#define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(waveshare_st7735s)
+#define SPI_OP SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 
-void SPI_Init(void) {
-	// Pin_Low(CS);
+/* GPIO definitions*/
+#define DISP0_NODE DT_NODELABEL(st7735s) // TODO: for some reason `display0` doesn't work here like it does in my ST7789 driver
+
+static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP0_NODE, dc_gpios);
+static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP0_NODE, reset_gpios);
+// static const struct gpio_dt_spec bl_dt = GPIO_DT_SPEC_GET_OR(DISP_NODE, bl_gpios, {0});
+
+
+
+/* Backlight tracking */
+uint8_t backlight_pct = 100;
+
+/* SPI Initialization */
+void SPI_Init_ST7735(void) {
+    if (!spi_is_ready_dt(&spi_dev)) {
+        /* TODO: Better error handling */
+        return;
+    }
+
+    /* Initialize GPIO pins */
+    // if (!gpio_is_ready_dt(&dc_dt)) return;
+    // if (!gpio_is_ready_dt(&bl_dt)) return;
+    // if (!gpio_is_ready_dt(&rs_dt)) return;
+
+    // gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_ACTIVE);
+    // gpio_pin_configure_dt(&bl_dt, GPIO_OUTPUT_ACTIVE);
+    // gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
 }
 
-void Pin_CS_Low(void) {
-}
-
-void Pin_CS_High(void) {
-}
 
 void Pin_RES_High(void) {
-    _Pin_High(ST_RESET);
+    // gpio_pin_set_dt(&rs_dt, 1);
 }
 
 void Pin_RES_Low(void) {
-    _Pin_Low(ST_RESET);
+    // gpio_pin_set_dt(&rs_dt, 0);
 }
 
 void Pin_DC_High(void) {
-    _Pin_High(ST_DC);
+    // gpio_pin_set_dt(&dc_dt, 1);
 }
 
 void Pin_DC_Low(void) {
-    _Pin_Low(ST_DC);
+    // gpio_pin_set_dt(&dc_dt, 0);
 }
 
-extern uint8_t backlight_pct;
 void Pin_BLK_Pct(uint8_t pct) {
     backlight_pct = pct;
-    tim_pulse = pct*tim_period/100;
-    __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, tim_pulse);
+
+    /* Simple on/off control (no PWM for now) */
+    if (pct > 0) {
+        // gpio_pin_set_dt(&bl_dt, 1);
+    } else {
+        // gpio_pin_set_dt(&bl_dt, 0);
+    }
 }
 
+/* SPI Communication */
 void SPI_send(uint16_t len, uint8_t *data) {
-	Pin_CS_low();
-#if 0
-	while (len--)
-		HAL_SPI_Transmit(&hspi3, data++, 1, 0xF000);
-#else
-	HAL_SPI_Transmit(&hspi3, data, len, 0xF000);
-	Pin_CS_High();
-#endif
+    struct spi_buf buf = {
+        .buf = data,
+        .len = len,
+    };
+    struct spi_buf_set set = {
+        .buffers = &buf,
+        .count = 1,
+    };
+
+    spi_write_dt(&spi_dev, &set);
 }
 
 void SPI_TransmitCmd(uint16_t len, uint8_t *data) {
@@ -69,12 +112,14 @@ void SPI_TransmitData(uint16_t len, uint8_t *data) {
 }
 
 void SPI_Transmit(uint16_t len, uint8_t *data) {
-    SPI_TransmitCmd(1, data++);
-    if (--len)
-       SPI_TransmitData(len, data);
+    SPI_TransmitCmd(1, data);
+    data++;
+    if (--len) {
+        SPI_TransmitData(len, data);
+    }
 }
 
+/* Delay Function */
 void _Delay(uint32_t d) {
-    HAL_Delay(d);
+    k_msleep(d);
 }
-

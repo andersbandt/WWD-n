@@ -1,6 +1,6 @@
 //*****************************************************************************
 //!
-//! @file led.c
+//! @file st7789.c
 //! @brief st7789v2 driver
 //! @author Marian Hrinko
 //! @author Anders Bandt
@@ -25,10 +25,8 @@
 
 
 // SPI parameters
-//SPI_Init (SPI_MASTER | SPI_MODE_0 | SPI_MSB_FIRST | SPI_FOSC_DIV_4);
 #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(waveshare_st7789v2)
 #define SPI_OP SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE
-
 static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 // configure GPIO

@@ -25,10 +25,6 @@
 
 
 
-#define DISP_NODE DT_NODELABEL(display0)
-
-
-
 typedef enum {
     NOP       = 0x00,
               SWRESET   = 0x01, /* Software Reset */
@@ -160,7 +156,7 @@ void initCommands(void) {
     }
 }
 
-uint8_t backlight_pct;
+// extern uint8_t backlight_pct;
 
 void ST7735S_sleepIn(void) {
 
@@ -222,7 +218,7 @@ void updateWindow(uint16_t x, uint16_t y) {
 
 void ST7735S_Init(void) {
 
-    SPI_Init();
+    SPI_Init_ST7735();
 
     /* backlight */
     Pin_BLK_Pct(100);

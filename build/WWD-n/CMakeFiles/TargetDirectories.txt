@@ -184,8 +184,6 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/gpio/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/gpio/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/gpio/CMakeFiles/drivers__gpio.dir
-/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/mipi_dbi/CMakeFiles/rebuild_cache.dir
-/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/mipi_dbi/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/pinctrl/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/pinctrl/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/pinctrl/CMakeFiles/drivers__pinctrl.dir

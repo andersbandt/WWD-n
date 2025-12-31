@@ -30,7 +30,6 @@
 
 /* My header files */
 #include <display.h>
-#include <st7789.h>
 
 
 LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
@@ -60,6 +59,31 @@ extern struct S_SCREEN Screen;
 
 
 void init_display() {
+#ifdef USE_ST7735S
+    /* ST7735S initialization */
+    ST7735S_Init();
+    setOrientation(R270);  /* Landscape */
+
+    /* Clear to white background */
+    bg_color.r = 31;
+    bg_color.g = 63;
+    bg_color.b = 31;
+
+    /* Draw red test pattern (160x80 display) */
+    color.r = 31;
+    color.g = 0;
+    color.b = 0;
+
+    for (uint16_t y = 0; y < HEIGHT; y += 5) {
+        for (uint16_t x = 0; x < WIDTH; x++) {
+            ST7735S_Pixel(x, y);
+        }
+    }
+
+    ST7735S_flush();
+
+#else
+    /* ST7789 initialization (existing code) */
     ST7789_Init(ST77XX_ROTATE_270 | ST77XX_RGB);
 
     uint16_t i;
@@ -68,13 +92,14 @@ void init_display() {
         ST7789_DrawLine(0, Screen.width, 0, i, RED);
     }
     for (i=0; i<Screen.height; i=i+5) {
-        ST7789_DrawLine (0, Screen.width, i, 0, BLUE);
+        ST7789_DrawLine(0, Screen.width, i, 0, BLUE);
     }
     for (i=0; i<30; i++) {
-        ST7789_FastLineHorizontal (0, Screen.width, i, BLACK);
+        ST7789_FastLineHorizontal(0, Screen.width, i, BLACK);
     }
     ST7789_SetPosition(75, 5);
     ST7789_DrawString("ST7789V2 DRIVER", WHITE, X3);
+#endif
 }
 
 

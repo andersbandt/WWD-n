@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-void SPI_Init(void);
+void SPI_Init_ST7735(void);
 void Pin_CS_Low(void);
 void Pin_CS_High(void);
 void Pin_RES_High(void);
@@ -26,10 +26,14 @@ void Pin_DC_High(void);
 void Pin_DC_Low(void);
 void Pin_BLK_Pct(uint8_t);
 
+void SPI_send(uint16_t len, uint8_t *data);
 void SPI_TransmitCmd(uint16_t len, uint8_t *data);
 void SPI_TransmitData(uint16_t len, uint8_t *data);
 void SPI_Transmit(uint16_t len, uint8_t *data);
 void _Delay(uint32_t d);
+
+/* Backlight level */
+extern uint8_t backlight_pct;
 
 #ifdef __cplusplus
 } // extern "C"

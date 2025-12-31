@@ -765,7 +765,7 @@ lscon_96b_uart0: &uart0 {};
   zephyr,sram = &sram0;
   zephyr,flash = &flash0;
   zephyr,code-partition = &slot0_partition;
-  zephyr,display=&disp0;
+
  };
 
 
@@ -774,7 +774,7 @@ lscon_96b_uart0: &uart0 {};
   led1 = &led1;
   led2 = &led2;
   watchdog0 = &wdt0;
-  display0 = &disp0;
+  display0 = &st7735s;
         display1 = &st7789v2;
  };
 
@@ -811,43 +811,6 @@ lscon_96b_uart0: &uart0 {};
   };
  };
 
- mipi_dbi1 {
-        compatible = "zephyr,mipi-dbi-spi";
-        spi-dev = <&spi1>;
-        dc-gpios = <&gpio0 30 (1 << 0)>;
-  reset-gpios = <&gpio0 31 (1 << 0)>;
-
-        #address-cells = <1>;
-        #size-cells = <0>;
-
-        disp0: st7735r@3 {
-   compatible = "sitronix,st7735r";
-   mipi-max-frequency = <250000>;
-   mipi-mode = "MIPI_DBI_MODE_SPI_4WIRE";
-            reg = <3>;
-            width = <128>;
-            height = <160>;
-            x-offset = <0>;
-            y-offset = <0>;
-            madctl = <0x60>;
-            colmod = <0x55>;
-            caset = [00 00 00 4F];
-            raset = [00 00 00 9F];
-            vmctr1 = <0x0e>;
-            invctr = <0x07>;
-            pwctr1 = [a2 02 84];
-            pwctr2 = [c5];
-            pwctr3 = [0a 00];
-            pwctr4 = [8a 2a];
-            pwctr5 = [8a ee];
-            frmctr1 = [01 2c 2d];
-            frmctr2 = [01 2c 2d];
-            frmctr3 = [01 2c 2d 01 2c 2d];
-            gamctrp1 = [02 1c 07 12 37 32 29 2d 29 25 2b 39 00 01 03 10];
-            gamctrn1 = [03 1d 07 06 2e 2c 29 2d 2e 2e 37 3f 00 00 02 10];
-
-        };
- };
 };
 
 &uicr {
@@ -958,13 +921,21 @@ lscon_96b_uart0: &uart0 {};
         compatible = "waveshare,st7789v2";
         reg = <2>;
         spi-max-frequency = <8000000>;
-
         dc-gpios = <&gpio0 30 (0 << 0)>;
-        bl-gpios = <&gpio0 31 (0 << 0)>;
         reset-gpios = <&gpio0 11 (1 << 0)>;
-
+        bl-gpios = <&gpio0 31 (0 << 0)>;
         status = "okay";
     };
+
+    st7735s: st7735s@3 {
+
+        compatible = "waveshare,st7735s";
+        reg = <3>;
+        spi-max-frequency = <8000000>;
+        dc-gpios = <&gpio0 30 (1 << 0)>;
+        reset-gpios = <&gpio0 31 (1 << 0)>;
+# 67 "/home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay"
+        };
 
     status = "okay";
 };

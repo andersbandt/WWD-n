@@ -15,6 +15,14 @@
 /* standard C file */
 #include <stdint.h>
 
+/* Display driver selection */
+#ifdef USE_ST7735S
+    #include <st7735s.h>
+    #include <gfx.h>
+#else
+    #include <st7789.h>
+#endif
+
 
 /**
  * @brief initializes the display

@@ -30,13 +30,41 @@
         compatible = "waveshare,st7789v2";
         reg = <2>;
         spi-max-frequency = <8000000>;
-
         dc-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
-        bl-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
         reset-gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
-
+        bl-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
         status = "okay";
     };
+
+    st7735s: st7735s@3 {
+        // compatible = "sitronix,st7735r";
+        compatible = "waveshare,st7735s";
+        reg = <3>;
+        spi-max-frequency = <8000000>;
+        dc-gpios = <&gpio0 30 GPIO_ACTIVE_LOW>;
+        reset-gpios = <&gpio0 31 GPIO_ACTIVE_LOW>;
+        // width = <128>;
+        // height = <160>;
+        // x-offset = <0>;
+        // y-offset = <0>;
+        // madctl = <0x60>;
+        // colmod = <0x55>;
+        // caset = [00 00 00 4F];
+        // raset = [00 00 00 9F];
+        // vmctr1 = <0x0e>;
+        // invctr = <0x07>;
+        // pwctr1 = [a2 02 84];
+        // pwctr2 = [c5];
+        // pwctr3 = [0a 00];
+        // pwctr4 = [8a 2a];
+        // pwctr5 = [8a ee];
+        // frmctr1 = [01 2c 2d];
+        // frmctr2 = [01 2c 2d];
+        // frmctr3 = [01 2c 2d 01 2c 2d];
+        // gamctrp1 = [02 1c 07 12 37 32 29 2d 29 25 2b 39 00 01 03 10];
+        // gamctrn1 = [03 1d 07 06 2e 2c 29 2d 2e 2e 37 3f 00 00 02 10];
+        // inversion-on;
+        };
 
     status = "okay";
 };

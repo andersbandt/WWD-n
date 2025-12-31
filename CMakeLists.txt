@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(WWDn)
 
+# Display driver selection
+# Uncomment the line below to use ST7735S instead of ST7789
+# add_compile_definitions(USE_ST7735S)
+
 # Include all headers under src
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..)
