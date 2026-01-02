@@ -35,7 +35,6 @@ static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP0_NODE, dc_gpios);
 static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP0_NODE, reset_gpios);
-// static const struct gpio_dt_spec bl_dt = GPIO_DT_SPEC_GET_OR(DISP_NODE, bl_gpios, {0});
 
 
 
@@ -46,35 +45,35 @@ uint8_t backlight_pct = 100;
 void SPI_Init_ST7735(void) {
     if (!spi_is_ready_dt(&spi_dev)) {
         /* TODO: Better error handling */
-        return;
+        while (1) { }
     }
 
     /* Initialize GPIO pins */
-    // if (!gpio_is_ready_dt(&dc_dt)) return;
-    // if (!gpio_is_ready_dt(&bl_dt)) return;
-    // if (!gpio_is_ready_dt(&rs_dt)) return;
+    if (!gpio_is_ready_dt(&dc_dt)) while (1) { }
+    if (!gpio_is_ready_dt(&rs_dt)) while (1) { }
 
-    // gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_ACTIVE);
-    // gpio_pin_configure_dt(&bl_dt, GPIO_OUTPUT_ACTIVE);
-    // gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
+    gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_ACTIVE);
+    gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
 }
 
 
+// TODO: refactor these reset functions to be more intuitive (with it being ACTIVE_LOW and all)
 void Pin_RES_High(void) {
-    // gpio_pin_set_dt(&rs_dt, 1);
+    gpio_pin_set_dt(&rs_dt, 0);
 }
 
 void Pin_RES_Low(void) {
-    // gpio_pin_set_dt(&rs_dt, 0);
+    gpio_pin_set_dt(&rs_dt, 1);
 }
 
 void Pin_DC_High(void) {
-    // gpio_pin_set_dt(&dc_dt, 1);
+    gpio_pin_set_dt(&dc_dt, 1);
 }
 
 void Pin_DC_Low(void) {
-    // gpio_pin_set_dt(&dc_dt, 0);
+    gpio_pin_set_dt(&dc_dt, 0);
 }
+
 
 void Pin_BLK_Pct(uint8_t pct) {
     backlight_pct = pct;
@@ -88,6 +87,7 @@ void Pin_BLK_Pct(uint8_t pct) {
 }
 
 /* SPI Communication */
+// TODO (small): can I combine this one with the other display transport layers?
 void SPI_send(uint16_t len, uint8_t *data) {
     struct spi_buf buf = {
         .buf = data,
@@ -119,7 +119,3 @@ void SPI_Transmit(uint16_t len, uint8_t *data) {
     }
 }
 
-/* Delay Function */
-void _Delay(uint32_t d) {
-    k_msleep(d);
-}

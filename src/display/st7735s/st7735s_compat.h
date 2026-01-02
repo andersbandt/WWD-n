@@ -5,13 +5,13 @@
 
 /* this may differ from the default 80x160 */
 #define defWIDTH   160
-#define defHEIGHT  80
+#define defHEIGHT  128
 #define defXSTART  1
 #define defYSTART  26
 
-/* #define BUFFER */
-/* #define BUFFER1 */
-#define HVBUFFER
+#define BUFFER
+// #define BUFFER1
+// #define HVBUFFER
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +30,6 @@ void SPI_send(uint16_t len, uint8_t *data);
 void SPI_TransmitCmd(uint16_t len, uint8_t *data);
 void SPI_TransmitData(uint16_t len, uint8_t *data);
 void SPI_Transmit(uint16_t len, uint8_t *data);
-void _Delay(uint32_t d);
 
 /* Backlight level */
 extern uint8_t backlight_pct;

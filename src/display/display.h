@@ -15,6 +15,12 @@
 /* standard C file */
 #include <stdint.h>
 
+
+// Display driver selection
+// Uncomment the line below to use ST7735S instead of ST7789
+#define USE_ST7735S
+
+
 /* Display driver selection */
 #ifdef USE_ST7735S
     #include <st7735s.h>

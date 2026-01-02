@@ -111,14 +111,14 @@ color565_t bg_color;
 
 /* columns: 1 = # of params, 2 = command, 3 .. = params */
 static uint8_t init_cmd[] = {
-    1, SWRESET, /* software reset */
-    1,  SLPOUT, /* sleep out, turn off sleep mode */
+    // 1, SWRESET, /* software reset */
+    // 1,  SLPOUT, /* sleep out, turn off sleep mode */
 	1, DISPOFF,  /*  output from frame mem disabled */
     4, FRMCTR1, 0x00, 0b111111, 0b111111, /* frame frequency normal mode (highest frame rate in normal mode) */
     4, FRMCTR2, 0b1111, 0x01, 0x01, /* frame frequency idle mode */
     7, FRMCTR3, 0x05, 0x3c, 0x3c, 0x05, 0x3c, 0x3c,  /* frame freq partial mode: 1-3 dot inv, 4-6 col inv */
     2,  INVCTR, 0x03, /* display inversion control: 3-bit 0=dot, 1=col */
-
+    
     4,  PWCTR1, 0b11111100, 0x08, 0b10, /* power control */
     2,  PWCTR2, 0xc0,
     3,  PWCTR3, 0x0d, 0x00,
@@ -159,7 +159,6 @@ void initCommands(void) {
 // extern uint8_t backlight_pct;
 
 void ST7735S_sleepIn(void) {
-
     uint8_t pct = backlight_pct;
     Pin_BLK_Pct(0);
     backlight_pct = pct;
@@ -223,23 +222,25 @@ void ST7735S_Init(void) {
     /* backlight */
     Pin_BLK_Pct(100);
 
-    /* hard reset */
+    // hard reset
     Pin_RES_High();
-    Pin_CS_Low();
-    Pin_DC_Low();
-    Delay(2); /* 10µs min */
+    // Pin_DC_Low();
+    k_msleep(10);
     Pin_RES_Low();
-    Delay(2); /* 10µs min */
+    k_msleep(120);
     Pin_RES_High();
-    Delay(2);
-    Pin_CS_High();
+    k_msleep(1);
+
+    // softare reset
+    SPI_TransmitCmd(1, SWRESET);
+    k_msleep(150);
+    SPI_TransmitCmd(1, SLPOUT);
+    k_msleep(150);
 
     initCommands();
-
 }
 
-void ST7735S_flush(void)
-{
+void ST7735S_flush(void) {
         uint16_t xm = xmin + XSTART, ym = ymin + YSTART;
         uint16_t xx = xmax + XSTART, yx = ymax + YSTART;
 
@@ -251,34 +252,34 @@ void ST7735S_flush(void)
         SPI_Transmit(sizeof(ras), ras);
         SPI_TransmitCmd(1, ram);
 
-#if defined(BUFFER)
-#if 1
-    uint16_t len  = (xmax-xmin+1)*2;
-    for (uint16_t y = ymin; y <= ymax; y++)
-        SPI_TransmitData(len, (uint8_t *)&frame[WIDTH*y+xmin]);
-#else
-    uint16_t len = (xmax-xmin+1)*2*(ymax-ymin+1);
-    SPI_TransmitData(len, (uint8_t *)&frame[WIDTH*ymin+xmin]);
-#endif
-#elif defined(HVBUFFER)
-    if (hvtype == VF) { // horiz line
-        uint16_t len  = (xmax-xmin+1)*2;
-        SPI_TransmitData(len, (uint8_t *)&hvframe[xmin]);
-    } else
-        if (hvtype == HF) { // vert line
-        uint16_t len  = (ymax-ymin+1)*2;
-        SPI_TransmitData(len, (uint8_t *)&hvframe[ymin]);
-    } else
-    	if (hvtype == ONE) { // single pixel
-    		SPI_TransmitData(2, (uint8_t *)&hvcolor1);
-    	}
-    hvtype = NONE;
-#elif defined(BUFFER1)
-    SPI_TransmitData( 2, (uint8_t *)&frame[0]);
-#else
-#error buffer not defined.
-#endif
-    resetWindow();
+        #if defined(BUFFER)
+        #if 1
+            uint16_t len  = (xmax-xmin+1)*2;
+            for (uint16_t y = ymin; y <= ymax; y++)
+                SPI_TransmitData(len, (uint8_t *)&frame[WIDTH*y+xmin]);
+        #else
+            uint16_t len = (xmax-xmin+1)*2*(ymax-ymin+1);
+            SPI_TransmitData(len, (uint8_t *)&frame[WIDTH*ymin+xmin]);
+        #endif
+        #elif defined(HVBUFFER)
+            if (hvtype == VF) { // horiz line
+                uint16_t len  = (xmax-xmin+1)*2;
+                SPI_TransmitData(len, (uint8_t *)&hvframe[xmin]);
+            } else
+                if (hvtype == HF) { // vert line
+                uint16_t len  = (ymax-ymin+1)*2;
+                SPI_TransmitData(len, (uint8_t *)&hvframe[ymin]);
+            } else
+                if (hvtype == ONE) { // single pixel
+                    SPI_TransmitData(2, (uint8_t *)&hvcolor1);
+                }
+            hvtype = NONE;
+        #elif defined(BUFFER1)
+            SPI_TransmitData( 2, (uint8_t *)&frame[0]);
+        #else
+        #error buffer not defined.
+        #endif
+            resetWindow();
 }
 
 #if defined(BUFFER)
@@ -363,9 +364,9 @@ void ST7735S_bgPixel(uint16_t x, uint16_t y) {
 #elif defined(BUFFER1)
 void ST7735S_Pixel(uint16_t x, uint16_t y) {
     if ( x < WIDTH && y < HEIGHT) {
-    frame[0] = color;
-    updateWindow(x,y);
-    ST7735S_flush();
+        frame[0] = color;
+        updateWindow(x,y);
+        ST7735S_flush();
     }
 }
 
@@ -447,9 +448,9 @@ void ST7735S_partialArea(uint16_t from, uint16_t to) {
     SPI_Transmit(sizeof(CMD2), CMD2);
 }
 
-void Delay(uint32_t d) {
-    _Delay(d);
-}
+// void Delay(uint32_t d) {
+//     _Delay(d);
+// }
 
 void Backlight_Pct(uint8_t p) {
         Pin_BLK_Pct(p % 101);

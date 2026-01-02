@@ -57,7 +57,6 @@ extern struct S_SCREEN Screen;
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 void init_display() {
 #ifdef USE_ST7735S
     /* ST7735S initialization */
@@ -66,8 +65,8 @@ void init_display() {
 
     /* Clear to white background */
     bg_color.r = 31;
-    bg_color.g = 63;
-    bg_color.b = 31;
+    bg_color.g = 0;
+    bg_color.b = 0;
 
     /* Draw red test pattern (160x80 display) */
     color.r = 31;
