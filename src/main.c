@@ -40,9 +40,26 @@ int main(void)
     config_all_interrupts();
     LOG_INF("Starting WWD program!");
 
-    led_set(1, 1);
-    init_display();
-    led_set(1, 0);
+        /*
+    NVS CONFIG BLOCK
+    */
+	// nvs_init();
+    // static uint8_t data[2176];
+    // data[0] = 8;
+    // data[1] = 9;
+    // nvs_write(&data, 2176);
+    // ret = nvs_read(data, 2176, 0);
+    // for (int i = 0; i < 10; i++) {
+    //     printk("%02X ", data[i]);
+    // }
+    // printk("\n");
+    /*
+    END OF NVS CONFIG BLOCK
+    */
+
+    // led_set(1, 1);
+    // init_display();
+    // led_set(1, 0);
 
     /*
     IMU CONFIG BLOCK
@@ -65,23 +82,6 @@ int main(void)
     END OF IMU CONFIG BLOCK
     */
 
-
-    /*
-    NVS CONFIG BLOCK
-    */
-	// nvs_init();
-    // static uint8_t data[2176];
-    // data[0] = 8;
-    // data[1] = 9;
-    // nvs_write(&data, 2176);
-    // ret = nvs_read(data, 2176, 0);
-    // for (int i = 0; i < 10; i++) {
-    //     printk("%02X ", data[i]);
-    // }
-    // printk("\n");
-    /*
-    END OF NVS CONFIG BLOCK
-    */
 
     // main loop
     while (1) {

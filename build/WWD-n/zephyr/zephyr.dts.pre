@@ -813,6 +813,7 @@ lscon_96b_uart0: &uart0 {};
 
 };
 
+
 &uicr {
  gpio-as-nreset;
 };

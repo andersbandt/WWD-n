@@ -20,5 +20,5 @@ target_sources(app PRIVATE
 )
 
 add_subdirectory(src/display)
-# add_subdirectory(src/memory)
+add_subdirectory(src/memory)
 # add_subdirectory(src/hardware/ic/imu)
