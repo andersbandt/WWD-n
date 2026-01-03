@@ -30,9 +30,9 @@
         compatible = "waveshare,st7789v2";
         reg = <2>;
         spi-max-frequency = <8000000>;
-        dc-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
-        reset-gpios = <&gpio0 11 GPIO_ACTIVE_LOW>;
-        bl-gpios = <&gpio0 31 GPIO_ACTIVE_HIGH>;
+        dc-gpios = <&gpio0 22 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&gpio0 24 GPIO_ACTIVE_LOW>;
+        bl-gpios = <&gpio0 1 GPIO_ACTIVE_HIGH>;
         status = "okay";
     };
 
@@ -41,7 +41,7 @@
         compatible = "waveshare,st7735s";
         reg = <3>;
         spi-max-frequency = <8000000>;
-        dc-gpios = <&gpio0 30 GPIO_ACTIVE_LOW>;
+        dc-gpios = <&gpio0 30 GPIO_ACTIVE_HIGH>;
         reset-gpios = <&gpio0 31 GPIO_ACTIVE_LOW>;
         // width = <128>;
         // height = <160>;
@@ -64,6 +64,7 @@
         // gamctrp1 = [02 1c 07 12 37 32 29 2d 29 25 2b 39 00 01 03 10];
         // gamctrn1 = [03 1d 07 06 2e 2c 29 2d 2e 2e 37 3f 00 00 02 10];
         // inversion-on;
+        status = "okay";
         };
 
     status = "okay";

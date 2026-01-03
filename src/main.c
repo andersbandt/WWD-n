@@ -20,11 +20,8 @@
 /* My driver files */
 #include <hardware/led.h>
 #include <peripheral/interrupt.h>
-#include <nvs.h>
 // #include <imu.h>
-#include <icm42670.h>
-#include <display/display.h>
-
+#include <display.h>
 
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
@@ -53,14 +50,11 @@ int main(void)
     // struct icm42670_data sensor_data;
     // int ret = 0;
     // ret |= icm42670_init();
-    //     // ret |= imu_init();
     // if (ret == 0) {
     //     printk("Initialized IMU\n");
     //     imu_status = true;
-    //     /* Set initial sample rates */
     //     ret = icm42670_set_accel_rate(100); /* 100 Hz */
     //     ret |= icm42670_set_gyro_rate(100); /* 100 Hz */
-
     // }
     // else {
     //     printk("Failed to initialize ICM42670 with code [%d]\n", ret);

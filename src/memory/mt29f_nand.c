@@ -1,12 +1,23 @@
+//*****************************************************************************
+//!
+//! @file mt29f_nand.c
+//! @author Anders Bandt
+//! @brief MT29F driver
+//! @version 0.9
+//! @date January 2026
+//!
+//*****************************************************************************
 
+
+/* Standard C99 stuff */
 #include <errno.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
-
 #include <sys/types.h>
 
+/* Zephyr files */
 #include <zephyr/device.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
@@ -15,10 +26,15 @@
 #include <zephyr/logging/log.h>
 
 
-LOG_MODULE_REGISTER(mt29f_nand, LOG_LEVEL_INF);
-
+/* My header files  */
 #include "mt29f_defs.h"
 #include "mt29f_nand.h"
+
+
+
+LOG_MODULE_REGISTER(mt29f_nand, LOG_LEVEL_INF);
+
+
 
 #define DUMMY_BYTE      0x00
 #define MAX_SUPPORTED_BUF  (4352)

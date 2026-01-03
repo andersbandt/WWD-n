@@ -107,9 +107,7 @@ uint32_t get_slope() {
     return SLOPE_VALUE;
 }
 
-/*
- *
- */
+
 uint32_t get_raw_ms() {
     //uint32_t ticks = ClockP_getSystemTicks();
     uint32_t ticks = 0;
@@ -178,7 +176,7 @@ Time get_current_time() {
  *
  */
 void set_time_offset() {
-    tick_offset = ClockP_getSystemTicks();
+    // tick_offset = ClockP_getSystemTicks();
     ticks_overflow = 0;
 }
 

@@ -26,8 +26,8 @@ LOG_MODULE_REGISTER(nvs, LOG_LEVEL_INF);
 
 
 #define OFFSET_STARTUP_READ   (0)
-// int addr_offset = 0;
-// bool offset_status = 0;
+int addr_offset = 0;
+bool offset_status = 0;
 
 
 static const mt29f_cfg_t cfg = {
@@ -37,6 +37,9 @@ static const mt29f_cfg_t cfg = {
     .bytes_per_page = 2176,
     .oob_bytes = 128
 };
+
+
+#define TOTAL_PAGES cfg.num_dies * cfg.blocks_per_die * cfg.pages_per_block
 
 static off_t write_addr = 0;
 static off_t read_addr = 0;
@@ -58,27 +61,25 @@ void nvs_init(void)
  * nvs_write: performs a write on an NVS memory instance
  */
 int nvs_write(void * data, size_t len) {
-    mt29f_write(write_addr, data, len);
+    int status = mt29f_write(write_addr, data, len);
     write_addr += len;
+    return status;
 }
 
 
 /*
  * nvs_write_auto_offsets: performs a write operation with auto-increment of the "fresh space" offset
  */
-int nvs_write_auto_offset(void * data, size_t num_bytes) {
+int nvs_write_auto_offset(void * data, size_t len) {
+    // TODO: figure out how this gets going with my new MT29F config
 //     if (addr_offset > regionAttrs.regionSize) {
 //         return -1;
 //     }
 
-//   int status = NVS_write(nvsHandle, // handle
-//                          addr_offset, // offset - AUTOMATIC based on set `addr_offset` variable
-//                          data, // buffer
-//                          num_bytes, // number of bytes
-//                          NVS_WRITE_POST_VERIFY); // write flags
+    int status = mt29f_write(addr_offset, data, len);
 
-//     addr_offset += num_bytes; // increment the offset up by 1
-//     return status;
+    addr_offset += len; // increment the offset up by 1
+    return status;
 }
 
 
@@ -91,23 +92,34 @@ int nvs_read(void * buffer, size_t len, off_t addr) {
 }
 
 
-
 /*
  * nvs_get_offset: calculates the NVS address offset
  */
+// TODO: this function needs to be redone with the new page constraint I have
 bool nvs_calc_offset() {
     // look for unsigned int (0xFF / 255)
     // if looking for int8_t will be looking for (-1)
-    uint8_t read_data[3];
+    uint8_t read_data[cfg.bytes_per_page];
+
 
     // sweep whole region size
-    // for (int i = 0; i < regionAttrs.regionSize; i++) {
-    //     nvs_read(read_data, i*3, 3); // data, offset, num bytes
-    //     if (read_data[0] == 0xFF && read_data[1] == 0xFF && read_data[2] == 0xFF) {
-    //         addr_offset = i;
-    //         return true;
-    //     }
-    // }
+    for (int page = 0; page < TOTAL_PAGES; page++) {
+        nvs_read(read_data, page, cfg.bytes_per_page); // data, offset, num bytes
+
+        // walk records inside page
+                /* Walk records inside page */
+        for (uint32_t r = 0; r < cfg.bytes_per_page; r++) {
+            uint8_t *rec = &read_data[r];
+
+            if (rec[0] == 0xFF &&
+                rec[1] == 0xFF &&
+                rec[2] == 0xFF) {
+
+                addr_offset = (page * cfg.bytes_per_page) + r;
+                return true;
+            }
+        }
+    }
     return false;
 }
 
@@ -116,7 +128,7 @@ bool nvs_calc_offset() {
  * nvs_get_addr_offset: "Getter" function for the address offset
  */
 int nvs_get_addr_offset() {
-    // return addr_offset;
+    return addr_offset;
 }
 
 
@@ -136,19 +148,13 @@ size_t nvs_get_region_size() {
  * nvs_erase_region: erases the whole NVS region
  */
 void nvs_erase_region() {
-    // LOG_INFO("%s", regionAttrs.regionBase);
-    // LOG_INFO("Erasing flash REGION... like the whole thing...\n");
+    LOG_INFO("Erasing flash REGION... like the whole thing...\n");
 
-    // // erase the entire flash sector
-    // int num_sectors = regionAttrs.regionSize/regionAttrs.sectorSize;
-    // for(int i=0; i < num_sectors; i++) {
-    //     int status = NVS_erase(nvsHandle, i*regionAttrs.sectorSize, regionAttrs.sectorSize);
-    //     nvs_error(status, 0, display);
-    // }
+    mt29f_chip_erase();
 
-    // // regenerate the address offset
-    // nvs_calc_offset(display);
-    // LOG_INFO("\tnew write offset set at: [%d]", addr_offset);
+    // regenerate the address offset
+    nvs_calc_offset();
+    LOG_INFO("\tnew write offset set at: [%d]", addr_offset);
 }
 
 

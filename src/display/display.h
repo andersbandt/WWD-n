@@ -25,6 +25,7 @@
 #ifdef USE_ST7735S
     #include <st7735s.h>
     #include <gfx.h>
+    #include <fonts.h>
 #else
     #include <st7789.h>
 #endif

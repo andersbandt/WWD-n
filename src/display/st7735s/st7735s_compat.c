@@ -23,7 +23,6 @@
 #include "st7735s_compat.h"
 
 
-
 /* SPI definitions */
 #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(waveshare_st7735s)
 #define SPI_OP SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE
@@ -35,7 +34,6 @@ static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP0_NODE, dc_gpios);
 static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP0_NODE, reset_gpios);
-
 
 
 /* Backlight tracking */
@@ -52,7 +50,7 @@ void SPI_Init_ST7735(void) {
     if (!gpio_is_ready_dt(&dc_dt)) while (1) { }
     if (!gpio_is_ready_dt(&rs_dt)) while (1) { }
 
-    gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_ACTIVE);
+    gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_INACTIVE);
     gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
 }
 
@@ -68,10 +66,12 @@ void Pin_RES_Low(void) {
 
 void Pin_DC_High(void) {
     gpio_pin_set_dt(&dc_dt, 1);
+    k_msleep(1);
 }
 
 void Pin_DC_Low(void) {
     gpio_pin_set_dt(&dc_dt, 0);
+    k_msleep(1);
 }
 
 

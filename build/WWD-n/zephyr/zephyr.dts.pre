@@ -921,9 +921,9 @@ lscon_96b_uart0: &uart0 {};
         compatible = "waveshare,st7789v2";
         reg = <2>;
         spi-max-frequency = <8000000>;
-        dc-gpios = <&gpio0 30 (0 << 0)>;
-        reset-gpios = <&gpio0 11 (1 << 0)>;
-        bl-gpios = <&gpio0 31 (0 << 0)>;
+        dc-gpios = <&gpio0 22 (0 << 0)>;
+        reset-gpios = <&gpio0 24 (1 << 0)>;
+        bl-gpios = <&gpio0 1 (0 << 0)>;
         status = "okay";
     };
 
@@ -932,9 +932,10 @@ lscon_96b_uart0: &uart0 {};
         compatible = "waveshare,st7735s";
         reg = <3>;
         spi-max-frequency = <8000000>;
-        dc-gpios = <&gpio0 30 (1 << 0)>;
+        dc-gpios = <&gpio0 30 (0 << 0)>;
         reset-gpios = <&gpio0 31 (1 << 0)>;
 # 67 "/home/anders/Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay"
+        status = "okay";
         };
 
     status = "okay";

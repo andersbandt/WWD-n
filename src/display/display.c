@@ -61,25 +61,14 @@ void init_display() {
 #ifdef USE_ST7735S
     /* ST7735S initialization */
     ST7735S_Init();
-    setOrientation(R270);  /* Landscape */
+    // setOrientation(R90);
 
-    /* Clear to white background */
-    bg_color.r = 31;
-    bg_color.g = 0;
-    bg_color.b = 0;
+    setColor(60, 20, 20);
+    fillScreen();
 
-    /* Draw red test pattern (160x80 display) */
-    color.r = 31;
-    color.g = 0;
-    color.b = 0;
-
-    for (uint16_t y = 0; y < HEIGHT; y += 5) {
-        for (uint16_t x = 0; x < WIDTH; x++) {
-            ST7735S_Pixel(x, y);
-        }
-    }
-
-    ST7735S_flush();
+    setFont(ter_u24b);
+    drawText(4,33, "Hi World!");
+    flushBuffer();
 
 #else
     /* ST7789 initialization (existing code) */

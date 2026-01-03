@@ -360,6 +360,7 @@ set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000/st7735s@3|spi-cpol" "False")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000/st7735s@3|spi-cpha" "False")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000/st7735s@3|spi-hold-cs" "False")
+set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000/st7735s@3|status" "okay")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000/st7735s@3|compatible" "waveshare,st7735s;")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000/st7735s@3|zephyr,deferred-init" "False")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/spi@40004000/st7735s@3|wakeup-source" "False")
