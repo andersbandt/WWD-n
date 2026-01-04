@@ -45,15 +45,27 @@ extern struct S_SCREEN Screen;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
-//! LOCAL VARIABLES -------------------------------------------------------------------------------------------------------//
+//! LOCAL FUNCTIONS -------------------------------------------------------------------------------------------------------//
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+ * printToScreen: prints a certain text value to a certain position on the screen
+ */
+void printToScreen(const char * text, const uint32_t posY, const uint32_t posX)
+{
+    if (text == 0) {  // handle null pointers being passed in
+        return;
+    }
+
+    drawText(posX, posY, text);
+}
+
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
-//! FUNCTIONS -------------------------------------------------------------------------------------------------------------//
+//! GLOBAL FUNCTIONS ------------------------------------------------------------------------------------------------------//
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -63,11 +75,17 @@ void init_display() {
     ST7735S_Init();
     // setOrientation(R90);
 
+    // set initial background
     setColor(60, 20, 20);
     fillScreen();
 
     setFont(ter_u24b);
-    drawText(4,33, "Hi World!");
+    printLine("Line 1", 1, 4);
+    printLine("Line 2", 2, 4);
+    printLine("Line 3", 3, 4);
+    printLine("Line 4", 4, 4);
+    // drawText(4, 15, "Line 1");
+
     flushBuffer();
 
 #else
@@ -95,37 +113,40 @@ void init_display() {
 /**
  * clearDisplay: clears all content on the display
  */
-// TODO: refactor this from `clearDisplay` to `clear_display`
-void clearDisplay()
+void clear_display()
 {
-    // ssd1306ClearDisplay();  // clear the display
+    setColor(0,0, 0);
+    fillScreen();
 }
 
-
-/*
- * printToScreen: prints a certain text value to a certain position on the screen
- */
-void printToScreen(char * text, const uint32_t posY, const uint32_t posX)
-{
-    if (text == 0) {  // handle null pointers being passed in
-        return;
-    }
-
-    // ssd1306PrintString(text, posY, posX, source_pro_set);
-}
 
 
 /*
  * printLine: prints an individual line to the screen
  */
-void printLine(char * text, const uint32_t lineNum, const uint32_t posX)
+// TODO: do I wanna refactor this argument list order?
+void printLine(const char * text, const uint32_t lineNum, const uint32_t posX)
 {
     if (text == 0) {  // handle null pointers being passed in
         return;
     }
 
-    // ssd1306PrintString(text, lineNum, posX, source_pro_set);
+    // go through lines and print out at pre-determined line Y coordinates
+    if (lineNum == 1) {
+        printToScreen(text, line1_Y, posX);
+    }
+    else if (lineNum == 2) {
+        printToScreen(text, line2_Y, posX);
+    }
+    else if (lineNum == 3) {
+        printToScreen(text, line3_Y, posX);
+    }
+    else if (lineNum == 4) {
+        printToScreen(text, line4_Y, posX);
+    }
 }
+
+
 
 
 void printNum(int number, const uint32_t lineNum, const uint32_t posX) {
@@ -155,8 +176,13 @@ void changeContrast(const uint8_t contrast) {
 }
 
 
-void switchDisplay(const bool on) {
-    // ssd1306SwitchDisplay(on);
+void switch_display(const bool on) {
+    if (on) {
+        ST7735S_sleepOut();
+    }
+    else {
+        ST7735S_sleepIn();
+    }
 }
 
 

@@ -130,8 +130,7 @@ static inline void ST7789_DC_Data () {
  *
  * @return  void
  */
-void ST7789_Init(uint8_t madctl)
-{
+void ST7789_Init(uint8_t madctl) {
   // initialize the SPI interface
   SPI_Init();
 
@@ -198,8 +197,7 @@ char ST7789_SetPosition (uint8_t x, uint8_t y)
  *
  * @return  uint8_t
  */
-uint8_t ST7789_DrawString(char * str, uint16_t color, enum S_SIZE size)
-{
+uint8_t ST7789_DrawString(char * str, uint16_t color, enum S_SIZE size) {
   uint8_t delta_y = CHARS_ROWS_LEN + (size >> 4);
   uint16_t i = 0;
   uint16_t x;

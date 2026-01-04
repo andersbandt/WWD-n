@@ -130,7 +130,7 @@ static uint8_t init_cmd[] = {
     2,     GCV, 0b11011000, /* auto gate pump freq, max power save */
     2, NVFCTR1, 0b01000000, /* automatic adjust gate pumping clock for saving power consumption */
 	2,  VMCTR1, 0b001111,  /* VCOM voltage setting */
-    2, VMOFCTR, 0b10000, /* ligthness of black color 0-0x1f */
+    2, VMOFCTR, 0b10000, /* lightness of black color 0-0x1f */
     2,  GAMSET, 0x08, /* gamma 1, 2, 4, 8 */
 
     // 2,  MADCTL, 0b01100000, /* row oder, col order, row colum xchange, vert refr order, rgb/bgr, hor refr order, 0, 0 */

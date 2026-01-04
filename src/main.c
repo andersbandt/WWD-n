@@ -40,7 +40,7 @@ int main(void)
     config_all_interrupts();
     LOG_INF("Starting WWD program!");
 
-        /*
+    /*
     NVS CONFIG BLOCK
     */
 	// nvs_init();
