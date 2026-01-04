@@ -5,13 +5,13 @@
 
 /* this may differ from the default 80x160 */
 #define defWIDTH   128
-#define defHEIGHT  160
+#define defHEIGHT  180
 #define defXSTART  1
-#define defYSTART  26
+#define defYSTART  1
 
-#define BUFFER
+// #define BUFFER
 // #define BUFFER1
-// #define HVBUFFER
+#define HVBUFFER
 
 #ifdef __cplusplus
 extern "C" {

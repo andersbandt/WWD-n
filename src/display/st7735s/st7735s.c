@@ -133,7 +133,7 @@ static uint8_t init_cmd[] = {
     2, VMOFCTR, 0b10000, /* ligthness of black color 0-0x1f */
     2,  GAMSET, 0x08, /* gamma 1, 2, 4, 8 */
 
-    2,  MADCTL, 0b01100000, /* row oder, col order, row colum xchange, vert refr order, rgb/bgr, hor refr order, 0, 0 */
+    // 2,  MADCTL, 0b01100000, /* row oder, col order, row colum xchange, vert refr order, rgb/bgr, hor refr order, 0, 0 */
     2,  COLMOD, 0x05, /* 3=12bit, 5=16-bit, 6=18-bit  pixel color mode */
     17, GMCTRP1,0x02, 0x1c, 0x07, 0x12, 0x37, 0x32, 0x29, 0x2c,
                 0x29, 0x25, 0x2b, 0x39, 0x00, 0x01, 0x03, 0x10,
@@ -176,22 +176,30 @@ void ST7735S_sleepOut(void) {
 void setOrientation(rotation_t r) {
 
     switch ((uint8_t)r) {
-        case   R0: { madctl = 0b01100000;
+        case   R0: { 
+            // madctl = 0b01100000;
+            madctl = 0x00;
             WIDTH = defWIDTH; HEIGHT = defHEIGHT;
             XSTART = defXSTART; YSTART = defYSTART;
             break;
         }
-        case  R90: { madctl = 0b11000000;
+        case  R90: { 
+            // madctl = 0b11000000;
+            madctl = 0x60;
             WIDTH = defHEIGHT; HEIGHT = defWIDTH;
             XSTART = defYSTART; YSTART = defXSTART;
             break;
         }
-        case R180: { madctl = 0b10100000;
+        case R180: { 
+            // madctl = 0b10100000;
+            madctl = 0xC0;
             WIDTH = defWIDTH; HEIGHT = defHEIGHT;
             XSTART = defXSTART; YSTART = defYSTART;
             break;
         }
-        case R270: { madctl = 0b01000000;
+        case R270: { 
+            // madctl = 0b01000000;
+            madctl = 0xA0;
             WIDTH = defHEIGHT; HEIGHT = defWIDTH;
             XSTART = defYSTART; YSTART = defXSTART;
             break;

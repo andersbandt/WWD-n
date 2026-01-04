@@ -57,9 +57,9 @@ int main(void)
     END OF NVS CONFIG BLOCK
     */
 
-    // led_set(1, 1);
-    // init_display();
-    // led_set(1, 0);
+    led_set(1, 1);
+    init_display();
+    led_set(1, 0);
 
     /*
     IMU CONFIG BLOCK
