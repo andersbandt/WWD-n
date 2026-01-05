@@ -83,22 +83,31 @@ void init_ui()
 }
 
 
+bool first_time = true;
 void ui_refresh() {
     if (ui_mode == 1) {
         // handle updating clock
         Time cur_time = get_current_time();
         display_out_time(cur_time);
 
-        // handle updating battery percent
-        display_out_bms(charging_status, bat_percent);
+        if (first_time) {
+            // handle updating battery percent
+            // display_out_bms(charging_status, bat_percent);
+            display_out_bms(1, 99);
 
-        // handle updating health statistics
-        display_out_pedometer(step_count);
+            // handle updating health statistics
+            // display_out_pedometer(step_count);
+            display_out_pedometer(4123);
 
 
-        // handle updating IMU temp
-        int16_t imu_temp = imu_get_temp(NULL);
-        display_out_temp(imu_temp);
+            // handle updating IMU temp
+            // int16_t imu_temp = imu_get_temp(NULL);
+            // display_out_temp(imu_temp);
+            display_out_temp(70);
+
+            // TODO: delete this later
+            first_time = false;
+        }
         
     }
     else if (ui_mode == 2) {

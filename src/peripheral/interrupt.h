@@ -11,14 +11,18 @@
 #ifndef SRC_PERIPHERALS_INTERRUPTS_H_
 #define SRC_PERIPHERALS_INTERRUPTS_H_
 
+#include <zephyr/kernel.h>
 
+/* Button semaphores for thread synchronization */
+extern struct k_sem button1_sem;
+extern struct k_sem button2_sem;
+
+/* Future interrupt flags for other peripherals */
 extern volatile int BMS_INT_FLAG;
 extern volatile int IMU_1_INT_FLAG;
 extern volatile int IMU_2_INT_FLAG;
 extern volatile int AFE_1_INT_FLAG;
 extern volatile int AFE_2_INT_FLAG;
-extern volatile int BUTTON_1_INT_FLAG;
-extern volatile int BUTTON_2_INT_FLAG;
 
 /**
  * @brief configures an interrupt based on the provided parameters

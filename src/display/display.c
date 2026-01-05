@@ -79,13 +79,8 @@ void init_display() {
     setColor(60, 20, 20);
     fillScreen();
 
+    // set font config
     setFont(ter_u24b);
-    printLine("Line 1", 1, 4);
-    printLine("Line 2", 2, 4);
-    printLine("Line 3", 3, 4);
-    printLine("Line 4", 4, 4);
-    // drawText(4, 15, "Line 1");
-
     flushBuffer();
 
 #else
@@ -131,19 +126,26 @@ void printLine(const char * text, const uint32_t lineNum, const uint32_t posX)
         return;
     }
 
-    // go through lines and print out at pre-determined line Y coordinates
-    if (lineNum == 1) {
+// go through lines and print out at pre-determined line Y coordinates
+switch (lineNum) {
+    case 0:
+        setFont(ter_u12b);
+        printToScreen(text, 2, 2);
+        setFont(ter_u24b);
+        break;
+    case 1:
         printToScreen(text, line1_Y, posX);
-    }
-    else if (lineNum == 2) {
+        break;
+    case 2:
         printToScreen(text, line2_Y, posX);
-    }
-    else if (lineNum == 3) {
+        break;
+    case 3:
         printToScreen(text, line3_Y, posX);
-    }
-    else if (lineNum == 4) {
+        break;
+    case 4:
         printToScreen(text, line4_Y, posX);
-    }
+        break;
+}   
 }
 
 

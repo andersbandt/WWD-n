@@ -32,13 +32,16 @@
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/* Semaphores for button event signaling */
+K_SEM_DEFINE(button1_sem, 0, 1);
+K_SEM_DEFINE(button2_sem, 0, 1);
+
+/* Future interrupt flags for other peripherals */
 volatile int BMS_INT_FLAG=0;
 volatile int IMU_1_INT_FLAG=0;
 volatile int IMU_2_INT_FLAG=0;
 volatile int AFE_1_INT_FLAG=0;
 volatile int AFE_2_INT_FLAG=0;
-volatile int BUTTON_1_INT_FLAG;
-volatile int BUTTON_2_INT_FLAG;
 
 
 
@@ -82,14 +85,14 @@ static void btn_int1_handler(const struct device *dev,
                              struct gpio_callback *cb,
                              uint32_t pins)
 {
-    BUTTON_1_INT_FLAG = 1;
+    k_sem_give(&button1_sem);
 }
 
 static void btn_int2_handler(const struct device *dev,
                              struct gpio_callback *cb,
                              uint32_t pins)
 {
-    BUTTON_2_INT_FLAG = 1;
+    k_sem_give(&button2_sem);
 }
 
 

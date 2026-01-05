@@ -34,7 +34,7 @@
 void display_out_bms(int charging, int battery_percent) {
     char text[24]; // only 21-22 chars possible in next line
     sprintf(text, "CHG[%d] BAT[%d]", charging, battery_percent);
-    printToScreen(text, 0, 0);  // print text displaying what kind of measurement it is
+    printLine(text, 0, 0);  // print text displaying what kind of measurement it is
     return;
 }
 
@@ -45,7 +45,7 @@ void display_out_bms(int charging, int battery_percent) {
 void display_out_time(Time time) {
     char time_str[15];
     sprintf(time_str, "%02d:%02d:%02d", time.hours, time.minutes, time.seconds);
-    printLine(time_str, 1, 20);
+    printLine(time_str, 2, 20);
 }
 
 
@@ -55,7 +55,7 @@ void display_out_time(Time time) {
 void display_out_pedometer(int steps) {
     char text[15];
     sprintf(text, "Steps: %d", steps);
-    printLine(text, 2, 30);
+    printLine(text, 3, 30);
 }
 
 /*
@@ -64,7 +64,7 @@ void display_out_pedometer(int steps) {
 void display_out_temp(int16_t temp) {
     char text[14];
     sprintf(text, "Temp: %d", temp);
-    printLine(text, 3, 12);
+    printLine(text, 4, 12);
 }
 
 

@@ -149,8 +149,8 @@ uint32_t get_ms(void) {
  */
 Time get_sys_time() {
     Time sys_time;
-    uint32_t cur_ms = get_ms();
-
+    uint32_t cur_ms = k_uptime_get_32();  // Get system uptime in milliseconds
+    
     // Calculate hours
     sys_time.hours = cur_ms / (3600 * 1000);
     cur_ms %= (3600 * 1000);
@@ -158,10 +158,10 @@ Time get_sys_time() {
     // Calculate minutes (remaining milliseconds after hours are removed)
     sys_time.minutes = cur_ms / (60 * 1000);
     cur_ms %= (60 * 1000);
-
+    
     // Calculate seconds (remaining milliseconds after minutes are removed)
     sys_time.seconds = cur_ms / 1000;
-
+    
     return sys_time;
 }
 
@@ -170,7 +170,8 @@ Time get_sys_time() {
  * get_current_time: returns RTC time
  */
 Time get_current_time() {
-    return add_time(get_sys_time(), time_offset);
+    // return add_time(get_sys_time(), time_offset);
+    return get_sys_time();
 }
 
 /*

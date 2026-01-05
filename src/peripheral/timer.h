@@ -3,10 +3,10 @@
 
 #include <zephyr/kernel.h>
 
-/* Timer completion flags */
-extern volatile int TIMER_1_DONE;
-extern volatile int TIMER_2_DONE;
-extern volatile int TIMER_3_DONE;
+/* Timer semaphores for thread synchronization */
+extern struct k_sem timer1_sem;  /* Clock update semaphore */
+extern struct k_sem timer2_sem;  /* UI refresh semaphore */
+extern struct k_sem timer3_sem;  /* Display timeout semaphore */
 
 /**
  * @brief Initialize all timers for the WWD device
@@ -17,7 +17,7 @@ extern volatile int TIMER_3_DONE;
  * - Timer 2: UI refresh (1 second)
  * - Timer 3: Display timeout (9 seconds, one-shot)
  */
-void timer_init(void);
+void init_timer(void);
 
 /**
  * @brief Start a specific timer
