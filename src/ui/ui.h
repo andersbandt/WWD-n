@@ -17,6 +17,8 @@
 #include <ui_display.h>
 
 
+// 1: (clock mode)
+// 2: (menu mode ???)
 extern volatile int ui_mode;
 
 

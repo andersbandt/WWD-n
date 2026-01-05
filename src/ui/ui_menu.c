@@ -174,7 +174,7 @@ void updateMainMenuScreen(int absolute_pos, int force)
     // only update if we are going to a new page or 'force' is set
     if ((absolute_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {  // only update if we are going to a new page
 
-        clear_display();
+        // clear_display();
         int page_num = absolute_pos / UI_MENU_ITEMS_PAGE;
 
         int i;
@@ -187,7 +187,7 @@ void updateMainMenuScreen(int absolute_pos, int force)
     }
 
     in_sub_menu = 0;
-    updateCursor(prev_pos, absolute_pos);
+    // updateCursor(prev_pos, absolute_pos);
 }
 
 
@@ -241,8 +241,8 @@ void updateCursor(int prev_position, int position)
    int prev_relative_position = prev_position % UI_MENU_ITEMS_PAGE;
 
    // TODO: is there a better way to perform this erasing?
-   printToScreen(" ", prev_relative_position, 0); // erase old cursor
-   printToScreen(">", relative_position, 0); // draw new cursor
+   printLine(" ", prev_relative_position, 0); // erase old cursor
+   printLine(">", relative_position, 0); // draw new cursor
 }
 
 
@@ -329,7 +329,6 @@ void changeSubMenuPosition(int action)
 bool get_running_state() {
     return run_sub_menu;
 }
-
 
 
 /*

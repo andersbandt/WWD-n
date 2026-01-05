@@ -119,17 +119,9 @@ void ui_refresh() {
 
 void handle_ui_input(void) {
     // do some delay (mainly to handle case for both button press)
-    
-    
-    
-    
-    
-    k_usleep(100*480);
-
     // do other shit
     if (ui_mode == 2) {
         uint8_t button_status = button_poll();
-        /* Display_printf(display, 0, 0, "\tui input: [%u]", button_status); */
 
         // parse `button_status` into a format needed for UI menu APIy
         if (button_status == 1) {

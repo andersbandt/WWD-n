@@ -149,6 +149,7 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             cntr = 0;
             change_ui_mode(2);
             handle_ui_input();
+            updateMenuScreen(1);
         }
 
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
@@ -158,12 +159,13 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             cntr = 0;
 
             /* Toggle display */
-            display_state = !display_state;
-            switch_display(display_state);
-            timer_start(3);
+            // display_state = !display_state;
+            // switch_display(display_state);
+            // timer_start(3);
 
             /* Handle UI input */
-            handle_ui_input();
+            // handle_ui_input();
+            updateMenuScreen(-1);
         }
     }
 }
