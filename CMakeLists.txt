@@ -5,7 +5,6 @@ project(WWDn)
 
 # Include all headers under src
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_include_directories(app PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../..)
 
 # Collect all .c files recursively
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
@@ -16,9 +15,12 @@ target_sources(app PRIVATE
     src/circular_buffer.c
     src/clock.c
     src/peripheral/interrupt.c
+    src/peripheral/timer.c
     src/hardware/led.c
+    src/hardware/button.c
 )
 
 add_subdirectory(src/display)
 add_subdirectory(src/memory)
-# add_subdirectory(src/hardware/ic/imu)
+add_subdirectory(src/ui)
+add_subdirectory(src/hardware/ic/imu)

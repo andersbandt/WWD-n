@@ -20,12 +20,11 @@
 
 
 /* C99 header files */
-// #include <unistd.h>
 #include <stdint.h>
 
 
 /* My header files */
-#include <src/clock.h>
+#include <clock.h>
 
 
 void display_out_bms(int charging, int battery_percent);

@@ -14,7 +14,7 @@
 
 
 #include <stdint.h>
-#include <src/ui/ui_display.h>
+#include <ui_display.h>
 
 
 extern volatile int ui_mode;
@@ -29,7 +29,7 @@ void init_ui();
 void ui_refresh();
 
 
-void handle_ui_input(Display_Handle display);
+void handle_ui_input();
 
 
 void change_ui_mode(int new_mode);

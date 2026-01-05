@@ -97,7 +97,8 @@ uint8_t increment_minute(uint8_t minute) {
 
 // the clock period is 10us last I checked
 uint32_t get_clock_period() {
-    return ClockP_getSystemTickPeriod();
+    // return ClockP_getSystemTickPeriod();
+    return 0;
 }
 
 /*

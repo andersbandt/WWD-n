@@ -13,11 +13,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* Zephyr files */
+#include <zephyr/kernel.h>
 
 /* My header files */
-#include <src/display.h>
-#include <ui/ui_menu.h>
-#include <src/ui/UIFunctions.h>
+#include <display.h>
+#include <ui_menu.h>
+#include <UIFunctions.h>
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -136,7 +138,7 @@ void updateMenuScreen(int8_t action)
         // if select button was pressed
         else if (action == 2) {
             run_sub_menu = true;
-            usleep(1000*200);
+            k_usleep(1000*200);
             return;
         }
 
@@ -172,7 +174,7 @@ void updateMainMenuScreen(int absolute_pos, int force)
     // only update if we are going to a new page or 'force' is set
     if ((absolute_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {  // only update if we are going to a new page
 
-        clearDisplay();
+        clear_display();
         int page_num = absolute_pos / UI_MENU_ITEMS_PAGE;
 
         int i;
@@ -208,7 +210,7 @@ void updateSubMenuScreen(int abs_pos, int sub_pos, int force)
 
     // only update on new page or 'force' condition
     if ((sub_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {
-        clearDisplay();
+        clear_display();
 
         int page_addition = page_num * UI_MENU_ITEMS_PAGE;
 
@@ -254,12 +256,13 @@ void returnMenu()
     in_sub_menu = 0;
 }
 
-/* /\* */
-/*  * commenceUIAction: commences an action based on user input from the UI menu */
-/*  *\/ */
+
+/*
+ * commmmenceUIAction: commences an actino based on user input from the UI menu
+*/
 void commenceUIAction(int absolute_position, int sub_menu_position)
 {
-    clearDisplay();
+    clear_display();
     sub_menu_options[absolute_position][sub_menu_position]();
 }
 

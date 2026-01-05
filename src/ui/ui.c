@@ -20,23 +20,27 @@
 #include <stddef.h>
 #include <unistd.h>
 
-/* Driver header files */
-#include <ti/display/Display.h>
+/* Zephyr files */
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+
 
 /* UI specific header files */
-#include "src/ui/ui.h"
-#include "src/ui/ui_menu.h"
-#include "src/ui/ui_display.h"
-#include "src/ui/UIFunctions.h"
-#include "ui_menu.h"
+#include <ui.h>
+#include <ui_menu.h>
+#include <ui_display.h>
+#include <UIFunctions.h>
+#include <ui_menu.h>
 
 /* My header files */
-#include <src/display.h>
-#include <src/clock.h>
-#include <src/ic/bms/BQ25120A.h>
-#include <src/ic/imu/imu.h>
-#include <src/hardware/button.h>
-#include <ui/ui_menu.h>
+#include <display.h>
+#include <clock.h>
+#include <imu.h>
+#include <hardware/button.h>
+#include <ui_menu.h>
+
+
+LOG_MODULE_REGISTER(ui, LOG_LEVEL_INF);
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +50,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 volatile int ui_mode; // defined in ui.h
-volatile uint32_t step_count; // defined in imu.h
+// volatile uint32_t step_count; // defined in imu.h
 
 
 int bat_percent; // defined in BQ25120A.h
@@ -62,22 +66,19 @@ int charging_status; // defined in BQ25120A.h
 /**
  * initUI: initializes the user interface
  */
-void init_ui(Display_Handle display)
+void init_ui()
 {
-    Display_printf(display, 0, 0,"______________________________\n");
-    Display_printf(display, 0, 0,"\nInitializing the user interface\n");
-
     ui_mode = 1; // set initial ui_mode at 1 (clock)
     initMenu();
 
     /* if (ssd1306_init) { */ // TODO: finish this implementatinon of OLED init check
     if (1) {
-        Display_printf(display, 0, 0,"User interface initialized\n");
+        LOG_INF("User interface initialized\n");
     }
 
-    // if ssd1306 has not been properly initialized
+    // if display is not properly initialized
     else {
-        Display_printf(display, 0, 0,"ERROR: can't start user interface: ssd1306 not initialized\n");
+        LOG_INF("ERROR: can't start user interface: ssd1306 not initialized\n");
     }
 }
 
@@ -107,9 +108,14 @@ void ui_refresh() {
 
 }
 
-void handle_ui_input(Display_Handle display) {
+void handle_ui_input(void) {
     // do some delay (mainly to handle case for both button press)
-    usleep(100*480);
+    
+    
+    
+    
+    
+    k_usleep(100*480);
 
     // do other shit
     if (ui_mode == 2) {
@@ -145,7 +151,7 @@ void change_ui_mode(int new_mode) {
     // update screen based on new mode
     if (ui_mode == 1) {
         initMenu();
-        clearDisplay();
+        clear_display();
         ui_refresh();
     }
     else if (ui_mode == 2) {
@@ -157,7 +163,7 @@ void change_ui_mode(int new_mode) {
 void ui_fault(int code) {
     display_out_fault(code);
     sleep(3);
-    clearDisplay();
+    clear_display();
     ui_refresh();
 }
 

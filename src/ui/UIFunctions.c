@@ -19,14 +19,18 @@
 #include <stdbool.h>
 #include <unistd.h>
 
+/* Zephyr files */
+#include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
+
 /* My header files */
-#include "src/hardware/button.h"
-#include "src/ic/imu/imu.h"
-#include "src/clock.h"
+#include <hardware/button.h>
+#include <imu.h>
+#include <clock.h>
 
 /* UI and display */
-#include "src/display.h"
-#include "src/ui/ui.h"
+#include <display.h>
+#include <ui.h>
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -35,7 +39,7 @@
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-extern Time time_offset;
+Time time_offset;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -67,8 +71,8 @@ void reset_uifunc_params() {
  */
 void system_prompt_for_time_UI_FUNC() {
     /* clearDisplay(); */
-    printToScreen("       ", 0, 12);
-    printToScreen("         ", 1, 12);
+    printLine("       ", 0, 12);
+    printLine("         ", 1, 12);
     display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
 
 
@@ -135,10 +139,10 @@ void system_change_display_contrast_UI_FUNC() {
 
     // add delay to prevent user from automatically exiting upon function entry
     display_out_measurement("Contrast", contrast);
-    sleep(2);
+    k_msleep(2000);
 
     while (status) {
-        usleep(10000);
+        k_usleep(10000);
         btn_poll = button_poll();
         
         // decrement
@@ -175,7 +179,7 @@ void system_change_display_contrast_UI_FUNC() {
 }
 
 void system_clear_faults_UI_FUNC(void) {
-    bq25120a_mask_faults();
+    // bq25120a_mask_faults();
 }
 
 

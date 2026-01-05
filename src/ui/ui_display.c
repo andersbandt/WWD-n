@@ -14,7 +14,6 @@
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-
 /* C99 header files */
 #include <stdbool.h>
 #include <stdint.h>
@@ -24,12 +23,9 @@
 
 
 /* My header files */
-/* #include "src/ui/ui.h" */
-/* #include "src/ui/UIFunctions.h" */
-#include <src/ui/ui_display.h>
-#include <src/display.h>
-#include <src/clock.h>
-
+#include <display.h>
+#include <clock.h>
+#include <ui_display.h>
 
 
 /*
@@ -82,7 +78,7 @@ void display_out_imu(int16_t * data) {
     sprintf(text2, "%d", data[2]);
     sprintf(text3, "%d", data[3]);
 
-    clearDisplay();
+    clear_display();
     printToScreen(text1, 0, 8);  // print text displaying what kind of measurement it is
     printToScreen(text2, 1, 8);  // print text displaying what kind of measurement it is
     printToScreen(text3, 2, 8);  // print text displaying what kind of measurement it is
@@ -98,7 +94,7 @@ void display_out_statistics(int16_t * data, int num_data) {
     for (int i=0; i < num_data; i++) {
         sprintf(text, "%s%d,", text, data[i]);
     }
-    clearDisplay();
+    clear_display();
     printToScreen(text, 1, 8);  // print text displaying what kind of measurement it is
 }
 
@@ -111,7 +107,7 @@ void display_out_measurement(char * text, int value)
     char value_str[8];
     sprintf(value_str, "%d", value);
 
-    clearDisplay();
+    clear_display();
     printToScreen(text, 2, 12);  // print text displaying what kind of measurement it is
     printToScreen(value_str, 3, 12);
     return;
@@ -123,7 +119,7 @@ void display_out_fault(int error_code)
     char text[12];
     sprintf(text, "Fault: [%d]", error_code);
     
-    clearDisplay();
+    clear_display();
     printToScreen(text, 2, 12);  // print text displaying what kind of measurement it is
     return;
 }

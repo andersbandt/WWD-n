@@ -470,25 +470,6 @@ rule C_STATIC_LIBRARY_LINKER__drivers__sensor__nordic__temp_
 #############################################
 # Rule for compiling C files.
 
-rule C_COMPILER__drivers__sensor__tdk__icm42x70_
-  depfile = $DEP_FILE
-  deps = gcc
-  command = ccache /home/anders/ncs/toolchains/b2ecd2435d/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-gcc $DEFINES $INCLUDES $FLAGS -MD -MT $out -MF $DEP_FILE -o $out -c $in
-  description = Building C object $out
-
-
-#############################################
-# Rule for linking C static library.
-
-rule C_STATIC_LIBRARY_LINKER__drivers__sensor__tdk__icm42x70_
-  command = $PRE_LINK && ccache /home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin/cmake -E rm -f $TARGET_FILE && ccache /home/anders/ncs/toolchains/b2ecd2435d/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-ar qc $TARGET_FILE $LINK_FLAGS $in && ccache /home/anders/ncs/toolchains/b2ecd2435d/opt/zephyr-sdk/arm-zephyr-eabi/bin/arm-zephyr-eabi-ranlib $TARGET_FILE && $POST_BUILD
-  description = Linking C static library $TARGET_FILE
-  restat = $RESTAT
-
-
-#############################################
-# Rule for compiling C files.
-
 rule C_COMPILER__drivers__serial_
   depfile = $DEP_FILE
   deps = gcc

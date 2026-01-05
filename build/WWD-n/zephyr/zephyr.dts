@@ -212,7 +212,7 @@
 			interrupts = < 0x4 0x1 >;       /* in zephyr/dts/arm/nordic/nrf52832.dtsi:198 */
 			max-frequency = < 0x7a1200 >;   /* in zephyr/dts/arm/nordic/nrf52832.dtsi:199 */
 			easydma-maxcnt-bits = < 0x8 >;  /* in zephyr/dts/arm/nordic/nrf52832.dtsi:200 */
-			status = "okay";                /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:70 */
+			status = "okay";                /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:71 */
 			pinctrl-0 = < &spi1_default >;  /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:99 */
 			pinctrl-1 = < &spi1_sleep >;    /* in zephyr/boards/96boards/nitrogen/96b_nitrogen.dts:100 */
 			pinctrl-names = "default",
@@ -234,37 +234,37 @@
 
 			/* node '/soc/spi@40004000/icm42670p@1' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:14 */
 			icm42670p: icm42670p@1 {
-				compatible = "invensense,icm42670p"; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:15 */
-				reg = < 0x1 >;                       /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:16 */
-				spi-max-frequency = < 0x7a1200 >;    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:17 */
+				compatible = "tdk,icm42670p";     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:15 */
+				reg = < 0x1 >;                    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:17 */
+				spi-max-frequency = < 0x7a1200 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:18 */
 				int-gpios = < &gpio0 0x9 0x1 >,
-				            < &gpio0 0x3 0x1 >;      /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:18 */
-				accel-hz = < 0x64 >;                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:21 */
-				gyro-hz = < 0x64 >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:22 */
-				accel-fs = < 0x2 >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:23 */
-				gyro-fs = < 0xfa >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:24 */
-				status = "okay";                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:26 */
+				            < &gpio0 0x3 0x1 >;   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:19 */
+				accel-hz = < 0x64 >;              /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:22 */
+				gyro-hz = < 0x64 >;               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:23 */
+				accel-fs = < 0x2 >;               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:24 */
+				gyro-fs = < 0xfa >;               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:25 */
+				status = "okay";                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:27 */
 			};
 
-			/* node '/soc/spi@40004000/st7789v2@2' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:29 */
+			/* node '/soc/spi@40004000/st7789v2@2' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:30 */
 			st7789v2: st7789v2@2 {
-				compatible = "waveshare,st7789v2"; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:30 */
-				reg = < 0x2 >;                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:31 */
-				spi-max-frequency = < 0x7a1200 >;  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:32 */
-				dc-gpios = < &gpio0 0x16 0x0 >;    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:33 */
-				reset-gpios = < &gpio0 0x18 0x1 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:34 */
-				bl-gpios = < &gpio0 0x1 0x0 >;     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:35 */
-				status = "okay";                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:36 */
+				compatible = "waveshare,st7789v2"; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:31 */
+				reg = < 0x2 >;                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:32 */
+				spi-max-frequency = < 0x7a1200 >;  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:33 */
+				dc-gpios = < &gpio0 0x16 0x0 >;    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:34 */
+				reset-gpios = < &gpio0 0x18 0x1 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:35 */
+				bl-gpios = < &gpio0 0x1 0x0 >;     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:36 */
+				status = "okay";                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:37 */
 			};
 
-			/* node '/soc/spi@40004000/st7735s@3' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:39 */
+			/* node '/soc/spi@40004000/st7735s@3' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:40 */
 			st7735s: st7735s@3 {
-				compatible = "waveshare,st7735s";  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:41 */
-				reg = < 0x3 >;                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:42 */
-				spi-max-frequency = < 0x7a1200 >;  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:43 */
-				dc-gpios = < &gpio0 0x1e 0x0 >;    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:44 */
-				reset-gpios = < &gpio0 0x1f 0x1 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:45 */
-				status = "okay";                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:67 */
+				compatible = "waveshare,st7735s";  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:42 */
+				reg = < 0x3 >;                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:43 */
+				spi-max-frequency = < 0x7a1200 >;  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:44 */
+				dc-gpios = < &gpio0 0x1e 0x0 >;    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:45 */
+				reset-gpios = < &gpio0 0x1f 0x1 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:46 */
+				status = "okay";                   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:68 */
 			};
 		};
 
@@ -691,7 +691,7 @@
 			group1 {
 				psels = < 0x4000005 >,
 				        < 0x5000006 >,
-				        < 0x6000008 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:76 */
+				        < 0x6000008 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:77 */
 			};
 		};
 

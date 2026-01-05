@@ -20,14 +20,19 @@
 /* My driver files */
 #include <hardware/led.h>
 #include <peripheral/interrupt.h>
-// #include <imu.h>
+#include <peripheral/timer.h>
 #include <display.h>
+#include <ui.h>
+#include <imu.h>
+
 
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 
 bool imu_status;
+int cntr = 0;
+bool display_state = 1;
 
 
 int main(void)
@@ -57,9 +62,13 @@ int main(void)
     END OF NVS CONFIG BLOCK
     */
 
+    /*
+    DISPLAY and UI config
+    */
     led_set(1, 1);
     init_display();
     led_set(1, 0);
+    init_ui();
 
     /*
     IMU CONFIG BLOCK
@@ -106,12 +115,51 @@ int main(void)
 
         // handle interrupts
         if (BUTTON_1_INT_FLAG) {
-            led_blink(2);
+            cntr = 0;
+            change_ui_mode(2);
+            handle_ui_input();
             BUTTON_1_INT_FLAG = 0;
         }
         if (BUTTON_2_INT_FLAG) {
-            led_blink(3);
+            cntr = 0;
+
+            // toggle display
+            display_state = !display_state;
+            switch_display(display_state);
+            timer_start(3);
+
+            // handle UI input
+            handle_ui_input();
             BUTTON_2_INT_FLAG = 0;
+        }
+
+
+        // TIMER 1 (main "meat" of what would be my RTOS tasks)
+        if (TIMER_1_DONE) {
+            // update IMU ped
+            
+            // update BMS
+
+            // increment counter for something?
+            cntr++;
+            if (cntr == 2) {
+                change_ui_mode(1);
+            }
+            TIMER_1_DONE = 0;
+        }
+
+        // TIMER 2 (ui_refresh)
+        if (TIMER_2_DONE) {
+            if (display_state == 1) {
+                ui_refresh();
+            }
+            TIMER_2_DONE = 0;
+        }
+        // TIMER 3 (auto-off display)
+        if (TIMER_3_DONE) {
+            switch_display(0);
+            display_state = 0;
+            TIMER_3_DONE = 0;
         }
 
         k_msleep(30);

@@ -18,10 +18,9 @@
 /* Standard C99 stuff */
 #include <stdint.h>
 
-// Zephyr files
+/* Zephyr files */
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
-
 
 /* My header files  */
 #include <peripheral/interrupt.h>

@@ -6,3 +6,19 @@ compatible: "tdk,icm42670p"
 include: [spi-device.yaml]
 
 
+properties:
+  int-gpios:
+    type: phandle-array
+    required: true
+  accel-hz:
+    type: int
+    required: true
+  gyro-hz:
+    type: int
+    required: true
+  accel-fs:
+    type: int
+    required: true
+  gyro-fs:
+    type: int
+    required: true
