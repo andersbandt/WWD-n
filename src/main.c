@@ -117,8 +117,8 @@ void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
         k_sem_take(&timer3_sem, K_FOREVER);
 
         /* Turn off display */
-        switch_display(0);
-        display_state = 0;
+        // switch_display(0);
+        // display_state = 0;
     }
 }
 
@@ -149,7 +149,6 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             cntr = 0;
             change_ui_mode(2);
             handle_ui_input();
-            updateMenuScreen(1);
         }
 
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
@@ -164,8 +163,7 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             // timer_start(3);
 
             /* Handle UI input */
-            // handle_ui_input();
-            updateMenuScreen(-1);
+            handle_ui_input();
         }
     }
 }
