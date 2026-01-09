@@ -120,21 +120,23 @@ void ui_refresh() {
 void handle_ui_input() {
     // do some delay (mainly to handle case for both button press)
     // do other shit
-    // if (ui_mode == 2) {
+    if (ui_mode == 2) {
         uint8_t button_status = button_poll();
-        LOG_INF("hey you button %d", button_status);
 
         // parse `button_status` into a format needed for UI menu APIy
-        // if (button_status == 14) {
-        //     updateMenuScreen(1);
-        // }
-        // else if (button_status == 13) {
-        //     updateMenuScreen(-1);
-        // }
-        // else if (button_status == 0) {
-        //     updateMenuScreen(2); // BOTH button (select)
-        // }
-    // }
+        if (button_status == 1) {
+            updateMenuScreen(1);
+        }
+        else if (button_status == 2) {
+            updateMenuScreen(-1);
+        }
+        else if (button_status == 4) {
+            updateMenuScreen(2);
+        }
+        else if (button_status == 8) {
+            updateMenuScreen(2);
+        }
+    }
 }
 
 

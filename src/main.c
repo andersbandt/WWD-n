@@ -19,6 +19,7 @@
 
 /* My driver files */
 #include <hardware/led.h>
+#include <hardware/button.h>
 #include <peripheral/interrupt.h>
 #include <peripheral/timer.h>
 #include <display.h>
@@ -26,9 +27,7 @@
 #include <imu.h>
 
 
-
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
-
 
 bool imu_status;
 int cntr = 0;
@@ -131,16 +130,19 @@ void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
 void button_handler_thread_entry(void *p1, void *p2, void *p3) {
     while (1) {
         /* Wait for any button press (using k_poll would be more efficient for multiple semaphores) */
-        struct k_poll_event events[2] = {
+        struct k_poll_event events[3] = {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button1_sem),
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button2_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
+                                     K_POLL_MODE_NOTIFY_ONLY,
+                                     &button3_sem),
         };
 
-        k_poll(events, 2, K_FOREVER);
+        k_poll(events, 3, K_FOREVER);
 
         /* Check which button was pressed */
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
@@ -149,6 +151,8 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             /* Button 1 pressed */
             // cntr = 0;
             // change_ui_mode(2);
+            led_blink(1);
+            LOG_INFO("test");
             handle_ui_input();
         }
 
@@ -164,6 +168,11 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             // timer_start(3);
 
             /* Handle UI input */
+            handle_ui_input();
+        }
+
+        if (events[2].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&button3_sem, K_NO_WAIT);
             handle_ui_input();
         }
     }
@@ -277,9 +286,8 @@ int main(void)
     LOG_INF("All threads created successfully");
 
 
-    init_timer();
-
     /* Main thread can now sleep - all work is done by worker threads */
+    init_timer();
     while (1) {
         k_sleep(K_FOREVER);
     }
