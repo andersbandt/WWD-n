@@ -209,7 +209,7 @@ set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_NODELABEL|uart0" "/soc
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_NODELABEL|lscon_96b_uart0" "/soc/uart@40002000")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/uart@40002000|reg" "1073750016;4096;")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/uart@40002000|interrupts" "2;1;")
-set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/uart@40002000|pinctrl-names" "default;sleep;")
+set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/uart@40002000|pinctrl-names" "default;")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/uart@40002000|disable-rx" "False")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/uart@40002000|current-speed" "115200")
 set_target_properties(${DEVICETREE_TARGET} PROPERTIES "DT_PROP|/soc/uart@40002000|hw-flow-control" "False")

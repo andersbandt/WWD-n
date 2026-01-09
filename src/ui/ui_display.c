@@ -34,7 +34,7 @@
 void display_out_bms(int charging, int battery_percent) {
     char text[24]; // only 21-22 chars possible in next line
     sprintf(text, "CHG[%d] BAT[%d]", charging, battery_percent);
-    printLine(text, 0, 0);  // print text displaying what kind of measurement it is
+    printLine(text, 0, 0, FONT_LARGE);  // print text displaying what kind of measurement it is
     return;
 }
 
@@ -45,7 +45,7 @@ void display_out_bms(int charging, int battery_percent) {
 void display_out_time(Time time) {
     char time_str[15];
     sprintf(time_str, "%02d:%02d:%02d", time.hours, time.minutes, time.seconds);
-    printLine(time_str, 2, 20);
+    printLine(time_str, 2, 20, FONT_LARGE);
 }
 
 
@@ -55,7 +55,7 @@ void display_out_time(Time time) {
 void display_out_pedometer(int steps) {
     char text[15];
     sprintf(text, "Steps: %d", steps);
-    printLine(text, 3, 30);
+    printLine(text, 3, 30, FONT_LARGE);
 }
 
 /*
@@ -64,7 +64,7 @@ void display_out_pedometer(int steps) {
 void display_out_temp(int16_t temp) {
     char text[14];
     sprintf(text, "Temp: %d", temp);
-    printLine(text, 4, 12);
+    printLine(text, 4, 12, FONT_LARGE);
 }
 
 
@@ -79,9 +79,9 @@ void display_out_imu(int16_t * data) {
     sprintf(text3, "%d", data[3]);
 
     clear_display();
-    printToScreen(text1, 0, 8);  // print text displaying what kind of measurement it is
-    printToScreen(text2, 1, 8);  // print text displaying what kind of measurement it is
-    printToScreen(text3, 2, 8);  // print text displaying what kind of measurement it is
+    printToScreen(text1, 0, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
+    printToScreen(text2, 1, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
+    printToScreen(text3, 2, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
 }
 
 
@@ -95,7 +95,7 @@ void display_out_statistics(int16_t * data, int num_data) {
         sprintf(text, "%s%d,", text, data[i]);
     }
     clear_display();
-    printToScreen(text, 1, 8);  // print text displaying what kind of measurement it is
+    printToScreen(text, 1, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
 }
 
 
@@ -108,8 +108,8 @@ void display_out_measurement(char * text, int value)
     sprintf(value_str, "%d", value);
 
     clear_display();
-    printToScreen(text, 2, 12);  // print text displaying what kind of measurement it is
-    printToScreen(value_str, 3, 12);
+    printToScreen(text, 2, 12, FONT_LARGE);  // print text displaying what kind of measurement it is
+    printToScreen(value_str, 3, 12, FONT_LARGE);
     return;
 }
 
@@ -120,7 +120,7 @@ void display_out_fault(int error_code)
     sprintf(text, "Fault: [%d]", error_code);
     
     clear_display();
-    printToScreen(text, 2, 12);  // print text displaying what kind of measurement it is
+    printToScreen(text, 2, 12, FONT_LARGE);  // print text displaying what kind of measurement it is
     return;
 }
 

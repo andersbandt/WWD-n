@@ -71,19 +71,19 @@ void reset_uifunc_params() {
  */
 void system_prompt_for_time_UI_FUNC() {
     /* clearDisplay(); */
-    printLine("       ", 0, 12);
-    printLine("         ", 1, 12);
+    printLine("       ", 0, 12, FONT_LARGE);
+    printLine("         ", 1, 12, FONT_LARGE);
     display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
 
 
     if (position == 0) {
-        printToScreen("HOURS", 0, 12);
+        printToScreen("HOURS", 0, 12, FONT_LARGE);
     }
     else if (position == 1) {
-        printToScreen("MINUTES", 0, 12);
+        printToScreen("MINUTES", 0, 12, FONT_LARGE);
     }
     else if (position == 2) {
-        printToScreen("SECONDS", 0, 12);
+        printToScreen("SECONDS", 0, 12, FONT_LARGE);
     }
 
     
@@ -110,8 +110,8 @@ void system_prompt_for_time_UI_FUNC() {
     }
 
     /* clearDisplay(); */
-    printToScreen("       ", 0, 12);
-    printToScreen("         ", 1, 12);
+    printToScreen("       ", 0, 12, FONT_LARGE);
+    printToScreen("         ", 1, 12, FONT_LARGE);
     display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
     
     // ADVANCE (button 2)

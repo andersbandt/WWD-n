@@ -29,7 +29,7 @@ void led_blink(int led);
  * @param mult is how long to sleep between toggles. Longer means longer blink
  *
  */
-void led_fast_blink(int mult);
+void led_fast_blink(int led, int mult);
 
 
 

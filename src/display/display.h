@@ -21,12 +21,22 @@
 #define USE_ST7735S
 
 
+// Font size enum
+typedef enum {
+    FONT_SMALL = 12,   // ter_u12b
+    FONT_MEDIUM = 16,  // ter_u16b
+    FONT_LARGE = 20,   // ter_u20b
+    FONT_XLARGE = 24,  // ter_u24b (default)
+    FONT_XXLARGE = 28, // ter_u28b
+    FONT_HUGE = 32     // ter_u32b
+} font_size_t;
+
 // line definitions
 #ifdef USE_ST7735S
-    #define line1_Y 15
-    #define line2_Y 45
-    #define line3_Y 75
-    #define line4_Y 105
+    #define line1_Y 35
+    #define line2_Y 55
+    #define line3_Y 95
+    #define line4_Y 125
 #else
     #define line1_Y 15
     #define line2_Y 45
@@ -62,15 +72,17 @@ void clear_display();
 
 
 /**
- * @brief
+ * @brief Prints text to a predefined line on the display with specified font size
  *
  * @param text: pointer to char for the string. String should terminate in \0
  *
- * @param lineNum: line number to print to
+ * @param lineNum: line number to print to (0-4)
  *
  * @param posX: x position to start printing to
+ *
+ * @param fontSize: font size to use (FONT_SMALL, FONT_MEDIUM, FONT_LARGE, etc.)
  */
-void printLine(const char * text, const uint32_t lineNum, const uint32_t posX);
+void printLine(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize);
 
 
 /**

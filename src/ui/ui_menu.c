@@ -42,7 +42,9 @@ volatile int sub_menu_position;
 // main menu options
 char * main_menu_options[UI_MAIN_MENU_ITEMS] = {
     "System Settings",
-    "IMU"
+    "IMU",
+    "Data",
+    "Timer"
 };
 
 
@@ -182,12 +184,12 @@ void updateMainMenuScreen(int absolute_pos, int force)
             if (i == UI_MAIN_MENU_ITEMS) {
                 break;
             }
-            printLine(main_menu_options[page_num*UI_MENU_ITEMS_PAGE + i], i, START_X);
+            printLine(main_menu_options[page_num*UI_MENU_ITEMS_PAGE + i], i+1, START_X, FONT_MEDIUM);
         }
     }
 
     in_sub_menu = 0;
-    // updateCursor(prev_pos, absolute_pos);
+    updateCursor(prev_pos, absolute_pos);
 }
 
 
@@ -217,7 +219,7 @@ void updateSubMenuScreen(int abs_pos, int sub_pos, int force)
         // print lines of the sub menu
         int i;
         for(i = 0; i < num_to_display; i++) {
-            printLine(sub_menu[abs_pos] + 22*(i+page_addition), i, START_X);
+            printLine(sub_menu[abs_pos] + 22*(i+page_addition), i, START_X, FONT_LARGE);
         }
     }
 
@@ -241,8 +243,8 @@ void updateCursor(int prev_position, int position)
    int prev_relative_position = prev_position % UI_MENU_ITEMS_PAGE;
 
    // TODO: is there a better way to perform this erasing?
-   printLine(" ", prev_relative_position, 0); // erase old cursor
-   printLine(">", relative_position, 0); // draw new cursor
+   printLine(" ", prev_relative_position+1, 0, FONT_MEDIUM); // erase old cursor
+   printLine(">", relative_position+1, 0, FONT_MEDIUM); // draw new cursor
 }
 
 

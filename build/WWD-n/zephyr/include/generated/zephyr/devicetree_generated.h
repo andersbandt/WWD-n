@@ -1725,7 +1725,7 @@
 #define DT_N_S_buttons_S_button_2_P_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
 #define DT_N_S_buttons_S_button_2_P_gpios_IDX_0_VAL_pin 12
 #define DT_N_S_buttons_S_button_2_P_gpios_IDX_0_VAL_pin_EXISTS 1
-#define DT_N_S_buttons_S_button_2_P_gpios_IDX_0_VAL_flags 16
+#define DT_N_S_buttons_S_button_2_P_gpios_IDX_0_VAL_flags 17
 #define DT_N_S_buttons_S_button_2_P_gpios_IDX_0_VAL_flags_EXISTS 1
 #define DT_N_S_buttons_S_button_2_P_gpios_FOREACH_PROP_ELEM(fn) fn(DT_N_S_buttons_S_button_2, gpios, 0)
 #define DT_N_S_buttons_S_button_2_P_gpios_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_buttons_S_button_2, gpios, 0)
@@ -1811,7 +1811,7 @@
 #define DT_N_S_buttons_S_button_3_P_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
 #define DT_N_S_buttons_S_button_3_P_gpios_IDX_0_VAL_pin 13
 #define DT_N_S_buttons_S_button_3_P_gpios_IDX_0_VAL_pin_EXISTS 1
-#define DT_N_S_buttons_S_button_3_P_gpios_IDX_0_VAL_flags 16
+#define DT_N_S_buttons_S_button_3_P_gpios_IDX_0_VAL_flags 17
 #define DT_N_S_buttons_S_button_3_P_gpios_IDX_0_VAL_flags_EXISTS 1
 #define DT_N_S_buttons_S_button_3_P_gpios_FOREACH_PROP_ELEM(fn) fn(DT_N_S_buttons_S_button_3, gpios, 0)
 #define DT_N_S_buttons_S_button_3_P_gpios_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_buttons_S_button_3, gpios, 0)
@@ -1897,7 +1897,7 @@
 #define DT_N_S_buttons_S_button_4_P_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
 #define DT_N_S_buttons_S_button_4_P_gpios_IDX_0_VAL_pin 14
 #define DT_N_S_buttons_S_button_4_P_gpios_IDX_0_VAL_pin_EXISTS 1
-#define DT_N_S_buttons_S_button_4_P_gpios_IDX_0_VAL_flags 16
+#define DT_N_S_buttons_S_button_4_P_gpios_IDX_0_VAL_flags 17
 #define DT_N_S_buttons_S_button_4_P_gpios_IDX_0_VAL_flags_EXISTS 1
 #define DT_N_S_buttons_S_button_4_P_gpios_FOREACH_PROP_ELEM(fn) fn(DT_N_S_buttons_S_button_4, gpios, 0)
 #define DT_N_S_buttons_S_button_4_P_gpios_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_buttons_S_button_4, gpios, 0)
@@ -3762,8 +3762,7 @@
 
 /* Ordinals for what depends directly on this node: */
 #define DT_N_S_pin_controller_S_uart0_sleep_SUPPORTS_ORDS \
-	37, /* /pin-controller/uart0_sleep/group1 */ \
-	75, /* /soc/uart@40002000 */
+	37, /* /pin-controller/uart0_sleep/group1 */
 
 /* Existence and alternate IDs: */
 #define DT_N_S_pin_controller_S_uart0_sleep_EXISTS 1
@@ -9165,8 +9164,7 @@
 #define DT_N_S_soc_S_uart_40002000_REQUIRES_ORDS \
 	5, /* /soc */ \
 	6, /* /soc/interrupt-controller@e000e100 */ \
-	34, /* /pin-controller/uart0_default */ \
-	36, /* /pin-controller/uart0_sleep */
+	34, /* /pin-controller/uart0_default */
 
 /* Ordinals for what depends directly on this node: */
 #define DT_N_S_soc_S_uart_40002000_SUPPORTS_ORDS /* nothing */
@@ -9201,19 +9199,13 @@
 #define DT_N_S_soc_S_uart_40002000_STATUS_okay 1
 
 /* Pin control (pinctrl-<i>, pinctrl-names) properties: */
-#define DT_N_S_soc_S_uart_40002000_PINCTRL_NUM 2
+#define DT_N_S_soc_S_uart_40002000_PINCTRL_NUM 1
 #define DT_N_S_soc_S_uart_40002000_PINCTRL_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_uart_40002000_PINCTRL_IDX_0_TOKEN default
 #define DT_N_S_soc_S_uart_40002000_PINCTRL_IDX_0_UPPER_TOKEN DEFAULT
 #define DT_N_S_soc_S_uart_40002000_PINCTRL_NAME_default_EXISTS 1
 #define DT_N_S_soc_S_uart_40002000_PINCTRL_NAME_default_IDX 0
 #define DT_N_S_soc_S_uart_40002000_PINCTRL_NAME_default_IDX_0_PH DT_N_S_pin_controller_S_uart0_default
-#define DT_N_S_soc_S_uart_40002000_PINCTRL_IDX_1_EXISTS 1
-#define DT_N_S_soc_S_uart_40002000_PINCTRL_IDX_1_TOKEN sleep
-#define DT_N_S_soc_S_uart_40002000_PINCTRL_IDX_1_UPPER_TOKEN SLEEP
-#define DT_N_S_soc_S_uart_40002000_PINCTRL_NAME_sleep_EXISTS 1
-#define DT_N_S_soc_S_uart_40002000_PINCTRL_NAME_sleep_IDX 1
-#define DT_N_S_soc_S_uart_40002000_PINCTRL_NAME_sleep_IDX_0_PH DT_N_S_pin_controller_S_uart0_sleep
 
 /* Generic property macros: */
 #define DT_N_S_soc_S_uart_40002000_P_reg {1073750016 /* 0x40002000 */, 4096 /* 0x1000 */}
@@ -9237,26 +9229,17 @@
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_0_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_uart_40002000, pinctrl_0, 0, __VA_ARGS__)
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_0_LEN 1
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_0_EXISTS 1
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names {"default", "sleep"}
+#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names {"default"}
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_0 "default"
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_0_STRING_UNQUOTED default
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_0_STRING_TOKEN default
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_0_STRING_UPPER_TOKEN DEFAULT
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_1_EXISTS 1
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_1 "sleep"
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_1_STRING_UNQUOTED sleep
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_1_STRING_TOKEN sleep
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_IDX_1_STRING_UPPER_TOKEN SLEEP
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0) \
-	fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 1)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0) DT_DEBRACKET_INTERNAL sep \
-	fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 1)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0, __VA_ARGS__) \
-	fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 1, __VA_ARGS__)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0, __VA_ARGS__) DT_DEBRACKET_INTERNAL sep \
-	fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 1, __VA_ARGS__)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_LEN 2
+#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0)
+#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0)
+#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0, __VA_ARGS__)
+#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_uart_40002000, pinctrl_names, 0, __VA_ARGS__)
+#define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_LEN 1
 #define DT_N_S_soc_S_uart_40002000_P_pinctrl_names_EXISTS 1
 #define DT_N_S_soc_S_uart_40002000_P_disable_rx 0
 #define DT_N_S_soc_S_uart_40002000_P_disable_rx_EXISTS 1
@@ -9313,15 +9296,6 @@
 #define DT_N_S_soc_S_uart_40002000_P_wakeup_source_EXISTS 1
 #define DT_N_S_soc_S_uart_40002000_P_zephyr_pm_device_runtime_auto 0
 #define DT_N_S_soc_S_uart_40002000_P_zephyr_pm_device_runtime_auto_EXISTS 1
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_IDX_0 DT_N_S_pin_controller_S_uart0_sleep
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_IDX_0_PH DT_N_S_pin_controller_S_uart0_sleep
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_uart_40002000, pinctrl_1, 0)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_uart_40002000, pinctrl_1, 0)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_uart_40002000, pinctrl_1, 0, __VA_ARGS__)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_uart_40002000, pinctrl_1, 0, __VA_ARGS__)
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_LEN 1
-#define DT_N_S_soc_S_uart_40002000_P_pinctrl_1_EXISTS 1
 
 /*
  * Devicetree node: /soc/uicr@10001000

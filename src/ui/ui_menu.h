@@ -13,7 +13,7 @@
 
 
 // define some menu constants
-#define UI_MAIN_MENU_ITEMS    2  // total amount of items in the menu (for tracking absolute position)
+#define UI_MAIN_MENU_ITEMS    4  // total amount of items in the menu (for tracking absolute position)
 #define UI_MENU_ITEMS_PAGE    4  // total amount of items per page
 #define SUB_MENU_MAX_LENGTH    4
 #define SUB_MENU_CHAR_LENGTH  22

@@ -799,15 +799,15 @@ lscon_96b_uart0: &uart0 {};
   };
 
   button2: button_2 {
-   gpios = <&gpio0 12 (1 << 4)>;
+   gpios = <&gpio0 12 ((1 << 0) | (1 << 4))>;
   };
 
   button3: button_3 {
-   gpios = <&gpio0 13 (1 << 4)>;
+   gpios = <&gpio0 13 ((1 << 0) | (1 << 4))>;
   };
 
   button4: button_4 {
-   gpios = <&gpio0 14 (1 << 4)>;
+   gpios = <&gpio0 14 ((1 << 0) | (1 << 4))>;
   };
  };
 
@@ -831,10 +831,15 @@ lscon_96b_uart0: &uart0 {};
  current-speed = <115200>;
  status = "okay";
  pinctrl-0 = <&uart0_default>;
- pinctrl-1 = <&uart0_sleep>;
- pinctrl-names = "default", "sleep";
+
+ pinctrl-names = "default";
 };
 
+&uart0_default {
+ group1 {
+  psels = <((((((0) * 32U) + (19)) & 0x1FFU) << 0U) | ((1U & 0xFFU) << 24U))>, <((((((0) * 32U) + (18)) & 0x1FFU) << 0U) | ((0U & 0xFFU) << 24U))>;
+ };
+};
 
 
 &spi1 {
@@ -879,13 +884,6 @@ lscon_96b_uart0: &uart0 {};
    label = "storage";
    reg = <0x0007a000 0x00006000>;
   };
- };
-};
-
-
-&uart0_default {
- group1 {
-  psels = <((((((0) * 32U) + (19)) & 0x1FFU) << 0U) | ((1U & 0xFFU) << 24U))>, <((((((0) * 32U) + (18)) & 0x1FFU) << 0U) | ((0U & 0xFFU) << 24U))>;
  };
 };
 # 0 "<command-line>" 2

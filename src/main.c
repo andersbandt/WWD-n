@@ -119,6 +119,7 @@ void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
         /* Turn off display */
         // switch_display(0);
         // display_state = 0;
+        // change_ui_mode(1);
     }
 }
 
@@ -146,8 +147,8 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             k_sem_take(&button1_sem, K_NO_WAIT);
 
             /* Button 1 pressed */
-            cntr = 0;
-            change_ui_mode(2);
+            // cntr = 0;
+            // change_ui_mode(2);
             handle_ui_input();
         }
 
@@ -178,11 +179,23 @@ int main(void)
 {
     // run initialization functions
     led_init();
-	led_fast_blink(10);
+	led_fast_blink(1, 10);
+
+    init_buttons();
+
+    /*
+    DISPLAY and UI config
+    */
+    led_set(1, 1);
+    // init_display();
+    init_ui();
+    led_set(1, 0);
+
 
     // initialize interrupts
     config_all_interrupts();
-    init_timer();
+
+
     LOG_INF("Starting WWD program!");
 
     /*
@@ -201,14 +214,6 @@ int main(void)
     /*
     END OF NVS CONFIG BLOCK
     */
-
-    /*
-    DISPLAY and UI config
-    */
-    // led_set(1, 1);
-    init_display();
-    init_ui();
-    // led_set(1, 0);
 
 
     /*
@@ -270,6 +275,9 @@ int main(void)
     k_thread_name_set(&button_handler_thread, "button_handler");
 
     LOG_INF("All threads created successfully");
+
+
+    init_timer();
 
     /* Main thread can now sleep - all work is done by worker threads */
     while (1) {

@@ -70,8 +70,10 @@ K_SEM_DEFINE(timer3_sem, 0, 1);  /* Display timeout semaphore */
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void init_timer(void) {
-    timer_start(0);  /* Start LED blink timer */
+    // timer_start(0);  /* Start LED blink timer */
+    timer_start(1);
     timer_start(2);
+    timer_start(3);
 }
 
 

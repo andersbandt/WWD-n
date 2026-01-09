@@ -50,7 +50,6 @@ const struct gpio_dt_spec *pick_led(int num)
 }
 
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! GLOBAL FUNCTIONS ------------------------------------------------------------------------------------------------------//
@@ -110,14 +109,16 @@ void led_blink(int led)
 /*
  * blinks the led even more rapidly and also leaves it in an OFF state
  */
-void led_fast_blink(int mult)
+void led_fast_blink(int led, int mult)
 {
+    const struct gpio_dt_spec * led_dt = pick_led(led);
+
     for(int i=0; i<6; i++) {
         // toggle LED
-        gpio_pin_toggle_dt(&led0);
+        gpio_pin_toggle_dt(led_dt);
         k_usleep(mult * 3000);
     }
-    gpio_pin_set_dt(&led0, 0);
+    gpio_pin_set_dt(led_dt, 0);
 }
 
 
@@ -145,21 +146,21 @@ void led_disp_num(int num) {
     
     // display start of digit signifier
     led_config_blink(30*1000, 12);
-    sleep(4);
+    k_msleep(4000);
     
     // loop through digits
     while (num > 0) {
         rem = num % 10;
         led_config_blink(700*1000, rem);
-        sleep(2);
+        k_msleep(2000);
         // display between digit signifier
         led_config_blink(30*1000, 3);
-        sleep(1);
+        k_msleep(1000);
         // chop off last digit of int
         num = num / 10;        
     }
 
-    sleep(1);
+    k_msleep(1000);
     // display end of digit signifier
     led_config_blink(30*1000, 12);
 }

@@ -34,6 +34,12 @@
 
 LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 
+
+
+#define BACK_R 20
+#define BACK_G 60
+#define BACK_B 20
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! GLOBAL VARIABLES ------------------------------------------------------------------------------------------------------//
@@ -50,14 +56,32 @@ extern struct S_SCREEN Screen;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /*
+ * getFontPointer: returns pointer to font array based on font size enum
+ */
+static uint8_t* getFontPointer(font_size_t fontSize)
+{
+    switch (fontSize) {
+        case FONT_SMALL:    return ter_u12b;
+        case FONT_MEDIUM:   return ter_u16b;
+        case FONT_LARGE:    return ter_u20b;
+        case FONT_XLARGE:   return ter_u24b;
+        case FONT_XXLARGE:  return ter_u28b;
+        case FONT_HUGE:     return ter_u32b;
+        default:            return ter_u24b;  // default to XLARGE
+    }
+}
+
+
+/*
  * printToScreen: prints a certain text value to a certain position on the screen
  */
-void printToScreen(const char * text, const uint32_t posY, const uint32_t posX)
+void printToScreen(const char * text, const uint32_t posY, const uint32_t posX, font_size_t fontSize)
 {
     if (text == 0) {  // handle null pointers being passed in
         return;
     }
 
+    setFont(getFontPointer(fontSize));
     drawText(posX, posY, text);
 }
 
@@ -76,13 +100,12 @@ void init_display() {
     // setOrientation(R90);
 
     // set initial background
-    setColor(60, 20, 20);
+    setColor(BACK_R, BACK_G, BACK_B);
     fillScreen();
 
     // set font config
     setFont(ter_u24b);
     flushBuffer();
-
 #else
     /* ST7789 initialization (existing code) */
     ST7789_Init(ST77XX_ROTATE_270 | ST77XX_RGB);
@@ -110,42 +133,48 @@ void init_display() {
  */
 void clear_display()
 {
-    setColor(0,0, 0);
-    fillScreen();
+    // setColor(BACK_R, BACK_G, BACK_B);
+    // fillScreen();
+    // flushBuffer();
 }
 
 
 
 /*
+ * calculateLineY: calculates Y position for a line based on font size
+ */
+static uint32_t calculateLineY(uint32_t lineNum, font_size_t fontSize)
+{
+    if (lineNum == 0) {
+        return 2;  // special case for line 0 - always at top
+    }
+
+    // Get font height from the enum value
+    uint32_t fontHeight = (uint32_t)fontSize;
+
+    // Add some spacing between lines (30% of font height)
+    uint32_t lineSpacing = fontHeight * 3 / 10;
+
+    // Calculate Y position: top margin + (line_number * (font_height + spacing))
+    uint32_t topMargin = 10;
+    return topMargin + (lineNum * (fontHeight + lineSpacing));
+}
+
+
+/*
  * printLine: prints an individual line to the screen
  */
-// TODO: do I wanna refactor this argument list order?
-void printLine(const char * text, const uint32_t lineNum, const uint32_t posX)
+void printLine(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize)
 {
     if (text == 0) {  // handle null pointers being passed in
         return;
     }
 
-// go through lines and print out at pre-determined line Y coordinates
-switch (lineNum) {
-    case 0:
-        setFont(ter_u12b);
-        printToScreen(text, 2, 2);
-        setFont(ter_u24b);
-        break;
-    case 1:
-        printToScreen(text, line1_Y, posX);
-        break;
-    case 2:
-        printToScreen(text, line2_Y, posX);
-        break;
-    case 3:
-        printToScreen(text, line3_Y, posX);
-        break;
-    case 4:
-        printToScreen(text, line4_Y, posX);
-        break;
-}   
+    // Calculate Y position based on font size and line number
+    uint32_t posY = calculateLineY(lineNum, fontSize);
+    printToScreen(text, posY, posX, fontSize);
+
+    flushBuffer();
 }
 
 
