@@ -28,6 +28,12 @@
 #include <ui_display.h>
 
 
+
+void clear_out_display() {
+    clear_display();
+}
+
+
 /*
  *
  */
@@ -45,7 +51,7 @@ void display_out_bms(int charging, int battery_percent) {
 void display_out_time(Time time) {
     char time_str[15];
     sprintf(time_str, "%02d:%02d:%02d", time.hours, time.minutes, time.seconds);
-    printLine(time_str, 2, 20, FONT_LARGE);
+    printLine(time_str, 2, 20, FONT_SMALL);
 }
 
 
@@ -57,6 +63,7 @@ void display_out_pedometer(int steps) {
     sprintf(text, "Steps: %d", steps);
     printLine(text, 3, 30, FONT_LARGE);
 }
+
 
 /*
  *
@@ -79,9 +86,9 @@ void display_out_imu(int16_t * data) {
     sprintf(text3, "%d", data[3]);
 
     clear_display();
-    printToScreen(text1, 0, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
-    printToScreen(text2, 1, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
-    printToScreen(text3, 2, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
+    printLine(text1, 0, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
+    printLine(text2, 1, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
+    printLine(text3, 2, 8, FONT_LARGE);  // print text displaying what kind of measurement it is
 }
 
 

@@ -27,6 +27,12 @@
 #include <clock.h>
 
 
+
+
+void clear_out_display();
+
+
+
 void display_out_bms(int charging, int battery_percent);
 
 void display_out_time(Time time);

@@ -35,6 +35,7 @@
 K_SEM_DEFINE(button1_sem, 0, 1);
 K_SEM_DEFINE(button2_sem, 0, 1);
 K_SEM_DEFINE(button3_sem, 0, 1);
+K_SEM_DEFINE(button4_sem, 0, 1);
 
 /* Future interrupt flags for other peripherals */
 volatile int BMS_INT_FLAG=0;
@@ -59,6 +60,7 @@ static const struct gpio_dt_spec btn_int4 = GPIO_DT_SPEC_GET(DT_NODELABEL(button
 static struct gpio_callback btn_int1_cb;
 static struct gpio_callback btn_int2_cb;
 static struct gpio_callback btn_int3_cb;
+static struct gpio_callback btn_int4_cb;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -92,7 +94,12 @@ static void btn_int3_handler(const struct device *dev,
     k_sem_give(&button3_sem);
 }
 
-
+static void btn_int4_handler(const struct device *dev,
+                             struct gpio_callback *cb,
+                             uint32_t pins)
+{
+    k_sem_give(&button4_sem);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -133,6 +140,12 @@ void config_all_interrupts()
     gpio_pin_interrupt_configure_dt(&btn_int3, GPIO_INT_EDGE_TO_ACTIVE);
     gpio_init_callback(&btn_int3_cb, btn_int3_handler, BIT(btn_int3.pin));
     gpio_add_callback(btn_int3.port, &btn_int3_cb);
+
+    // BTN4 setup
+    gpio_pin_configure_dt(&btn_int4, GPIO_INPUT);
+    gpio_pin_interrupt_configure_dt(&btn_int4, GPIO_INT_EDGE_TO_ACTIVE);
+    gpio_init_callback(&btn_int4_cb, btn_int4_handler, BIT(btn_int4.pin));
+    gpio_add_callback(btn_int4.port, &btn_int4_cb);
 }
 
 

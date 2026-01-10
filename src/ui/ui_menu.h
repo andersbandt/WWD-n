@@ -22,8 +22,8 @@
 
 
 // tracking variables
-extern volatile int abs_position;
-extern volatile int sub_menu_position;
+extern int abs_position;
+extern int sub_menu_position;
 
 extern void (*sub_menu_options[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH])();
 
@@ -37,6 +37,7 @@ extern void (*sub_menu_options[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH])();
 void initMenu();
 
 
+// TODO: need to update this comment
 /**
  * @brief This method handles updating the UI screen based on a new user action
  *

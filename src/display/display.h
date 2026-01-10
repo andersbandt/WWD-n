@@ -89,6 +89,34 @@ void printLine(const char * text, const uint32_t lineNum, const uint32_t posX, f
 
 
 /**
+ * @brief Clears the text area with background color, then prints text to a line
+ *
+ * @param text: pointer to char for the string. String should terminate in \0
+ *
+ * @param lineNum: line number to print to (0-4)
+ *
+ * @param posX: x position to start printing to
+ *
+ * @param fontSize: font size to use (FONT_SMALL, FONT_MEDIUM, FONT_LARGE, etc.)
+ */
+void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize);
+
+
+/**
+ * @brief Prints text to a line without drawing background (transparent mode)
+ *
+ * @param text: pointer to char for the string. String should terminate in \0
+ *
+ * @param lineNum: line number to print to (0-4)
+ *
+ * @param posX: x position to start printing to
+ *
+ * @param fontSize: font size to use (FONT_SMALL, FONT_MEDIUM, FONT_LARGE, etc.)
+ */
+void printLineTransparent(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize);
+
+
+/**
  * @brief Handles printing text to whatever display is connected
  *
  * @param text: pointer to char for the string. String should terminate in \0

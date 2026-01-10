@@ -7,6 +7,7 @@
 extern struct k_sem timer1_sem;  /* Clock update semaphore */
 extern struct k_sem timer2_sem;  /* UI refresh semaphore */
 extern struct k_sem timer3_sem;  /* Display timeout semaphore */
+extern struct k_sem timer4_sem;  /* Display timeout semaphore */
 
 /**
  * @brief Initialize all timers for the WWD device

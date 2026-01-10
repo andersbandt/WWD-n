@@ -17,9 +17,10 @@
 #include <ui_display.h>
 
 
+// TODO: convert this to an enum
 // 1: (clock mode)
 // 2: (menu mode ???)
-extern volatile int ui_mode;
+extern int ui_mode;
 
 
 /**

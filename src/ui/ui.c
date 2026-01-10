@@ -49,7 +49,7 @@ LOG_MODULE_REGISTER(ui, LOG_LEVEL_INF);
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-volatile int ui_mode; // defined in ui.h
+int ui_mode = 0; // internal variable
 // volatile uint32_t step_count; // defined in imu.h
 
 
@@ -68,18 +68,8 @@ int charging_status; // defined in BQ25120A.h
  */
 void init_ui()
 {
-    ui_mode = 1; // set initial ui_mode at 1 (clock)
+    ui_mode = 1;
     initMenu();
-
-    /* if (ssd1306_init) { */ // TODO: finish this implementatinon of OLED init check
-    if (1) {
-        LOG_INF("User interface initialized\n");
-    }
-
-    // if display is not properly initialized
-    else {
-        LOG_INF("ERROR: can't start user interface: ssd1306 not initialized\n");
-    }
 }
 
 
@@ -97,13 +87,13 @@ void ui_refresh() {
 
             // handle updating health statistics
             // display_out_pedometer(step_count);
-            display_out_pedometer(4123);
+            // display_out_pedometer(4123);
 
 
             // handle updating IMU temp
             // int16_t imu_temp = imu_get_temp(NULL);
             // display_out_temp(imu_temp);
-            display_out_temp(70);
+            // display_out_temp(70);
 
             // TODO: delete this later
             first_time = false;
@@ -125,10 +115,10 @@ void handle_ui_input() {
 
         // parse `button_status` into a format needed for UI menu APIy
         if (button_status == 1) {
-            updateMenuScreen(1);
+            updateMenuScreen(-1);
         }
         else if (button_status == 2) {
-            updateMenuScreen(-1);
+            updateMenuScreen(1);
         }
         else if (button_status == 4) {
             updateMenuScreen(2);

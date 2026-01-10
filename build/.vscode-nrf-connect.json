@@ -6,8 +6,10 @@
   "boardDirs": [
     "/home/anders/ncs/v3.1.1/zephyr/boards/96boards/nitrogen"
   ],
-  "optimizations": "debug",
-  "cmakeArgs": [],
+  "optimizations": "size",
+  "cmakeArgs": [
+    "-DWWD-n_DEBUG_THREAD_INFO=On"
+  ],
   "confFiles": [
     "prj.conf"
   ],

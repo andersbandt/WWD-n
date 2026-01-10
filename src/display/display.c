@@ -36,7 +36,11 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 
 
 
-#define BACK_R 20
+#define FORE_R 10
+#define FORE_G 10
+#define FORE_B 10
+
+#define BACK_R 120
 #define BACK_G 60
 #define BACK_B 20
 
@@ -102,12 +106,11 @@ void init_display() {
     // setOrientation(R90);
 
     // set initial background
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(FORE_R, FORE_G, FORE_B);
+    setbgColor(BACK_R, BACK_G, BACK_B);
     fillScreen();
 
-    // // set font config
-    // setFont(ter_u24b);
-    // flushBuffer();
+    // set display status
     display_status = 1;
 #else
     /* ST7789 initialization (existing code) */
@@ -126,6 +129,8 @@ void init_display() {
     }
     ST7789_SetPosition(75, 5);
     ST7789_DrawString("ST7789V2 DRIVER", WHITE, X3);
+
+    display_status = 1;
 #endif
 }
 
@@ -136,9 +141,10 @@ void init_display() {
  */
 void clear_display()
 {
-    // setColor(BACK_R, BACK_G, BACK_B);
-    // fillScreen();
-    // flushBuffer();
+    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(BACK_R, BACK_G, BACK_B);
+    fillScreen();
+    flushBuffer();
 }
 
 
@@ -181,9 +187,58 @@ void printLine(const char * text, const uint32_t lineNum, const uint32_t posX, f
 }
 
 
+/*
+ * clearAndPrintLine: clears the text area with background color, then prints text to the line
+ */
+void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize)
+{
+    if (text == 0) {  // handle null pointers being passed in
+        return;
+    }
+
+    // Calculate Y position based on font size and line number
+    uint32_t posY = calculateLineY(lineNum, fontSize);
+    uint32_t fontHeight = (uint32_t)fontSize;
+
+    // Clear the area with background color
+    setColor(BACK_R, BACK_G, BACK_B);
+    filledRect(posX - 2, posY - 2, 127, posY + fontHeight + 2);
+
+    // Draw the text in white
+    setColor(FORE_R, FORE_G, FORE_B);
+    printToScreen(text, posY, posX, fontSize);
+
+    flushBuffer();
+}
 
 
-void printNum(int number, const uint32_t lineNum, const uint32_t posX) {
+/*
+ * printLineTransparent: prints text to a line without drawing background pixels
+ */
+void printLineTransparent(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize)
+{
+    if (text == 0) {  // handle null pointers being passed in
+        return;
+    }
+
+    // Calculate Y position based on font size and line number
+    uint32_t posY = calculateLineY(lineNum, fontSize);
+
+    // Enable transparent background mode
+    setTransparent(true);
+
+    // Draw the text
+    printToScreen(text, posY, posX, fontSize);
+
+    // Disable transparent background mode
+    setTransparent(false);
+
+    flushBuffer();
+}
+
+
+void printNum(int number, const uint32_t lineNum, const uint32_t posX)
+{
     // TODO: finish this function to print a number
     // basically can relegate many sprintf calls to same function
 
@@ -194,6 +249,7 @@ void printNum(int number, const uint32_t lineNum, const uint32_t posX) {
 /*
  * printToScreenInverted: prints a certain INVERTED text value to a certain position on the screen
  */
+// TODO: somehow have to combine this with my printLineTransparent
 void printToScreenInverted(char * text, int posY, int posX)
 {
     if (text == 0) {  // handle null pointers being passed in
@@ -205,12 +261,14 @@ void printToScreenInverted(char * text, int posY, int posX)
 
 
 
-void changeContrast(const uint8_t contrast) {
+void changeContrast(const uint8_t contrast)
+{
     // ssd1306AdjustContrast(contrast);
 }
 
 
-void switch_display(const bool on) {
+void switch_display(const bool on)
+{
     if (on) {
         ST7735S_sleepOut();
     }

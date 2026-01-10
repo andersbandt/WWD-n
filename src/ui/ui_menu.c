@@ -15,12 +15,16 @@
 
 /* Zephyr files */
 #include <zephyr/kernel.h>
+#include <zephyr/logging/log.h>
 
 /* My header files */
-#include <display.h>
+#include <display.h> // TODO: for complete abstraction, shouldn't this not be included here?
 #include <ui_menu.h>
+#include <ui_display.h>
 #include <UIFunctions.h>
 
+
+LOG_MODULE_REGISTER(ui_menu, LOG_LEVEL_INF);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -29,8 +33,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // variable for tracking position. Defined in `ui_menu.h`
-volatile int abs_position;
-volatile int sub_menu_position;
+int abs_position;
+int sub_menu_position;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -91,14 +95,14 @@ void(*sub_menu_options[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH])() =
 
 
 // other local tracking variables
-volatile int prev_pos;
+int prev_pos;
 bool in_sub_menu = 0;
 bool run_sub_menu = 0;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
-//! FUNCTIONS -------------------------------------------------------------------------------------------------------------//
+//! GLOBAL FUNCTIONS ------------------------------------------------------------------------------------------------------//
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -118,11 +122,6 @@ void initMenu() {
  */
 void updateMenuScreen(int8_t action)
 {
-    /* if (!ssd1306_init) { // NOTE: part of TODO in `init_ui` */
-        /* Display_printf(display, 0, 0,"Can't updateScreen(): ssd1306 not initialized"); */
-        /* return; */
-    /* } */
-
     // if we are already in a sub menu
     if (in_sub_menu) {
 
@@ -176,7 +175,7 @@ void updateMainMenuScreen(int absolute_pos, int force)
     // only update if we are going to a new page or 'force' is set
     if ((absolute_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {  // only update if we are going to a new page
 
-        // clear_display();
+        clear_out_display();
         int page_num = absolute_pos / UI_MENU_ITEMS_PAGE;
 
         int i;
@@ -184,7 +183,7 @@ void updateMainMenuScreen(int absolute_pos, int force)
             if (i == UI_MAIN_MENU_ITEMS) {
                 break;
             }
-            printLine(main_menu_options[page_num*UI_MENU_ITEMS_PAGE + i], i+1, START_X, FONT_MEDIUM);
+            clearAndPrintLine(main_menu_options[page_num*UI_MENU_ITEMS_PAGE + i], i+1, START_X, FONT_MEDIUM);
         }
     }
 
@@ -212,14 +211,14 @@ void updateSubMenuScreen(int abs_pos, int sub_pos, int force)
 
     // only update on new page or 'force' condition
     if ((sub_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {
-        clear_display();
+        clear_out_display();
 
         int page_addition = page_num * UI_MENU_ITEMS_PAGE;
 
         // print lines of the sub menu
         int i;
         for(i = 0; i < num_to_display; i++) {
-            printLine(sub_menu[abs_pos] + 22*(i+page_addition), i, START_X, FONT_LARGE);
+            printLine(sub_menu[abs_pos] + 22*(i+page_addition), i+1, START_X, FONT_MEDIUM);
         }
     }
 
@@ -244,7 +243,7 @@ void updateCursor(int prev_position, int position)
 
    // TODO: is there a better way to perform this erasing?
    printLine(" ", prev_relative_position+1, 0, FONT_MEDIUM); // erase old cursor
-   printLine(">", relative_position+1, 0, FONT_MEDIUM); // draw new cursor
+   printLineTransparent("x", relative_position+1, 0, FONT_MEDIUM); // draw new cursor
 }
 
 
@@ -264,7 +263,7 @@ void returnMenu()
 */
 void commenceUIAction(int absolute_position, int sub_menu_position)
 {
-    clear_display();
+    clear_out_display();
     sub_menu_options[absolute_position][sub_menu_position]();
 }
 
@@ -272,6 +271,7 @@ void commenceUIAction(int absolute_position, int sub_menu_position)
 ////////////////////////////////////////////////////////////////////////
 ////////  HELPER LOGIC FUNCTIONS    ////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
+// TODO: convert these to local functions only? Does that help compiler space and stuff?
 
 /*
  * changeMainMenuPosition: changes the absolute and relative position based on action
@@ -280,8 +280,8 @@ void changeMainMenuPosition(int action)
 {
     prev_pos = abs_position;
 
-    if (action == -1) {  // if we are moving up
-        // handle absolute position change
+    // if we are moving up
+    if (action == -1) {
         if (abs_position == 0) {  // if we are already at the top (first) absolute position
             return;
         }
@@ -290,8 +290,9 @@ void changeMainMenuPosition(int action)
         }
     }
 
-    if (action == 1) {  // if we are moving down (towards the end of the positions)
-        if (abs_position == UI_MAIN_MENU_ITEMS - 1) {  // if we are already at the end (last) absolute position
+    // if we are moving down (towards the end of the positions)
+    if (action == 1) {
+        if (abs_position == UI_MAIN_MENU_ITEMS-1) {  // if we are already at the end (last) absolute position
             return;
         }
         else {

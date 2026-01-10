@@ -382,9 +382,9 @@ void ST7735S_Pixel(uint16_t x, uint16_t y) {
 
 void ST7735S_bgPixel(uint16_t x, uint16_t y) {
     if ( x < WIDTH && y < HEIGHT) {
-    frame[0] = bg_color;
-    updateWindow(x,y);
-    ST7735S_flush();
+        frame[0] = bg_color;
+        updateWindow(x,y);
+        ST7735S_flush();
     }
 }
 #endif

@@ -279,7 +279,7 @@ void filledRect(uint16_t x, uint16_t y, uint16_t x2, uint16_t y2) {
 
 
 void fillScreen(void) {
-    filledRect(0,0,WIDTH, HEIGHT);
+    filledRect(0, 0 , WIDTH, HEIGHT);
     flushBuffer();
 }
 
@@ -347,7 +347,7 @@ void drawGlyph(uint16_t xx, uint16_t yy, uint16_t c) {
         return;
 
     for(uint8_t h = 0; h < pfont.gi->pixel_size; h++) {
-        uint8_t row;
+        uint8_t row = 0;
         for (uint8_t x = 0; x < pfont.gi->bbox.width; x++) {
             if (x % 8 == 0)
                 row = *glyph++;

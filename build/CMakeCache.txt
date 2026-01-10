@@ -73,16 +73,16 @@ CMAKE_SKIP_RPATH:BOOL=NO
 CMAKE_VERBOSE_MAKEFILE:BOOL=FALSE
 
 //No help, variable specified on the command line.
-CONFIG_DEBUG_OPTIMIZATIONS:UNINITIALIZED=y
-
-//No help, variable specified on the command line.
-CONFIG_DEBUG_THREAD_INFO:UNINITIALIZED=y
+CONFIG_SIZE_OPTIMIZATIONS:UNINITIALIZED=y
 
 //No help, variable specified on the command line.
 CONF_FILE:UNINITIALIZED=prj.conf
 
 //No help, variable specified on the command line.
 WEST_PYTHON:UNINITIALIZED=/home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin/python3.12
+
+//No help, variable specified on the command line.
+WWD-n_DEBUG_THREAD_INFO:UNINITIALIZED=On
 
 //Zephyr base
 ZEPHYR_BASE:PATH=/home/anders/ncs/v3.1.1/zephyr

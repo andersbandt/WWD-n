@@ -110,7 +110,7 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
 
         /* Refresh UI if display is on */
         if (display_status == 1) {
-            ui_refresh();
+            // ui_refresh();
         }
     }
 }
@@ -140,7 +140,7 @@ void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
 void button_handler_thread_entry(void *p1, void *p2, void *p3) {
     while (1) {
         /* Wait for any button press (using k_poll would be more efficient for multiple semaphores) */
-        struct k_poll_event events[3] = {
+        struct k_poll_event events[4] = {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button1_sem),
@@ -150,25 +150,27 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button3_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
+                                     K_POLL_MODE_NOTIFY_ONLY,
+                                     &button4_sem),
         };
 
-        k_poll(events, 3, K_FOREVER);
+        k_poll(events, 4, K_FOREVER);
 
-        /* Check which button was pressed */
+        /* Button 1 pressed */
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button1_sem, K_NO_WAIT);
 
-            /* Button 1 pressed */
-            // cntr = 0;
-            // change_ui_mode(2);
-            led_blink(1);
+            // do stuff
+            cntr = 0;
+            change_ui_mode(2);
             handle_ui_input();
         }
 
+        /* Button 2 pressed */
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button2_sem, K_NO_WAIT);
 
-            /* Button 2 pressed */
             cntr = 0;
 
             /* Toggle display */
@@ -180,8 +182,15 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             handle_ui_input();
         }
 
+        /* Button 3 */
         if (events[2].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button3_sem, K_NO_WAIT);
+            handle_ui_input();
+        }
+
+        /* Button 4 */
+        if (events[3].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&button4_sem, K_NO_WAIT);
             handle_ui_input();
         }
     }
@@ -205,17 +214,16 @@ int main(void)
     DISPLAY and UI config
     */
     led_set(1, 1);
-    // init_display();
+    init_display();
+    led_set(1, 0);
+    init_ui();
     // TODO: bundle this `display_status` into the init_ui statement
     if (display_status == 1) {
-        init_ui();
-    }
-    led_set(1, 0);
 
+    }
 
     // initialize interrupts
     config_all_interrupts();
-
 
     LOG_INF("Starting WWD program!");
 
@@ -299,6 +307,8 @@ int main(void)
 
     /* Main thread can now sleep - all work is done by worker threads */
     init_timer();
+
+
     while (1) {
         k_sleep(K_FOREVER);
     }

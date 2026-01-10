@@ -1,3 +1,17 @@
+
+
+### current tasks
+- sub menu writing is all wrong (large font)
+- cursor rewrites aren't happening cleanly (not deleting previous cursor)
+- when entering main menu there is maybe a clock print happening ???
+
+- should I have a text writing option where it chooses the actual background? Instead of adding black highlight
+
+
+- ask claude to write some test code where I can just test all my different display faces???
+
+
+
 ================================================================================
 HVBUFFER MODE - LOGGING DROPOUT AND MEMORY LEAK ANALYSIS
 ================================================================================

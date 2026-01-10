@@ -17,6 +17,7 @@
 extern struct k_sem button1_sem;
 extern struct k_sem button2_sem;
 extern struct k_sem button3_sem;
+extern struct k_sem button4_sem;
 
 /* Future interrupt flags for other peripherals */
 extern volatile int BMS_INT_FLAG;

@@ -76,52 +76,57 @@ void system_prompt_for_time_UI_FUNC() {
     display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
 
 
-    if (position == 0) {
-        printToScreen("HOURS", 0, 12, FONT_LARGE);
-    }
-    else if (position == 1) {
-        printToScreen("MINUTES", 0, 12, FONT_LARGE);
-    }
-    else if (position == 2) {
-        printToScreen("SECONDS", 0, 12, FONT_LARGE);
-    }
+    while (position < 3) {
+        if (position == 0) {
+            printLine("HOURS", 0, 12, FONT_LARGE);
+        }
+        else if (position == 1) {
+            printLine("MINUTES", 0, 12, FONT_LARGE);
+        }
+        else if (position == 2) {
+            printLine("SECONDS", 0, 12, FONT_LARGE);
+        }
 
     
-    // TODO: evaluate need for phasing this out when I get a good physical copy working
-    uint8_t btn_poll = 3;
-    for (int i = 0; i < 2500000; i ++) {
-        btn_poll = button_poll();
-        if (btn_poll != 3) {
-            break;
-        }
-    }
+        uint8_t btn_poll = 0;
+        while (btn_poll != 4) {
+            btn_poll = button_poll();
 
-    // INCREMENT (button 1)
-    if (btn_poll == 2) {
-        if (position == 0) { // increment HOURS
-            time_offset.hours = increment_hour(time_offset.hours);
-        }
-        else if (position == 1) { // increment MINUTES
-            time_offset.minutes = increment_minute(time_offset.minutes);
-        }
-        else if (position == 2) { // increment SECONDS
-            time_offset.seconds = increment_second(time_offset.seconds);
-        }
-    }
+            // INCREMENT (button 1)
+            if (btn_poll == 1) {
+                if (position == 0) { // increment HOURS
+                    time_offset.hours = increment_hour(time_offset.hours);
+                }
+                else if (position == 1) { // increment MINUTES
+                    time_offset.minutes = increment_minute(time_offset.minutes);
+                }
+                else if (position == 2) { // increment SECONDS
+                    time_offset.seconds = increment_second(time_offset.seconds);
+                }
+            }
+            // DECREMENT (button 2)
+            if (btn_poll == 2) {
+                // TODO: with expanded buttons lets add increment and decrement here
+            }
 
-    /* clearDisplay(); */
-    printToScreen("       ", 0, 12, FONT_LARGE);
-    printToScreen("         ", 1, 12, FONT_LARGE);
-    display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
-    
-    // ADVANCE (button 2)
-    if (btn_poll == 1) {
-        position += 1;
+            // update display if we changed offset digit value
+            if (btn_poll == 1 || btn_poll == 2) {
+                printLine("       ", 0, 12, FONT_LARGE);
+                printLine("         ", 1, 12, FONT_LARGE);
+                display_out_time(time_offset); 
+                // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
+            }
+        
+            // ADVANCE (button 3 or 4)
+            if (btn_poll == 3) {
+                position += 1;
 
-        // TODO: also add automatic exit when user has tabbed through all positions
-        //  right now this is just an infinite loop until `SELECT` button condition is pressed
-        if (position > 2) {
-            position = 0;
+                // TODO: also add automatic exit when user has tabbed through all positions ??
+                //  right now this is just an infinite loop until `SELECT` button condition is pressed
+                if (position > 2) {
+                    position = 0;
+                }
+            }
         }
     }
 
