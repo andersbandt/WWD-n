@@ -66,12 +66,12 @@ void Pin_RES_Low(void) {
 
 void Pin_DC_High(void) {
     gpio_pin_set_dt(&dc_dt, 1);
-    k_msleep(1);
+    // k_msleep(1);
 }
 
 void Pin_DC_Low(void) {
     gpio_pin_set_dt(&dc_dt, 0);
-    k_msleep(1);
+    // k_msleep(1);
 }
 
 

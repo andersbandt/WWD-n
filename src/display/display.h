@@ -21,6 +21,9 @@
 #define USE_ST7735S
 
 
+extern int display_status;
+
+
 // Font size enum
 typedef enum {
     FONT_SMALL = 12,   // ter_u12b

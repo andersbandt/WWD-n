@@ -6,12 +6,17 @@
 /* this may differ from the default 80x160 */
 #define defWIDTH   128
 #define defHEIGHT  180
-#define defXSTART  1
-#define defYSTART  1
+#define defXSTART  0
+#define defYSTART  0
 
+/* BUFFER: full frame buffer. Don't think it will fit into nRF52832 RAM*/
 // #define BUFFER
-// #define BUFFER1
-#define HVBUFFER
+
+/* BUFFER1: slowest, used for limited RAM */
+#define BUFFER1
+
+/*HVBUFFER: takes advantage of writing adjacent same color pixels*/
+// #define HVBUFFER
 
 #ifdef __cplusplus
 extern "C" {

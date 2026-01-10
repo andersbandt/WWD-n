@@ -29,9 +29,19 @@
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
-bool imu_status;
+
 int cntr = 0;
-bool display_state = 1;
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! GLOBAL VARIABLES ------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+extern int display_status;
+
+// BELOW ARE ACTUALLY NOT GLOBAL but probably should be
+bool imu_status;
+
 
 /* Thread stack sizes */
 #define CLOCK_UPDATE_STACK_SIZE 2048
@@ -99,7 +109,7 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
         k_sem_take(&timer2_sem, K_FOREVER);
 
         /* Refresh UI if display is on */
-        if (display_state == 1) {
+        if (display_status == 1) {
             ui_refresh();
         }
     }
@@ -152,7 +162,6 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             // cntr = 0;
             // change_ui_mode(2);
             led_blink(1);
-            LOG_INFO("test");
             handle_ui_input();
         }
 
@@ -197,7 +206,10 @@ int main(void)
     */
     led_set(1, 1);
     // init_display();
-    init_ui();
+    // TODO: bundle this `display_status` into the init_ui statement
+    if (display_status == 1) {
+        init_ui();
+    }
     led_set(1, 0);
 
 
@@ -284,7 +296,6 @@ int main(void)
     k_thread_name_set(&button_handler_thread, "button_handler");
 
     LOG_INF("All threads created successfully");
-
 
     /* Main thread can now sleep - all work is done by worker threads */
     init_timer();

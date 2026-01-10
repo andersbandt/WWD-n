@@ -49,6 +49,8 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 /** @var Screen definition */
 extern struct S_SCREEN Screen;
 
+int display_status;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! LOCAL FUNCTIONS -------------------------------------------------------------------------------------------------------//
@@ -103,9 +105,10 @@ void init_display() {
     setColor(BACK_R, BACK_G, BACK_B);
     fillScreen();
 
-    // set font config
-    setFont(ter_u24b);
-    flushBuffer();
+    // // set font config
+    // setFont(ter_u24b);
+    // flushBuffer();
+    display_status = 1;
 #else
     /* ST7789 initialization (existing code) */
     ST7789_Init(ST77XX_ROTATE_270 | ST77XX_RGB);

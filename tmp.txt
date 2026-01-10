@@ -1,0 +1,197 @@
+================================================================================
+HVBUFFER MODE - LOGGING DROPOUT AND MEMORY LEAK ANALYSIS
+================================================================================
+
+PROBLEM SUMMARY:
+----------------
+When HVBUFFER mode is enabled, logging silently drops out. This is caused by:
+1. Excessive ST7735S_flush() calls during text rendering
+2. Lack of bounds checking in buffer access
+3. No buffer cleanup after flush operations
+4. Memory pressure from 256-byte hvframe buffer + heavy SPI activity
+
+ROOT CAUSE:
+-----------
+Font rendering calls ST7735S_Pixel() for every pixel in each character glyph.
+Font glyphs have irregular pixel patterns (not continuous h/v lines).
+The set_hvpixel() state machine flushes immediately when pixels don't align.
+This results in HUNDREDS of SPI transactions per character, each with:
+  - Stack allocations for SPI buffer structures
+  - Kernel operations
+  - 1ms delays in Pin_DC_High()/Pin_DC_Low()
+
+This overwhelms the system and fills Zephyr's logging ring buffers, causing
+silent log message drops.
+
+================================================================================
+FIX #1: Add bounds checking in ST7735S_flush()
+================================================================================
+Location: src/display/st7735s/st7735s.c:274-286
+
+CURRENT CODE:
+-------------
+        #elif defined(HVBUFFER)
+            if (hvtype == VF) { // horiz line
+                uint16_t len  = (xmax-xmin+1)*2;
+                SPI_TransmitData(len, (uint8_t *)&hvframe[xmin]);
+            } else
+                if (hvtype == HF) { // vert line
+                uint16_t len  = (ymax-ymin+1)*2;
+                SPI_TransmitData(len, (uint8_t *)&hvframe[ymin]);
+            } else
+                if (hvtype == ONE) { // single pixel
+                    SPI_TransmitData(2, (uint8_t *)&hvcolor1);
+                }
+            hvtype = NONE;
+
+FIXED CODE:
+-----------
+        #elif defined(HVBUFFER)
+            if (hvtype == VF) { // horiz line
+                // Add bounds checking
+                if (xmin <= xmax && xmax < defWIDTH) {
+                    uint16_t len  = (xmax-xmin+1)*2;
+                    SPI_TransmitData(len, (uint8_t *)&hvframe[xmin]);
+                }
+            } else
+                if (hvtype == HF) { // vert line
+                // Add bounds checking
+                if (ymin <= ymax && ymax < defHEIGHT) {
+                    uint16_t len  = (ymax-ymin+1)*2;
+                    SPI_TransmitData(len, (uint8_t *)&hvframe[ymin]);
+                }
+            } else
+                if (hvtype == ONE) { // single pixel
+                    SPI_TransmitData(2, (uint8_t *)&hvcolor1);
+                }
+            hvtype = NONE;
+            // Clear buffer to prevent stale data
+            memset(hvframe, 0, sizeof(hvframe));
+
+REASON:
+-------
+- Without bounds checking, corrupted xmin/xmax/ymin/ymax values can access
+  memory outside hvframe[], potentially corrupting stack or heap
+- Clearing hvframe after flush prevents stale pixel data from being reused
+- Need to add #include <string.h> at top of st7735s.c for memset()
+
+================================================================================
+FIX #2: Increase logging buffer size
+================================================================================
+Location: prj.conf
+
+ADD THESE LINES:
+----------------
+# Increase logging buffer to handle heavy SPI activity
+CONFIG_LOG_BUFFER_SIZE=2048
+CONFIG_LOG_STRDUP_MAX_STRING=64
+CONFIG_LOG_STRDUP_BUF_COUNT=8
+
+REASON:
+-------
+Default log buffer is too small to handle the logging backlog created by
+heavy SPI/display activity. Increasing buffer size prevents silent drops.
+
+================================================================================
+FIX #3: Reduce Pin_DC delays (optional performance improvement)
+================================================================================
+Location: src/display/st7735s/st7735s_compat.c:67-75
+
+CURRENT CODE:
+-------------
+void Pin_DC_High(void) {
+    gpio_pin_set_dt(&dc_dt, 1);
+    k_msleep(1);
+}
+
+void Pin_DC_Low(void) {
+    gpio_pin_set_dt(&dc_dt, 0);
+    k_msleep(1);
+}
+
+IMPROVED CODE:
+--------------
+void Pin_DC_High(void) {
+    gpio_pin_set_dt(&dc_dt, 1);
+    k_busy_wait(10);  // 10 microseconds instead of 1 millisecond
+}
+
+void Pin_DC_Low(void) {
+    gpio_pin_set_dt(&dc_dt, 0);
+    k_busy_wait(10);  // 10 microseconds instead of 1 millisecond
+}
+
+REASON:
+-------
+Each flush has 2x 1ms delays = 2ms overhead
+With hundreds of flushes per text render, this adds seconds of delay
+ST7735S datasheet shows DC setup time is typically <10us, not 1ms
+Using k_busy_wait(10) reduces delay from 1000us to 10us (100x faster)
+
+================================================================================
+FIX #4: Check memory usage
+================================================================================
+Run these commands to see actual RAM usage:
+
+west build -t rom_report
+west build -t ram_report
+
+Look for:
+- Total RAM usage approaching 64KB limit (nRF52832)
+- Stack usage of main thread and any other threads
+- Heap usage (if dynamic allocation is enabled)
+
+If RAM is >90% utilized, consider:
+- Reducing hvframe size (use smaller width)
+- Switching to BUFFER1 mode for text rendering
+- Disabling unused Zephyr features
+
+================================================================================
+FIX #5: Alternative - Use BUFFER1 for text, HVBUFFER for graphics
+================================================================================
+This is a more involved change, but would provide best results:
+
+1. Create a display mode flag:
+   typedef enum { MODE_GRAPHICS, MODE_TEXT } display_mode_t;
+   display_mode_t current_mode = MODE_GRAPHICS;
+
+2. Switch buffer mode based on content type:
+   - Use HVBUFFER for fillScreen(), drawLine(), drawRect() (graphics)
+   - Use BUFFER1 for drawText(), drawGlyph() (text)
+
+3. This reduces flush overhead for text while keeping graphics efficient
+
+================================================================================
+DEBUGGING TIPS:
+================================================================================
+
+1. To verify logging is working, add this to main():
+   LOG_INF("Logging test - if you see this, logging works");
+
+2. To see flush frequency, add counter in ST7735S_flush():
+   static uint32_t flush_count = 0;
+   flush_count++;
+   if (flush_count % 100 == 0) {
+       printk("Flushes: %u\n", flush_count);  // Use printk, not LOG_INF
+   }
+
+3. To measure memory, add this to main():
+   extern char __HeapBase, __HeapLimit;
+   printk("Heap size: %d bytes\n", &__HeapLimit - &__HeapBase);
+
+4. Check for stack overflow:
+   CONFIG_THREAD_STACK_INFO=y
+   CONFIG_THREAD_ANALYZER=y
+   Then call: thread_analyzer_print();
+
+================================================================================
+RECOMMENDED ORDER OF FIXES:
+================================================================================
+
+1. Start with FIX #2 (increase log buffer) - easiest, safest
+2. Apply FIX #1 (bounds checking) - critical for stability
+3. Try FIX #3 (reduce delays) - big performance win
+4. Run FIX #4 (memory check) - diagnose if still having issues
+5. Consider FIX #5 only if problems persist
+
+================================================================================
