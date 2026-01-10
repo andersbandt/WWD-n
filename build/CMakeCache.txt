@@ -79,6 +79,9 @@ CONFIG_DEBUG_OPTIMIZATIONS:UNINITIALIZED=y
 CONFIG_DEBUG_THREAD_INFO:UNINITIALIZED=y
 
 //No help, variable specified on the command line.
+CONF_FILE:UNINITIALIZED=prj.conf
+
+//No help, variable specified on the command line.
 WEST_PYTHON:UNINITIALIZED=/home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin/python3.12
 
 //Zephyr base

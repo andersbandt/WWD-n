@@ -46,7 +46,7 @@ cmake:
      - '/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/misc/generated/extra_kconfig_options.conf'
      - '/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/.config.sysbuild'
     user-files:
-     - '/home/anders/Documents/NCS/WWD-n/prj.conf'
+     - 'prj.conf'
   toolchain:
     name: 'zephyr'
     path: '/home/anders/ncs/toolchains/b2ecd2435d/opt/zephyr-sdk'
