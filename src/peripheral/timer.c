@@ -101,9 +101,9 @@ int timer_start(int timer_num) {
         k_timer_start(&timer1, duration, period);
         break;
     case 2:
-        /* Timer 2: UI refresh - 1 second periodic */
-        duration = K_MSEC(50);
-        period = K_MSEC(50);
+        /* Timer 2: UI refresh */
+        duration = K_MSEC(500);
+        period = K_MSEC(500);
         k_timer_start(&timer2, duration, period);
         break;
 

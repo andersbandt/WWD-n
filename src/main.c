@@ -44,10 +44,10 @@ bool imu_status;
 
 
 /* Thread stack sizes */
-#define CLOCK_UPDATE_STACK_SIZE 2048
-#define UI_REFRESH_STACK_SIZE 2048
-#define DISPLAY_TIMEOUT_STACK_SIZE 1024
-#define BUTTON_HANDLER_STACK_SIZE 2048
+#define CLOCK_UPDATE_STACK_SIZE 512
+#define UI_REFRESH_STACK_SIZE 4096
+#define DISPLAY_TIMEOUT_STACK_SIZE 512
+#define BUTTON_HANDLER_STACK_SIZE 1024
 
 /* Thread priorities (lower number = higher priority) */
 #define CLOCK_UPDATE_PRIORITY 7
@@ -108,9 +108,15 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
         /* Wait for timer2 semaphore */
         k_sem_take(&timer2_sem, K_FOREVER);
 
+        // size_t stack = 2000;
+        // k_thread_stack_space_get(&ui_refresh_thread, &stack);
+        // printk("ui_refresh free: %d\n", stack);
+        // LOG_INF("ui_refresh ...");
+
+
         /* Refresh UI if display is on */
         if (display_status == 1) {
-            // ui_refresh();
+            ui_refresh();
         }
     }
 }
@@ -219,7 +225,7 @@ int main(void)
     init_ui();
     // TODO: bundle this `display_status` into the init_ui statement
     if (display_status == 1) {
-
+        ui_refresh();
     }
 
     // initialize interrupts
@@ -272,12 +278,12 @@ int main(void)
     LOG_INF("Creating application threads...");
 
     /* Create clock/IMU/BMS update thread */
-    k_thread_create(&clock_update_thread, clock_update_stack,
-                    K_THREAD_STACK_SIZEOF(clock_update_stack),
-                    clock_update_thread_entry,
-                    NULL, NULL, NULL,
-                    CLOCK_UPDATE_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(&clock_update_thread, "clock_update");
+    // k_thread_create(&clock_update_thread, clock_update_stack,
+    //                 K_THREAD_STACK_SIZEOF(clock_update_stack),
+    //                 clock_update_thread_entry,
+    //                 NULL, NULL, NULL,
+    //                 CLOCK_UPDATE_PRIORITY, 0, K_NO_WAIT);
+    // k_thread_name_set(&clock_update_thread, "clock_update");
 
     /* Create UI refresh thread */
     k_thread_create(&ui_refresh_thread, ui_refresh_stack,
@@ -288,12 +294,12 @@ int main(void)
     k_thread_name_set(&ui_refresh_thread, "ui_refresh");
 
     /* Create display timeout thread */
-    k_thread_create(&display_timeout_thread, display_timeout_stack,
-                    K_THREAD_STACK_SIZEOF(display_timeout_stack),
-                    display_timeout_thread_entry,
-                    NULL, NULL, NULL,
-                    DISPLAY_TIMEOUT_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(&display_timeout_thread, "display_timeout");
+    // k_thread_create(&display_timeout_thread, display_timeout_stack,
+    //                 K_THREAD_STACK_SIZEOF(display_timeout_stack),
+    //                 display_timeout_thread_entry,
+    //                 NULL, NULL, NULL,
+    //                 DISPLAY_TIMEOUT_PRIORITY, 0, K_NO_WAIT);
+    // k_thread_name_set(&display_timeout_thread, "display_timeout");
 
     /* Create button handler thread */
     k_thread_create(&button_handler_thread, button_handler_stack,
