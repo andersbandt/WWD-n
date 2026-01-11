@@ -1,7 +1,0 @@
-default: WWD-n
-build_dir: /home/anders/Documents/NCS/WWD-n/build
-domains:
-  - name: WWD-n
-    build_dir: /home/anders/Documents/NCS/WWD-n/build/WWD-n
-flash_order:
-  - WWD-n
