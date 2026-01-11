@@ -13,28 +13,22 @@
 
 
 /* My header files  */
-#include <inv_imu_driver.h>
 #include <circular_buffer.h>
+
+/* Display driver selection */
+// #define USE_ZEPHYR_IMU
+#define USE_DERS_IMU
+
+#ifdef USE_DERS_IMU
+    #include <inv_imu_driver.h>
+#endif
+
 
 
 // FIFO configuration
 #define IMU_FIFO_ENABLED     0
 #define IMU_APEX_ENABLED     1
 #define IMU_FIFO_WM          50
-
-
-
-// IMU driver selection
-/* Display driver selection */
-#define USE_ZEPHYR_IMU
-// #define USE_DERS_IMU
-
-#ifdef USE_ZEPHYR_IMU
-
-#else
-
-#endif
-
 
 
 extern Circular_Buffer *imu_data_buffer;

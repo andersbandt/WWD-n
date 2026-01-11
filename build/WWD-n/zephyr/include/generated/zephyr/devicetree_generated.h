@@ -11571,8 +11571,8 @@
  *
  * Node identifier: DT_N_S_soc_S_spi_40004000_S_icm42670p_1
  *
- * Binding (compatible = invensense,icm42670p):
- *   $ZEPHYR_BASE/dts/bindings/sensor/invensense,icm42670p-spi.yaml
+ * Binding (compatible = tdk,icm42670p):
+ *   /home/anders/Documents/NCS/WWD-n/dts/bindings/spi/tdk,icm42670p.yaml
  *
  * (Descriptions have moved to the Devicetree Bindings Index
  * in the documentation.)
@@ -11628,8 +11628,8 @@
 
 /* Existence and alternate IDs: */
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_EXISTS 1
-#define DT_N_INST_0_invensense_icm42670p DT_N_S_soc_S_spi_40004000_S_icm42670p_1
-#define DT_N_NODELABEL_icm42670p         DT_N_S_soc_S_spi_40004000_S_icm42670p_1
+#define DT_N_INST_0_tdk_icm42670p DT_N_S_soc_S_spi_40004000_S_icm42670p_1
+#define DT_N_NODELABEL_icm42670p  DT_N_S_soc_S_spi_40004000_S_icm42670p_1
 
 /* Bus info (controller: '/soc/spi@40004000', type: '['spi']') */
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_BUS_spi 1
@@ -11643,9 +11643,9 @@
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_FOREACH_RANGE(fn) 
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_IRQ_NUM 0
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_IRQ_LEVEL 0
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_COMPAT_MATCHES_invensense_icm42670p 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_COMPAT_MATCHES_tdk_icm42670p 1
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_COMPAT_VENDOR_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_COMPAT_VENDOR_IDX_0 "InvenSense Inc."
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_COMPAT_VENDOR_IDX_0 "TDK Corporation."
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_COMPAT_MODEL_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_COMPAT_MODEL_IDX_0 "icm42670p"
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_STATUS_okay 1
@@ -11654,6 +11654,36 @@
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_PINCTRL_NUM 0
 
 /* Generic property macros: */
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_pin 9
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_pin_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_flags 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_flags_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_PH DT_N_S_soc_S_gpio_50000000
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_pin 3
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_pin_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_flags 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_flags_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0) \
+	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1)
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0) DT_DEBRACKET_INTERNAL sep \
+	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1)
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0, __VA_ARGS__) \
+	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1, __VA_ARGS__)
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0, __VA_ARGS__) DT_DEBRACKET_INTERNAL sep \
+	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1, __VA_ARGS__)
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_LEN 2
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_hz 100
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_hz_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_hz 100
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_hz_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_fs 2
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_fs_EXISTS 1
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_fs 250
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_fs_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_reg {1 /* 0x1 */}
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_reg_IDX_0_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_reg_IDX_0 1
@@ -11690,12 +11720,12 @@
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_status_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, status, 0, __VA_ARGS__)
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_status_LEN 1
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_status_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible {"invensense,icm42670p"}
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible {"tdk,icm42670p"}
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0 "invensense,icm42670p"
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0_STRING_UNQUOTED invensense,icm42670p
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0_STRING_TOKEN invensense_icm42670p
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0_STRING_UPPER_TOKEN INVENSENSE_ICM42670P
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0 "tdk,icm42670p"
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0_STRING_UNQUOTED tdk,icm42670p
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0_STRING_TOKEN tdk_icm42670p
+#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_IDX_0_STRING_UPPER_TOKEN TDK_ICM42670P
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, compatible, 0)
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, compatible, 0)
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_compatible_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, compatible, 0, __VA_ARGS__)
@@ -11708,91 +11738,6 @@
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_wakeup_source_EXISTS 1
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_zephyr_pm_device_runtime_auto 0
 #define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_zephyr_pm_device_runtime_auto_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_hz 100
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_hz_IDX_0_ENUM_IDX 5
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_hz_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_hz_IDX_0_ENUM_VAL_100_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_hz_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_fs 250
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_fs_IDX_0_ENUM_IDX 3
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_fs_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_fs_IDX_0_ENUM_VAL_250_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_fs_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_filt_bw_hz 180
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_filt_bw_hz_IDX_0_ENUM_IDX 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_filt_bw_hz_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_filt_bw_hz_IDX_0_ENUM_VAL_180_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_gyro_filt_bw_hz_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_PH DT_N_S_soc_S_gpio_50000000
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_pin 9
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_pin_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_flags 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_0_VAL_flags_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_PH DT_N_S_soc_S_gpio_50000000
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_pin 3
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_pin_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_flags 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_IDX_1_VAL_flags_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0) \
-	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0) DT_DEBRACKET_INTERNAL sep \
-	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0, __VA_ARGS__) \
-	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1, __VA_ARGS__)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 0, __VA_ARGS__) DT_DEBRACKET_INTERNAL sep \
-	fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, int_gpios, 1, __VA_ARGS__)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_LEN 2
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_int_gpios_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_hz 100
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_hz_IDX_0_ENUM_IDX 5
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_hz_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_hz_IDX_0_ENUM_VAL_100_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_hz_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode "low-noise"
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_STRING_UNQUOTED low-noise
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_STRING_TOKEN low_noise
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_STRING_UPPER_TOKEN LOW_NOISE
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_IDX_0 "low-noise"
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_IDX_0_ENUM_IDX 0
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_IDX_0_ENUM_VAL_low_noise_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, power_mode, 0)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, power_mode, 0)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, power_mode, 0, __VA_ARGS__)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, power_mode, 0, __VA_ARGS__)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_LEN 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_power_mode_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_fs 2
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_fs_IDX_0_ENUM_IDX 3
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_fs_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_fs_IDX_0_ENUM_VAL_2_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_fs_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_avg 32
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_avg_IDX_0_ENUM_IDX 4
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_avg_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_avg_IDX_0_ENUM_VAL_32_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_avg_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_filt_bw_hz 180
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_filt_bw_hz_IDX_0_ENUM_IDX 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_filt_bw_hz_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_filt_bw_hz_IDX_0_ENUM_VAL_180_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_accel_filt_bw_hz_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex "none"
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_STRING_UNQUOTED none
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_STRING_TOKEN none
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_STRING_UPPER_TOKEN NONE
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_IDX_0 "none"
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_IDX_0_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_IDX_0_ENUM_IDX 0
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_IDX_0_ENUM_VAL_none_EXISTS 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_FOREACH_PROP_ELEM(fn) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, apex, 0)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_FOREACH_PROP_ELEM_SEP(fn, sep) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, apex, 0)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_FOREACH_PROP_ELEM_VARGS(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, apex, 0, __VA_ARGS__)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_FOREACH_PROP_ELEM_SEP_VARGS(fn, sep, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, apex, 0, __VA_ARGS__)
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_LEN 1
-#define DT_N_S_soc_S_spi_40004000_S_icm42670p_1_P_apex_EXISTS 1
 
 /*
  * Devicetree node: /soc/spi@40004000/mt29f@0
@@ -12358,7 +12303,7 @@
 #define DT_COMPAT_HAS_OKAY_nordic_nrf_uart 1
 #define DT_COMPAT_HAS_OKAY_nordic_nrf_spi 1
 #define DT_COMPAT_HAS_OKAY_micron_mt29f 1
-#define DT_COMPAT_HAS_OKAY_invensense_icm42670p 1
+#define DT_COMPAT_HAS_OKAY_tdk_icm42670p 1
 #define DT_COMPAT_HAS_OKAY_waveshare_st7789v2 1
 #define DT_COMPAT_HAS_OKAY_waveshare_st7735s 1
 #define DT_COMPAT_HAS_OKAY_nordic_nrf_gpiote 1
@@ -12406,7 +12351,7 @@
 #define DT_N_INST_nordic_nrf_uart_NUM_OKAY 1
 #define DT_N_INST_nordic_nrf_spi_NUM_OKAY 1
 #define DT_N_INST_micron_mt29f_NUM_OKAY 1
-#define DT_N_INST_invensense_icm42670p_NUM_OKAY 1
+#define DT_N_INST_tdk_icm42670p_NUM_OKAY 1
 #define DT_N_INST_waveshare_st7789v2_NUM_OKAY 1
 #define DT_N_INST_waveshare_st7735s_NUM_OKAY 1
 #define DT_N_INST_nordic_nrf_gpiote_NUM_OKAY 1
@@ -12507,10 +12452,10 @@
 #define DT_FOREACH_OKAY_VARGS_micron_mt29f(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_mt29f_0, __VA_ARGS__)
 #define DT_FOREACH_OKAY_INST_micron_mt29f(fn) fn(0)
 #define DT_FOREACH_OKAY_INST_VARGS_micron_mt29f(fn, ...) fn(0, __VA_ARGS__)
-#define DT_FOREACH_OKAY_invensense_icm42670p(fn) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1)
-#define DT_FOREACH_OKAY_VARGS_invensense_icm42670p(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, __VA_ARGS__)
-#define DT_FOREACH_OKAY_INST_invensense_icm42670p(fn) fn(0)
-#define DT_FOREACH_OKAY_INST_VARGS_invensense_icm42670p(fn, ...) fn(0, __VA_ARGS__)
+#define DT_FOREACH_OKAY_tdk_icm42670p(fn) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1)
+#define DT_FOREACH_OKAY_VARGS_tdk_icm42670p(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_icm42670p_1, __VA_ARGS__)
+#define DT_FOREACH_OKAY_INST_tdk_icm42670p(fn) fn(0)
+#define DT_FOREACH_OKAY_INST_VARGS_tdk_icm42670p(fn, ...) fn(0, __VA_ARGS__)
 #define DT_FOREACH_OKAY_waveshare_st7789v2(fn) fn(DT_N_S_soc_S_spi_40004000_S_st7789v2_2)
 #define DT_FOREACH_OKAY_VARGS_waveshare_st7789v2(fn, ...) fn(DT_N_S_soc_S_spi_40004000_S_st7789v2_2, __VA_ARGS__)
 #define DT_FOREACH_OKAY_INST_waveshare_st7789v2(fn) fn(0)
@@ -12612,6 +12557,6 @@
  * Bus information for status "okay" nodes of each compatible
  */
 #define DT_COMPAT_micron_mt29f_BUS_spi 1
-#define DT_COMPAT_invensense_icm42670p_BUS_spi 1
+#define DT_COMPAT_tdk_icm42670p_BUS_spi 1
 #define DT_COMPAT_waveshare_st7789v2_BUS_spi 1
 #define DT_COMPAT_waveshare_st7735s_BUS_spi 1

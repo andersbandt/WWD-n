@@ -12,8 +12,8 @@
     };
 
     icm42670p: icm42670p@1 {
-        // compatible = "tdk,icm42670p";
-		compatible = "invensense,icm42670p";
+        compatible = "tdk,icm42670p";
+		// compatible = "invensense,icm42670p";
 		reg = <1>;
 		spi-max-frequency = <8000000>; /* Reduced to 8MHz for stability */
         int-gpios = <&gpio0 9 GPIO_ACTIVE_LOW>, <&gpio0 3 GPIO_ACTIVE_LOW>;
