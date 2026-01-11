@@ -49,7 +49,7 @@ Time time_offset;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int position = 0;  // position tracks where the cursor is - 0 for on the tens place, 1 for on the tenth place, 2 for on the done button
-
+bool first_ui_time = false; // useful for doing things the first time a function has to get called
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -70,58 +70,46 @@ void reset_uifunc_params() {
  * prompt_for_time: UI function to walk the user through prompting for time
  */
 void system_prompt_for_time_UI_FUNC() {
-    printLine("       ", 0, 12, FONT_LARGE);
-    printLine("         ", 1, 12, FONT_LARGE);
-    display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
+    if (first_ui_time) {
+        position = 0;
+        clearAndPrintLine("HOURS", 0, 12, FONT_LARGE);
+        display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
+    }
 
 
-    while (position < 3) {
-        if (position == 0) {
-            clearAndPrintLine("HOURS", 0, 12, FONT_LARGE);
+    uint8_t btn_poll = button_poll();
+
+    // INCREMENT (button 1)
+    if (btn_poll == 1) {
+        if (position == 0) { // increment HOURS
+            time_offset.hours = increment_hour(time_offset.hours);
         }
-        else if (position == 1) {
+        else if (position == 1) { // increment MINUTES
+            time_offset.minutes = increment_minute(time_offset.minutes);
+        }
+        else if (position == 2) { // increment SECONDS
+            time_offset.seconds = increment_second(time_offset.seconds);
+        }
+    }
+    // DECREMENT (button 2)
+    if (btn_poll == 2) {
+        // TODO: with expanded buttons lets add increment and decrement here
+    }
+
+    // update display if we changed offset digit value
+    if (btn_poll == 1 || btn_poll == 2) {
+        display_out_time(time_offset); 
+        // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
+    }
+        
+    // ADVANCE (button 3 or 4)
+    if (btn_poll == 8) {
+        position++;
+        if (position == 1) {
             clearAndPrintLine("MINUTES", 0, 12, FONT_LARGE);
         }
         else if (position == 2) {
             clearAndPrintLine("SECONDS", 0, 12, FONT_LARGE);
-        }
-
-        uint8_t btn_poll = 0;
-        bool digit_status = true;
-        while (button_poll == 8) {
-
-        }
-        while (digit_status) {
-            btn_poll = button_poll();
-
-            // INCREMENT (button 1)
-            if (btn_poll == 1) {
-                if (position == 0) { // increment HOURS
-                    time_offset.hours = increment_hour(time_offset.hours);
-                }
-                else if (position == 1) { // increment MINUTES
-                    time_offset.minutes = increment_minute(time_offset.minutes);
-                }
-                else if (position == 2) { // increment SECONDS
-                    time_offset.seconds = increment_second(time_offset.seconds);
-                }
-            }
-            // DECREMENT (button 2)
-            if (btn_poll == 2) {
-                // TODO: with expanded buttons lets add increment and decrement here
-            }
-
-            // update display if we changed offset digit value
-            if (btn_poll == 1 || btn_poll == 2) {
-                display_out_time(time_offset); 
-                // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
-            }
-        
-            // ADVANCE (button 3 or 4)
-            if (btn_poll == 8) {
-                position++;
-                digit_status = false;
-            }
         }
     }
 

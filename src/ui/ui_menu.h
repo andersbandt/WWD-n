@@ -11,6 +11,7 @@
 #ifndef SRC_UI_UI_MENU_H_
 #define SRC_UI_UI_MENU_H_
 
+#include <ui.h>  // for ui_mode_t
 
 // define some menu constants
 #define UI_MAIN_MENU_ITEMS    4  // total amount of items in the menu (for tracking absolute position)
@@ -25,7 +26,8 @@
 extern int abs_position;
 extern int sub_menu_position;
 
-extern void (*sub_menu_options[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH])();
+// Sub-menu mode mappings
+extern ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH];
 
 
 

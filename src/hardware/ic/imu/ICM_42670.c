@@ -72,6 +72,7 @@ static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // TODO: why does this thing take in the serif?
+// TODO: move all this stuff to transport??? right???
 int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, uint32_t len) {
     uint8_t tx_data[len+1];
     tx_data[0] = reg;
@@ -88,11 +89,14 @@ int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, 
         .count = 1,
     };
 
-    return spi_transceive_dt(&spi_dev, &tx_set, NULL);
+    return spi_write_dt(&spi_dev, &tx_set);
 }
 
-
-int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_t len)  {
+int imu_spi_read(struct inv_imu_serif *serif,
+                 uint8_t reg,
+                 uint8_t *buf,
+                 uint32_t len)
+{
     struct spi_buf tx_bufs[2] = {
         { .buf = &reg, .len = 1 }, // register address
         { .buf = NULL,   .len = len } // dummy bytes to clock data out
@@ -113,7 +117,41 @@ int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_
         .count = 2,
     };
 
-    return spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+    spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+    return 1;
+}
+
+
+// int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_t len)  {
+
+
+//     return spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+// }
+
+
+
+/*
+ * readIMUReg: I created this function to abstract the one in the driver
+ */
+int readIMUReg(int reg) {
+    int rc = 0;
+    uint8_t data;
+
+    rc |= inv_imu_read_reg(&icm_driver, reg, 1, &data);
+    if (rc) {
+        return -1;
+    }
+    return data;
+}
+
+
+void dumpIMUReg() {
+    int data = 0;
+    LOG_INF("IMU_reg,IMU_data");
+    for (int reg = 0; reg < 0x13; reg++) {
+        data = readIMUReg(reg);
+        LOG_INF("0x%x,0x%x", reg,data);
+    }
 }
 
 
@@ -154,6 +192,49 @@ void event_cb(inv_imu_sensor_event_t *evt) {
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/*
+ * init_icm: initializes the IMU. Sets some needed serial interface parameters and calls the driver init function
+ */
+int init_icm() {
+    LOG_INF("\nInitialization IMU.");
+    struct inv_imu_serif icm_serif;
+    int rc = 0;
+    uint8_t who_am_i;
+
+    icm_serif.serif_type = UI_SPI4;
+    icm_serif.read_reg = imu_spi_read;
+    icm_serif.write_reg = imu_spi_write;
+
+
+    // Initialize serial interface between MCU and ICM-42670
+    icm_serif.context = NULL; // used to be equal to (void*)this, but that will not work beacause it is no longer a class
+    icm_serif.max_read  = 2048; /* maximum number of bytes allowed per serial read */
+    icm_serif.max_write = 2048; /* maximum number of bytes allowed per serial write */
+
+    icm_driver.sensor_event_cb = event_cb;
+
+    rc = inv_imu_init(&icm_driver, &icm_serif, event_cb);
+    if (rc != INV_ERROR_SUCCESS) {
+        LOG_INF("Error with IMU initialization, got status code [%d]", rc);
+        return rc;
+    }
+
+    // /* Check WHOAMI */
+    rc = inv_imu_get_who_am_i(&icm_driver, &who_am_i);
+    if(rc != 0) {
+        return -2;
+    }
+
+    if (who_am_i != INV_IMU_WHOAMI) {
+        return -3;
+    }
+
+    LOG_INF("\tgot IMU WHOAMI: [0x%x]", who_am_i);    
+    LOG_INF("\nDone initializing IMU");
+    return 0;
+}
+
+
 
 ACCEL_CONFIG0_FS_SEL_t accel_fsr_g_to_param(uint16_t accel_fsr_g) {
   ACCEL_CONFIG0_FS_SEL_t ret = ACCEL_CONFIG0_FS_SEL_16g;
@@ -169,6 +250,7 @@ ACCEL_CONFIG0_FS_SEL_t accel_fsr_g_to_param(uint16_t accel_fsr_g) {
   }
   return ret;
 }
+
 
 GYRO_CONFIG0_FS_SEL_t gyro_fsr_dps_to_param(uint16_t gyro_fsr_dps) {
   GYRO_CONFIG0_FS_SEL_t ret = GYRO_CONFIG0_FS_SEL_2000dps;
@@ -205,6 +287,7 @@ ACCEL_CONFIG0_ODR_t accel_freq_to_param(uint16_t accel_freq_hz) {
   return ret;
 }
 
+
 GYRO_CONFIG0_ODR_t gyro_freq_to_param(uint16_t gyro_freq_hz) {
   GYRO_CONFIG0_ODR_t ret = GYRO_CONFIG0_ODR_100_HZ;
 
@@ -222,31 +305,6 @@ GYRO_CONFIG0_ODR_t gyro_freq_to_param(uint16_t gyro_freq_hz) {
     break;
   }
   return ret;
-}
-
-
-/*
- * readIMUReg: I created this function to abstract the one in the driver
- */
-int readIMUReg(int reg) {
-    int rc = 0;
-    uint8_t data;
-
-    rc |= inv_imu_read_reg(&icm_driver, reg, 1, &data);
-    if (rc) {
-        return -1;
-    }
-    return data;
-}
-
-
-void dumpIMUReg() {
-    int data = 0;
-    LOG_INF("IMU_reg,IMU_data");
-    for (int reg = 0; reg < 0x13; reg++) {
-        data = readIMUReg(reg);
-        LOG_INF("0x%x,0x%x", reg,data);
-    }
 }
 
 
@@ -300,50 +358,6 @@ void checkInterruptIMU() {
     LOG_INF("\tINT_CONFIG0[0x%x] = 0x%x", INT_CONFIG0_MREG1, reg_data);
     reg_data = readIMUReg(INT_CONFIG1_MREG1);
     LOG_INF("\tINT_CONFIG1[0x%x] = 0x%x", INT_CONFIG1_MREG1, reg_data);
-}
-
-
-
-/*
- * init_icm: initializes the IMU. Sets some needed serial interface parameters and calls the driver init function
- */
-int init_icm() {
-    LOG_INF("\nInitialization IMU.");
-    struct inv_imu_serif icm_serif;
-    int rc = 0;
-    uint8_t who_am_i;
-
-    icm_serif.serif_type = UI_SPI4;
-    icm_serif.read_reg = imu_spi_read;
-    icm_serif.write_reg = imu_spi_write;
-
-
-    // Initialize serial interface between MCU and ICM-42670
-    icm_serif.context = NULL; // used to be equal to (void*)this, but that will not work beacause it is no longer a class
-    icm_serif.max_read  = 2048; /* maximum number of bytes allowed per serial read */
-    icm_serif.max_write = 2048; /* maximum number of bytes allowed per serial write */
-
-    icm_driver.sensor_event_cb = event_cb;
-
-    rc = inv_imu_init(&icm_driver, &icm_serif, event_cb);
-    if (rc != INV_ERROR_SUCCESS) {
-        LOG_INF("Error with IMU initialization.");
-        return rc;
-    }
-
-    /* Check WHOAMI */
-    rc = inv_imu_get_who_am_i(&icm_driver, &who_am_i);
-    if(rc != 0) {
-        return -2;
-    }
-
-    if (who_am_i != INV_IMU_WHOAMI) {
-        return -3;
-    }
-
-    LOG_INF("\tgot IMU WHOAMI: [0x%x]", who_am_i);    
-    LOG_INF("\nDone initializing IMU");
-    return 0;
 }
 
 

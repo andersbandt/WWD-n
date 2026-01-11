@@ -90,15 +90,15 @@ int inv_imu_read_reg(struct inv_imu_device *s, uint32_t reg, uint32_t len, uint8
 //    if (cache_addr) { buf[i] = *cache_addr; }
     
 
-            if (!(reg & 0x10000)) {
-                for (uint32_t i = 0; i < len; i++) {
-                    rc |= read_mclk_reg(s, ((reg + i) & 0xFFFF), 1, &buf[i]);
-                }   
-            }
-            else {
-                // NOTE: I edited the below line. Check commit history if issues or concerns arise
-                rc |= read_sreg(s, (uint8_t)(reg) | 0x80, len, buf);
-            }
+	if (!(reg & 0x10000)) {
+		for (uint32_t i = 0; i < len; i++) {
+			rc |= read_mclk_reg(s, ((reg + i) & 0xFFFF), 1, &buf[i]);
+		}   
+	}
+	else {
+		// NOTE: I edited the below line. Check commit history if issues or concerns arise
+		rc |= read_sreg(s, (uint8_t)(reg) | 0x80, len, buf);
+	}
     
 	return rc;
 }
@@ -203,7 +203,6 @@ int inv_imu_switch_off_mclk(struct inv_imu_device *s)
 	return status;
 }
 
-/* Static function */
 
 static uint8_t *get_register_cache_addr(struct inv_imu_device *s, const uint32_t reg)
 {
@@ -228,6 +227,7 @@ static uint8_t *get_register_cache_addr(struct inv_imu_device *s, const uint32_t
 	}
 }
 
+
 static int read_sreg(struct inv_imu_device *s, uint8_t reg, uint32_t len, uint8_t *buf)
 {
 	struct inv_imu_serif *serif = (struct inv_imu_serif *)s;
@@ -245,7 +245,6 @@ static int read_sreg(struct inv_imu_device *s, uint8_t reg, uint32_t len, uint8_
 }
 
 
-
 static int write_sreg(struct inv_imu_device *s, uint8_t reg, uint32_t len, const uint8_t *buf)
 {
 	struct inv_imu_serif *serif = (struct inv_imu_serif *)s;
@@ -261,6 +260,7 @@ static int write_sreg(struct inv_imu_device *s, uint8_t reg, uint32_t len, const
 
 	return 0;
 }
+
 
 static int read_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t rd_cnt, uint8_t *buf)
 {
@@ -296,7 +296,6 @@ static int read_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t rd_
 
 	return status;
 }
-
 
 
 static int write_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t wr_cnt,

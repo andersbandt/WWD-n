@@ -73,40 +73,24 @@ int inv_imu_init(struct inv_imu_device *s, const struct inv_imu_serif *serif,
 
 	/* Configure serial interface so we can trigger device reset */
 	status = configure_serial_interface(s);
-	LOG_INF("... status1: %d\r\n", status);
+	LOG_INF("... status1: %d", status);
     
 	/* Reset device */
-	LOG_INF("... issuing device reset");
 	status |= inv_imu_device_reset(s);
-    LOG_INF("... status2: %d\r\n", status);
+	LOG_INF("... status2: %d", status);
 
 	/* Init transport layer */
 	status |= inv_imu_init_transport(s);
-    LOG_INF("... status3: %d\r\n", status);
-
-
-    // DEBUG: read from MREG1 space
-    /* uint8_t data = 0x10; */
-    /* status |= inv_imu_write_reg(s, PWR_MGMT0, 1, &data); */
-    /* inv_imu_read_reg(s, PWR_MGMT0, 1, &data); */
-    /* LOG_INF(display, 0, 0, "\tPWR_MGMT0[0x%x] = 0x%x", PWR_MGMT0, data);     */
-    /* uint16_t regaddr = 0x01; */
-    /* int mystatus = inv_imu_read_reg(s, regaddr, 1, &data); */
-    /* LOG_INF(display, 0, 0, "DEBUG: register read got reg/data [%x][%x] with status: %d", regaddr, data, mystatus); */
-    // END DEBUG
-
+	LOG_INF("... status3: %d", status);
     
 	/* Read and set endianness for further processing */
 	status |= inv_imu_get_endianness(s);
-    LOG_INF("... status4: %d\r\n", status);
+	LOG_INF("... status4: %d", status);
 
 	/* Initialize hardware */
-	LOG_INF("... initializing hardware");
 	status |= init_hardware_from_ui(s);
-    LOG_INF("... status5: %d\r\n", status);
+	LOG_INF("... status5: %d", status);
 
-
-	LOG_INF("... finished with sub function IMU config.");
 
 	/* Set default value for sensor start/stop time */
 #if ICM_IS_GYRO_SUPPORTED

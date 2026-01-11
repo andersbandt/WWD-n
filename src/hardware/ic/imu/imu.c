@@ -61,6 +61,7 @@ int flash_write_num = 0;
  * imu_init: does register and data configuration for the IMU
  */
 int imu_init() {
+    LOG_INF("Initializing IMU ...");
     int rc = 0;
     rc |= init_icm();
     

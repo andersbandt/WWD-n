@@ -76,20 +76,25 @@ char sub_menu_1[SUB_MENU_1_LENGTH][SUB_MENU_CHAR_LENGTH] = {
 char * sub_menu[UI_MAIN_MENU_ITEMS] = {*sub_menu_0, *sub_menu_1};
 
 
-//sub-menu functions mappings
-void(*sub_menu_options[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH])() =
+// Sub-menu UI mode mappings
+// Maps menu positions to ui_mode_t values
+// UI_MODE_MENU is used for "Return" options
+ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
+    // System settings (Menu 0)
     {
-        // system settings
-        {system_prompt_for_time_UI_FUNC,
-         system_change_display_contrast_UI_FUNC,
-         system_clear_faults_UI_FUNC,
-         returnMenu},
-        
-        /* IMU */
-        {imuRead_UI_FUNC,
-         imutempRead_UI_FUNC,
-         returnMenu,
-         returnMenu},
+        UI_MODE_PROMPT_TIME,        // Change Date/Time
+        UI_MODE_CHANGE_CONTRAST,    // Display Settings
+        UI_MODE_CLEAR_FAULTS,       // Clear faults
+        UI_MODE_MENU                // Return (back to menu)
+    },
+
+    // IMU (Menu 1)
+    {
+        UI_MODE_IMU_READ,           // Display readings
+        UI_MODE_IMU_TEMP,           // Temperature
+        UI_MODE_MENU,               // Pedometer (placeholder - returns to menu)
+        UI_MODE_MENU                // Return
+    },
 };
 
 
@@ -127,19 +132,23 @@ void updateMenuScreen(int8_t action)
 
         // if sub menu function already running ...
         if (run_sub_menu) {
+            // Check if user wants to exit the UI function
             if (action == 2) {
                 run_sub_menu = false;
                 reset_uifunc_params(); // NOTE: this has to be called to wipe things like position for setting clock
                 returnMenu(); // TODO: this should actually return to sub menu instead of main menu
+                change_ui_mode(UI_MODE_MENU); // Return to menu mode
                 return;
             }
-            commenceUIAction(abs_position, sub_menu_position);
+            // UI function is still running - ui_refresh() handles calling it
+            return;
         }
 
         // if select button was pressed
         else if (action == 2) {
             run_sub_menu = true;
             k_usleep(1000*200);
+            commenceUIAction(abs_position, sub_menu_position); // Set the UI mode
             return;
         }
 
@@ -258,12 +267,26 @@ void returnMenu()
 
 
 /*
- * commmmenceUIAction: commences an actino based on user input from the UI menu
-*/
+ * commenceUIAction: commences an action based on user input from the UI menu
+ *
+ * Sets the ui_mode to the appropriate mode based on menu selection.
+ * This allows ui_refresh() to handle the UI function display updates.
+ */
 void commenceUIAction(int absolute_position, int sub_menu_position)
 {
-    // clear_out_display();
-    sub_menu_options[absolute_position][sub_menu_position]();
+    ui_mode_t new_mode = sub_menu_modes[absolute_position][sub_menu_position];
+
+    // Handle special case: return to menu
+    if (new_mode == UI_MODE_MENU) {
+        returnMenu();
+        return;
+    }
+
+    // Reset UI function parameters before entering new mode
+    reset_uifunc_params();
+
+    // Set the new UI mode (ui_refresh() will handle calling the appropriate function)
+    change_ui_mode(new_mode);
 }
 
 

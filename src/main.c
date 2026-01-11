@@ -167,7 +167,7 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         /* Button 1 pressed */
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button1_sem, K_NO_WAIT);
-            change_ui_mode(2);
+            change_ui_mode(UI_MODE_MENU);
             handle_ui_input();
         }
 
@@ -214,13 +214,13 @@ int main(void)
     /*
     DISPLAY and UI config
     */
-    led_set(1, 1);
-    init_display();
-    led_set(1, 0);
-    init_ui();
+    // led_set(1, 1);
+    // init_display();
+    // led_set(1, 0);
+
     // TODO: bundle this `display_status` into the init_ui statement
     if (display_status == 1) {
-        ui_refresh();
+        init_ui();
     }
 
     // initialize interrupts
@@ -249,19 +249,15 @@ int main(void)
     /*
     IMU CONFIG BLOCK
     */
-    // struct icm42670_data sensor_data;
-    // int ret = 0;
-    // ret |= icm42670_init();
+    int ret = 0;
+    ret |= imu_init();
     // if (ret == 0) {
-    //     printk("Initialized IMU\n");
+    //     LOG_INF("Initialized IMU\n");
     //     imu_status = true;
-    //     ret = icm42670_set_accel_rate(100); /* 100 Hz */
-    //     ret |= icm42670_set_gyro_rate(100); /* 100 Hz */
     // }
     // else {
-    //     printk("Failed to initialize ICM42670 with code [%d]\n", ret);
+    //     LOG_INF("Failed to initialize ICM42670 with code [%d]\n", ret);
     //     imu_status = false;
-    //     led_set(1, 1);
     // }
     /*
     END OF IMU CONFIG BLOCK
