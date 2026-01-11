@@ -66,7 +66,7 @@ bool apex_pedometer_enable;
 #endif
 
 
-#define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+#define SPI_OP SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE
 static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +93,10 @@ int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, 
         .count = 1,
     };
 
-    return spi_write_dt(&spi_dev, &tx_set);
+
+    spi_write_dt(&spi_dev, &tx_set);
+    // TODO: need to actually get status code from spi_write_dt and return it properly here!!
+    return 0;
 }
 
 
@@ -102,36 +105,38 @@ int imu_spi_read(struct inv_imu_serif *serif,
                  uint8_t *buf,
                  uint32_t len)
 {
-    struct spi_buf tx_bufs[2] = {
-        { .buf = &reg, .len = 1 }, // register address
-        { .buf = NULL,   .len = len } // dummy bytes to clock data out
+    uint8_t tx_data[len + 1];
+    uint8_t rx_data[len + 1];
+
+    tx_data[0] = reg;
+    memset(&tx_data[1], 0x00, len);  // dummy bytes to clock data out
+
+    struct spi_buf tx_buf = {
+        .buf = tx_data,
+        .len = len + 1,
     };
 
     struct spi_buf_set tx_set = {
-        .buffers = tx_bufs,
-        .count = 2,
+        .buffers = &tx_buf,
+        .count = 1,
     };
 
-    struct spi_buf rx_bufs[2] = {
-        { .buf = NULL,   .len = 1 }, // ignore first byte (register echo)
-        { .buf = buf,    .len = len } // store the read data
+    struct spi_buf rx_buf = {
+        .buf = rx_data,
+        .len = len + 1,
     };
 
     struct spi_buf_set rx_set = {
-        .buffers = rx_bufs,
-        .count = 2,
+        .buffers = &rx_buf,
+        .count = 1,
     };
 
-    spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
-    return 1;
+    int rc = spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+
+    // Copy received data (skip first byte which is register echo/dummy)
+    memcpy(buf, &rx_data[1], len);
+    return 0;
 }
-
-
-// int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_t len)  {
-
-
-//     return spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
-// }
 
 
 
