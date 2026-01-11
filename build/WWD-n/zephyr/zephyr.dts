@@ -232,16 +232,16 @@
 
 			/* node '/soc/spi@40004000/icm42670p@1' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:14 */
 			icm42670p: icm42670p@1 {
-				compatible = "tdk,icm42670p";     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:15 */
-				reg = < 0x1 >;                    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:17 */
-				spi-max-frequency = < 0x7a1200 >; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:18 */
+				compatible = "invensense,icm42670p"; /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:16 */
+				reg = < 0x1 >;                       /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:17 */
+				spi-max-frequency = < 0x7a1200 >;    /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:18 */
 				int-gpios = < &gpio0 0x9 0x1 >,
-				            < &gpio0 0x3 0x1 >;   /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:19 */
-				accel-hz = < 0x64 >;              /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:22 */
-				gyro-hz = < 0x64 >;               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:23 */
-				accel-fs = < 0x2 >;               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:24 */
-				gyro-fs = < 0xfa >;               /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:25 */
-				status = "okay";                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:27 */
+				            < &gpio0 0x3 0x1 >;      /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:19 */
+				accel-hz = < 0x64 >;                 /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:22 */
+				gyro-hz = < 0x64 >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:23 */
+				accel-fs = < 0x2 >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:24 */
+				gyro-fs = < 0xfa >;                  /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:25 */
+				status = "okay";                     /* in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:27 */
 			};
 
 			/* node '/soc/spi@40004000/st7789v2@2' defined in ../../Documents/NCS/WWD-n/boards/96b_nitrogen_nrf52832.overlay:30 */

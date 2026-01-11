@@ -79,6 +79,9 @@ CONFIG_SIZE_OPTIMIZATIONS:UNINITIALIZED=y
 CONF_FILE:UNINITIALIZED=prj.conf
 
 //No help, variable specified on the command line.
+DEBUG_THREAD_INFO:UNINITIALIZED=Off
+
+//No help, variable specified on the command line.
 WEST_PYTHON:UNINITIALIZED=/home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin/python3.12
 
 //No help, variable specified on the command line.

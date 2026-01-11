@@ -59,11 +59,15 @@ bool apex_tilt_enable;
 bool apex_pedometer_enable;
 
 
-#define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(tdk_icm42670p)
-#define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+#ifdef USE_DERS_IMU
+    #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(tdk_icm42670p)
+#else
+    #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(invensense_icm42670p)
+#endif
 
+
+#define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
 static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
-// static struct spi_dt_spec spi_dev = NULL;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -91,6 +95,7 @@ int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, 
 
     return spi_write_dt(&spi_dev, &tx_set);
 }
+
 
 int imu_spi_read(struct inv_imu_serif *serif,
                  uint8_t reg,

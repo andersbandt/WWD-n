@@ -20,6 +20,6 @@ cmake:
   sysbuild: 'true'
 version: '0.1.0'
 west:
-  command: '/home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin/west build --build-dir /home/anders/Documents/NCS/WWD-n/build /home/anders/Documents/NCS/WWD-n --pristine --board 96b_nitrogen/nrf52832 -- -DCONFIG_SIZE_OPTIMIZATIONS=y -DCONF_FILE=prj.conf -DWWD-n_DEBUG_THREAD_INFO=On'
+  command: '/home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin/west build --build-dir /home/anders/Documents/NCS/WWD-n/build /home/anders/Documents/NCS/WWD-n --pristine --board 96b_nitrogen/nrf52832 --sysbuild -- -DCONF_FILE=prj.conf -DDEBUG_THREAD_INFO=Off -DCONFIG_SIZE_OPTIMIZATIONS=y -DWWD-n_DEBUG_THREAD_INFO=On'
   topdir: '/home/anders/ncs/v3.1.1'
   version: '1.4.0'

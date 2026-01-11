@@ -109,11 +109,11 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
         /* Wait for timer2 semaphore */
         k_sem_take(&timer2_sem, K_FOREVER);
 
-        size_t free_stack = 2000;
-        k_thread_stack_space_get(&ui_refresh_thread, &free_stack);
-        LOG_INF("ui_refresh  free: %d", free_stack);
-        k_thread_stack_space_get(&button_handler_thread, &free_stack);
-        LOG_INF("btn_handler free: %d", free_stack);
+        // size_t free_stack = 2000;
+        // k_thread_stack_space_get(&ui_refresh_thread, &free_stack);
+        // LOG_INF("ui_refresh  free: %d", free_stack);
+        // k_thread_stack_space_get(&button_handler_thread, &free_stack);
+        // LOG_INF("btn_handler free: %d", free_stack);
 
         /* Refresh UI if display is on */
         if (display_status == 1) {
@@ -251,14 +251,12 @@ int main(void)
     */
     int ret = 0;
     ret |= imu_init();
-    // if (ret == 0) {
-    //     LOG_INF("Initialized IMU\n");
-    //     imu_status = true;
-    // }
-    // else {
-    //     LOG_INF("Failed to initialize ICM42670 with code [%d]\n", ret);
-    //     imu_status = false;
-    // }
+    if (ret == 0) {
+        imu_status = true;
+    }
+    else {
+        imu_status = false;
+    }
     /*
     END OF IMU CONFIG BLOCK
     */

@@ -902,8 +902,8 @@ lscon_96b_uart0: &uart0 {};
     };
 
     icm42670p: icm42670p@1 {
-        compatible = "tdk,icm42670p";
 
+  compatible = "invensense,icm42670p";
   reg = <1>;
   spi-max-frequency = <8000000>;
         int-gpios = <&gpio0 9 (1 << 0)>, <&gpio0 3 (1 << 0)>;

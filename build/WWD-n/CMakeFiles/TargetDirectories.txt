@@ -132,8 +132,9 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/portability/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/random/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/random/CMakeFiles/edit_cache.dir
-/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/rtio/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/rtio/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/rtio/CMakeFiles/rebuild_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/rtio/CMakeFiles/subsys__rtio.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/sd/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/sd/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/subsys/stats/CMakeFiles/rebuild_cache.dir
@@ -256,6 +257,9 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/st/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/tdk/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/tdk/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/tdk/icm42x70/CMakeFiles/rebuild_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/tdk/icm42x70/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/tdk/icm42x70/CMakeFiles/drivers__sensor__tdk__icm42x70.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/ti/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/ti/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/zephyr/drivers/sensor/vishay/CMakeFiles/rebuild_cache.dir
@@ -413,6 +417,7 @@
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/modules/hal_st/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/modules/hal_tdk/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/modules/hal_tdk/CMakeFiles/edit_cache.dir
+/home/anders/Documents/NCS/WWD-n/build/WWD-n/modules/hal_tdk/CMakeFiles/..__modules__hal__tdk.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/modules/hal_wurthelektronik/CMakeFiles/rebuild_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/modules/hal_wurthelektronik/CMakeFiles/edit_cache.dir
 /home/anders/Documents/NCS/WWD-n/build/WWD-n/modules/liblc3/CMakeFiles/rebuild_cache.dir

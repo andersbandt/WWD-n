@@ -17,6 +17,9 @@
 
 /* Standard C99 stuff */
 #include <stdint.h>
+    // below 2 are for printf only (I think)
+    #include <stdio.h>
+    #include <stddef.h> 
 
 /* Zephyr files */
 #include <zephyr/kernel.h>
@@ -30,9 +33,14 @@
 
 /* IMU header files*/
 #include <imu.h>
-#include <ICM_42670.h>
-#include <imu_process.h>
-#include <inv_imu_driver.h>
+
+#ifdef USE_DERS_IMU
+    #include <ICM_42670.h>
+    #include <imu_process.h>
+    #include <inv_imu_driver.h>
+#else
+    #include <icm42670.h>
+#endif
 
 
 LOG_MODULE_REGISTER(imu, LOG_LEVEL_INF);
@@ -63,8 +71,35 @@ int flash_write_num = 0;
 int imu_init() {
     LOG_INF("Initializing IMU ...");
     int rc = 0;
-    rc |= init_icm();
-    
+
+    #ifdef USE_DERS_IMU
+        rc |= init_icm();
+    #else
+        rc |= icm42670_init();
+        /* Set initial sample rates */
+        rc |= icm42670_set_accel_rate(100); /* 100 Hz */
+        rc |= icm42670_set_gyro_rate(100); /* 100 Hz */
+
+        struct icm42670_data sensor_data;
+        rc |= icm42670_read_all(&sensor_data);
+        printf("Accel (m/s^2): X=%.2f, Y=%.2f, Z=%.2f\n",
+            sensor_data.accel_x,
+            sensor_data.accel_y,
+            sensor_data.accel_z);
+
+        printf("Gyro (dps): X=%.2f, Y=%.2f, Z=%.2f\n",
+            sensor_data.gyro_x,
+            sensor_data.gyro_y,
+            sensor_data.gyro_z);
+    #endif
+
+    if (rc == 0) {
+        LOG_INF("Initialized IMU\n");
+    }
+    else {
+        LOG_INF("Failed to initialize ICM42670 with code [%d]\n", rc);
+    }
+
     // LOG_INF("\nIMU data buffer setup");
     // LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
     // LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
@@ -200,7 +235,12 @@ void get_fifo_data() {
  * imu_get_temp: function to return temperature from IMU
  */
 int16_t imu_get_temp() {
-    int16_t imu_temp = getTempDataFromIMUReg();
+    #ifdef USE_DERS_IMU
+        int16_t imu_temp = getTempDataFromIMUReg();
+    #else
+        int16_t imu_temp = 100;
+    #endif
+    
     /* float temp_celsius = ((float)imu_temp / 128.0f) + 25.0f; */
     /* int16_t imu_c = (imu_temp / 128) + 25; */
     int16_t imu_f = ((imu_temp / 128) + 25) * 1.8 + 32;
@@ -216,8 +256,13 @@ int imu_get_pedo() {
     const char* activity = 0;
 
     uint32_t count = 0;
-    volatile int status = getPedometer(&count, step_cadence, activity); // TODO: figure out what the `step_cadence` variable is doing in this example? (same with activity?)
-    step_count = count;
+
+    #ifdef USE_DERS_IMU
+        volatile int status = getPedometer(&count, step_cadence, activity); // TODO: figure out what the `step_cadence` variable is doing in this example? (same with activity?)
+    #else
+        volatile int status = 999;
+    #endif
+        step_count = count;
 
     if (status != -1) {
         step_count = step_count;

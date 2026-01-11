@@ -23,6 +23,20 @@
 #define IMU_FIFO_WM          50
 
 
+
+// IMU driver selection
+/* Display driver selection */
+#define USE_ZEPHYR_IMU
+// #define USE_DERS_IMU
+
+#ifdef USE_ZEPHYR_IMU
+
+#else
+
+#endif
+
+
+
 extern Circular_Buffer *imu_data_buffer;
 
 extern volatile uint32_t step_count;
