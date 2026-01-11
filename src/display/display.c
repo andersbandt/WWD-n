@@ -141,8 +141,7 @@ void init_display() {
  */
 void clear_display()
 {
-    setColor(FORE_R, FORE_G, FORE_B);
-    setColor(BACK_R, BACK_G, BACK_B);
+    setbgColor(BACK_R, BACK_G, BACK_B);
     fillScreen();
     flushBuffer();
 }

@@ -48,6 +48,8 @@ void display_out_bms(int charging, int battery_percent) {
 /*
  *
  */
+// TODO: an elegant way to speed up everything in the app would be to really get optimal about dirty regions here
+//              really only the seconds should be the region getting updated most often ....
 void display_out_time(Time time) {
     char time_str[15];
     sprintf(time_str, "%02d:%02d:%02d", time.hours, time.minutes, time.seconds);

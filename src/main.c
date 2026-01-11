@@ -44,8 +44,9 @@ bool imu_status;
 
 
 /* Thread stack sizes */
+// TODO: give more thought to these stack sizes (pairs with next TODO down below about stack printing)
 #define CLOCK_UPDATE_STACK_SIZE 512
-#define UI_REFRESH_STACK_SIZE 4096
+#define UI_REFRESH_STACK_SIZE 1026
 #define DISPLAY_TIMEOUT_STACK_SIZE 512
 #define BUTTON_HANDLER_STACK_SIZE 1024
 
@@ -108,11 +109,11 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
         /* Wait for timer2 semaphore */
         k_sem_take(&timer2_sem, K_FOREVER);
 
-        // size_t stack = 2000;
-        // k_thread_stack_space_get(&ui_refresh_thread, &stack);
-        // printk("ui_refresh free: %d\n", stack);
-        // LOG_INF("ui_refresh ...");
-
+        size_t free_stack = 2000;
+        k_thread_stack_space_get(&ui_refresh_thread, &free_stack);
+        LOG_INF("ui_refresh  free: %d", free_stack);
+        k_thread_stack_space_get(&button_handler_thread, &free_stack);
+        LOG_INF("btn_handler free: %d", free_stack);
 
         /* Refresh UI if display is on */
         if (display_status == 1) {
@@ -166,9 +167,6 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         /* Button 1 pressed */
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button1_sem, K_NO_WAIT);
-
-            // do stuff
-            cntr = 0;
             change_ui_mode(2);
             handle_ui_input();
         }
@@ -177,14 +175,11 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button2_sem, K_NO_WAIT);
 
-            cntr = 0;
 
             /* Toggle display */
             // display_state = !display_state;
             // switch_display(display_state);
             // timer_start(3);
-
-            /* Handle UI input */
             handle_ui_input();
         }
 

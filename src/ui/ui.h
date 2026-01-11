@@ -20,6 +20,7 @@
 // TODO: convert this to an enum
 // 1: (clock mode)
 // 2: (menu mode ???)
+// 3: action mode
 extern int ui_mode;
 
 

@@ -70,7 +70,6 @@ void reset_uifunc_params() {
  * prompt_for_time: UI function to walk the user through prompting for time
  */
 void system_prompt_for_time_UI_FUNC() {
-    /* clearDisplay(); */
     printLine("       ", 0, 12, FONT_LARGE);
     printLine("         ", 1, 12, FONT_LARGE);
     display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
@@ -78,18 +77,21 @@ void system_prompt_for_time_UI_FUNC() {
 
     while (position < 3) {
         if (position == 0) {
-            printLine("HOURS", 0, 12, FONT_LARGE);
+            clearAndPrintLine("HOURS", 0, 12, FONT_LARGE);
         }
         else if (position == 1) {
-            printLine("MINUTES", 0, 12, FONT_LARGE);
+            clearAndPrintLine("MINUTES", 0, 12, FONT_LARGE);
         }
         else if (position == 2) {
-            printLine("SECONDS", 0, 12, FONT_LARGE);
+            clearAndPrintLine("SECONDS", 0, 12, FONT_LARGE);
         }
 
-    
         uint8_t btn_poll = 0;
-        while (btn_poll != 4) {
+        bool digit_status = true;
+        while (button_poll == 8) {
+
+        }
+        while (digit_status) {
             btn_poll = button_poll();
 
             // INCREMENT (button 1)
@@ -111,21 +113,14 @@ void system_prompt_for_time_UI_FUNC() {
 
             // update display if we changed offset digit value
             if (btn_poll == 1 || btn_poll == 2) {
-                printLine("       ", 0, 12, FONT_LARGE);
-                printLine("         ", 1, 12, FONT_LARGE);
                 display_out_time(time_offset); 
                 // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
             }
         
             // ADVANCE (button 3 or 4)
-            if (btn_poll == 3) {
-                position += 1;
-
-                // TODO: also add automatic exit when user has tabbed through all positions ??
-                //  right now this is just an infinite loop until `SELECT` button condition is pressed
-                if (position > 2) {
-                    position = 0;
-                }
+            if (btn_poll == 8) {
+                position++;
+                digit_status = false;
             }
         }
     }

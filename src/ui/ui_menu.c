@@ -175,7 +175,7 @@ void updateMainMenuScreen(int absolute_pos, int force)
     // only update if we are going to a new page or 'force' is set
     if ((absolute_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {  // only update if we are going to a new page
 
-        clear_out_display();
+        // clear_out_display();
         int page_num = absolute_pos / UI_MENU_ITEMS_PAGE;
 
         int i;
@@ -211,14 +211,13 @@ void updateSubMenuScreen(int abs_pos, int sub_pos, int force)
 
     // only update on new page or 'force' condition
     if ((sub_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {
-        clear_out_display();
 
         int page_addition = page_num * UI_MENU_ITEMS_PAGE;
 
         // print lines of the sub menu
         int i;
         for(i = 0; i < num_to_display; i++) {
-            printLine(sub_menu[abs_pos] + 22*(i+page_addition), i+1, START_X, FONT_MEDIUM);
+            clearAndPrintLine(sub_menu[abs_pos] + 22*(i+page_addition), i+1, START_X, FONT_MEDIUM);
         }
     }
 
@@ -263,7 +262,7 @@ void returnMenu()
 */
 void commenceUIAction(int absolute_position, int sub_menu_position)
 {
-    clear_out_display();
+    // clear_out_display();
     sub_menu_options[absolute_position][sub_menu_position]();
 }
 

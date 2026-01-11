@@ -70,7 +70,7 @@ K_SEM_DEFINE(timer3_sem, 0, 1);  /* Display timeout semaphore */
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void init_timer(void) {
-    // timer_start(0);  /* Start LED blink timer */
+    timer_start(0);  /* Start LED blink timer */
     // timer_start(1);
     timer_start(2);
     // timer_start(3);
@@ -102,8 +102,8 @@ int timer_start(int timer_num) {
         break;
     case 2:
         /* Timer 2: UI refresh */
-        duration = K_MSEC(500);
-        period = K_MSEC(500);
+        duration = K_MSEC(750);
+        period = K_MSEC(750);
         k_timer_start(&timer2, duration, period);
         break;
 
