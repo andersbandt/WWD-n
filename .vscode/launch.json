@@ -1,12 +1,25 @@
-{
-	"version": "0.2.0",
-	"configurations": [
-		{
-			"type": "nrf-connect",
-			"request": "launch",
-			"name": "Launch WWD-n/build",
-			"config": "/home/anders/Documents/NCS/WWD-n/build",
-			"runToEntryPoint": "main"
-		}
-	]
+  {
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    {
+    "type": "cortex-debug",
+    "request": "launch",
+    "name": "Debug J-Link",
+    "cwd": "${workspaceRoot}",
+    "executable": "${workspaceRoot}/BSP/SEGGER/K66FN2M0_emPower/Output/Debug/Start_emPower.elf",
+    "serverpath": "/opt/SEGGER/JLink_V890/JLinkGDBServerCLExe",
+    "serverArgs": [],
+    "servertype": "jlink",
+    "device": "MK66FX1M0xxx18",
+    "interface": "swd",
+    "serialNumber": "", //If you have more than one J-Link probe, add the serial number here.
+    "jlinkscript":"${workspaceRoot}/BSP/SEGGER/K66FN2M0_emPower/Setup/Kinetis_K66_Target.js",
+    "runToEntryPoint": "main",
+    "armToolchainPath": "/opt/gcc-arm-none-eabi-10.3-2021.10",
+    "svdFile": "${workspaceRoot}/SVD/MK66F18.svd"
+    }
+    ]
 }
