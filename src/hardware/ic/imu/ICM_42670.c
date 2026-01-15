@@ -94,9 +94,7 @@ int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, 
     };
 
 
-    spi_write_dt(&spi_dev, &tx_set);
-    // TODO: need to actually get status code from spi_write_dt and return it properly here!!
-    return 0;
+    return spi_write_dt(&spi_dev, &tx_set);
 }
 
 
@@ -135,7 +133,9 @@ int imu_spi_read(struct inv_imu_serif *serif,
 
     // Copy received data (skip first byte which is register echo/dummy)
     memcpy(buf, &rx_data[1], len);
-    return 0;
+
+    // return status code (0 for success)
+    return rc;
 }
 
 
@@ -404,7 +404,7 @@ int enableFifoInterrupt(uint8_t fifo_watermark) {
     int rc = 0;
     uint8_t data;
 
-    // configure FIFO
+    // configure FIFO and write watermark level
     rc |= inv_imu_configure_fifo(&icm_driver, INV_IMU_FIFO_ENABLED);
     rc |= inv_imu_write_reg(&icm_driver, FIFO_CONFIG2, 1, &fifo_watermark);
 
@@ -418,25 +418,25 @@ int enableFifoInterrupt(uint8_t fifo_watermark) {
     rc |= inv_imu_write_reg(&icm_driver, SENSOR_CONFIG3_MREG1, 1, &data);
 
     // do some Ders verification
-    LOG_INF("Printing out some critical IMU FIFO registers ...");
+    LOG_DBG("Printing out some critical IMU FIFO registers ...");
     int reg_data = readIMUReg(INTF_CONFIG0);
-    LOG_INF("\tINTF_CONFIG0[0x%x] = 0x%x", INTF_CONFIG0, reg_data);
+    LOG_DBG("\tINTF_CONFIG0[0x%x] = 0x%x", INTF_CONFIG0, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG1);
-    LOG_INF("\tFIFO_CONFIG1[0x%x] = 0x%x", FIFO_CONFIG1, reg_data);
+    LOG_DBG("\tFIFO_CONFIG1[0x%x] = 0x%x", FIFO_CONFIG1, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG2);
-    LOG_INF("\tFIFO_CONFIG2[0x%x] = 0x%x", FIFO_CONFIG2, reg_data);
+    LOG_DBG("\tFIFO_CONFIG2[0x%x] = 0x%x", FIFO_CONFIG2, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG3);
-    LOG_INF("\tFIFO_CONFIG3[0x%x] = 0x%x", FIFO_CONFIG3, reg_data);
+    LOG_DBG("\tFIFO_CONFIG3[0x%x] = 0x%x", FIFO_CONFIG3, reg_data);
 
     // read some registers from the MREG1
     reg_data = readIMUReg(TMST_CONFIG1_MREG1);
-    LOG_INF("\tTMST_CONFIG1[0x%x] = 0x%x", TMST_CONFIG1_MREG1, reg_data);
+    LOG_DBG("\tTMST_CONFIG1[0x%x] = 0x%x", TMST_CONFIG1_MREG1, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG5_MREG1);
-    LOG_INF("\tFIFO_CONFIG5[0x%x] = 0x%x", FIFO_CONFIG5_MREG1, reg_data);
+    LOG_DBG("\tFIFO_CONFIG5[0x%x] = 0x%x", FIFO_CONFIG5_MREG1, reg_data);
     reg_data = readIMUReg(FIFO_CONFIG6_MREG1);
-    LOG_INF("\tFIFO_CONFIG6[0x%x] = 0x%x", FIFO_CONFIG6_MREG1, reg_data);
+    LOG_DBG("\tFIFO_CONFIG6[0x%x] = 0x%x", FIFO_CONFIG6_MREG1, reg_data);
     reg_data = readIMUReg(SENSOR_CONFIG3_MREG1);
-    LOG_INF("\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x", SENSOR_CONFIG3_MREG1, reg_data);
+    LOG_DBG("\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x", SENSOR_CONFIG3_MREG1, reg_data);
 
     // print out final interrupt configuration
     /* checkInterruptIMU(display); */
@@ -475,15 +475,15 @@ int startApex() {
     rc |= inv_imu_enable_wom(&icm_driver);
 
     // do some Ders verification
-    /* LOG_INF("Printing out some critical IMU APEX registers ..."); */
-    /* int reg_data = readIMUReg(APEX_CONFIG0); */
-    /* LOG_INF("\tAPEX_CONFIG0[0x%x] = 0x%x", APEX_CONFIG0, reg_data); */
-    /* reg_data = readIMUReg(APEX_CONFIG1); */
-    /* LOG_INF("\tAPEX_CONFIG1[0x%x] = 0x%x", APEX_CONFIG1, reg_data); */
-    /* reg_data = readIMUReg(SENSOR_CONFIG3_MREG1); */
-    /* LOG_INF("\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x - should be 0x00 for APEX", SENSOR_CONFIG3_MREG1, reg_data); */
-    /* reg_data = readIMUReg(WOM_CONFIG); */
-    /* LOG_INF("\tWOM_CONFIG[0x%x] = 0x%x", WOM_CONFIG, reg_data); */
+    LOG_DBG("Printing out some critical IMU APEX registers ...");
+    int reg_data = readIMUReg(APEX_CONFIG0);
+    LOG_DBG("\tAPEX_CONFIG0[0x%x] = 0x%x", APEX_CONFIG0, reg_data);
+    reg_data = readIMUReg(APEX_CONFIG1);
+    LOG_DBG("\tAPEX_CONFIG1[0x%x] = 0x%x", APEX_CONFIG1, reg_data);
+    reg_data = readIMUReg(SENSOR_CONFIG3_MREG1);
+    LOG_DBG("\tSENSOR_CONFIG3_MREG1[0x%x] = 0x%x - should be 0x00 for APEX", SENSOR_CONFIG3_MREG1, reg_data);
+    reg_data = readIMUReg(WOM_CONFIG);
+    LOG_DBG("\tWOM_CONFIG[0x%x] = 0x%x", WOM_CONFIG, reg_data);
 
     // print out final interrupt configuration
     /* checkInterruptIMU(display); */

@@ -73,23 +73,23 @@ int inv_imu_init(struct inv_imu_device *s, const struct inv_imu_serif *serif,
 
 	/* Configure serial interface so we can trigger device reset */
 	status = configure_serial_interface(s);
-	LOG_INF("... status1: %d", status);
+	LOG_DBG("... status1: %d", status);
     
 	/* Reset device */
 	status |= inv_imu_device_reset(s);
-	LOG_INF("... status2: %d", status);
+	LOG_DBG("... status2: %d", status);
 
 	/* Init transport layer */
 	status |= inv_imu_init_transport(s);
-	LOG_INF("... status3: %d", status);
+	LOG_DBG("... status3: %d", status);
     
 	/* Read and set endianness for further processing */
 	status |= inv_imu_get_endianness(s);
-	LOG_INF("... status4: %d", status);
+	LOG_DBG("... status4: %d", status);
 
 	/* Initialize hardware */
 	status |= init_hardware_from_ui(s);
-	LOG_INF("... status5: %d", status);
+	LOG_DBG("... status5: %d", status);
 
 
 	/* Set default value for sensor start/stop time */
@@ -1261,6 +1261,7 @@ int inv_imu_configure_fifo(struct inv_imu_device *s, INV_IMU_FIFO_CONFIG_t fifo_
 		status |= inv_imu_read_reg(s, FIFO_CONFIG5_MREG1, 1, &data);
 		data &= ~FIFO_CONFIG5_FIFO_ACCEL_EN_MASK;
 		data &= ~FIFO_CONFIG5_FIFO_HIRES_EN_MASK;
+		
 #if ICM_IS_GYRO_SUPPORTED
 		data &= ~FIFO_CONFIG5_FIFO_GYRO_EN_MASK;
 		data &= ~FIFO_CONFIG5_FIFO_TMST_FSYNC_EN_MASK;
@@ -1279,7 +1280,7 @@ int inv_imu_configure_fifo(struct inv_imu_device *s, INV_IMU_FIFO_CONFIG_t fifo_
         /* status |= inv_imu_read_reg(s, INT_CONFIG0, 1, &data); */
         data = 0xC;
         status |= inv_imu_write_reg(s, INT_CONFIG0_MREG1, 1, &data);
-        
+        break;
 	case INV_IMU_FIFO_DISABLED:
 		/* make sure FIFO is disabled */
 		status |= inv_imu_read_reg(s, FIFO_CONFIG1, 1, &data);
@@ -1290,6 +1291,7 @@ int inv_imu_configure_fifo(struct inv_imu_device *s, INV_IMU_FIFO_CONFIG_t fifo_
 		/* restart and reset FIFO configuration */
 		status |= inv_imu_read_reg(s, FIFO_CONFIG5_MREG1, 1, &data);
 		data &= ~FIFO_CONFIG5_FIFO_ACCEL_EN_MASK;
+		break;
 #if ICM_IS_GYRO_SUPPORTED
 		data &= ~FIFO_CONFIG5_FIFO_GYRO_EN_MASK;
 		data &= ~FIFO_CONFIG5_FIFO_TMST_FSYNC_EN_MASK;
@@ -1298,9 +1300,10 @@ int inv_imu_configure_fifo(struct inv_imu_device *s, INV_IMU_FIFO_CONFIG_t fifo_
 #endif
 		data |= (uint8_t)FIFO_CONFIG5_ACCEL_DIS;
 		status |= inv_imu_write_reg(s, FIFO_CONFIG5_MREG1, 1, &data);
-
+		break;
 	default:
 		status = -1;
+		break;
 	}
 
 	status |= inv_imu_switch_off_mclk(s);
@@ -1361,7 +1364,7 @@ int inv_imu_enable_wom(struct inv_imu_device *s)
 {
 	int                           status = 0;
 	uint8_t                       value;
-	inv_imu_interrupt_parameter_t config_int = { (inv_imu_interrupt_value)0 };
+	// inv_imu_interrupt_parameter_t config_int = { (inv_imu_interrupt_value)0 };
 
 	/* Enable WOM */
 	status |= inv_imu_read_reg(s, WOM_CONFIG, 1, &value);
@@ -1376,7 +1379,10 @@ int inv_imu_disable_wom(struct inv_imu_device *s)
 {
 	int                           status = 0;
 	uint8_t                       value;
-	inv_imu_interrupt_parameter_t config_int = { (inv_imu_interrupt_value)0 };
+
+
+	// TODO: splice in rewriting this interrupt value (same for above function too)
+	// inv_imu_interrupt_parameter_t config_int = { (inv_imu_interrupt_value)0 };
 
 	/* Disable WOM */
 	status |= inv_imu_read_reg(s, WOM_CONFIG, 1, &value);
@@ -1572,14 +1578,12 @@ static int init_hardware_from_ui(struct inv_imu_device *s)
 	status |= inv_imu_read_reg(s, INT_CONFIG, 1, &value);
 	value &= ~INT_CONFIG_INT1_DRIVE_CIRCUIT_MASK;
 	value |= (uint8_t)INT_CONFIG_INT1_DRIVE_CIRCUIT_PP;
-    /* value |= INT_CONFIG_INT1_MODE_LATCHED; */
 	status |= inv_imu_write_reg(s, INT_CONFIG, 1, &value);
 
 	/* Configure the INT1 interrupt pulse as active high */
 	status |= inv_imu_read_reg(s, INT_CONFIG, 1, &value);
 	value &= ~INT_CONFIG_INT1_POLARITY_MASK;
 	value |= (uint8_t)INT_CONFIG_INT1_POLARITY_HIGH;
-    /* value |= (uint8_t)INT_CONFIG_INT1_MODE_LATCHED; */
 	status |= inv_imu_write_reg(s, INT_CONFIG, 1, &value);
 
 	/* Set interrupt config */
@@ -1588,32 +1592,37 @@ static int init_hardware_from_ui(struct inv_imu_device *s)
 	config_int.INV_FIFO_THS      = INV_IMU_DISABLE;
 	config_int.INV_FIFO_FULL     = INV_IMU_DISABLE;
 	config_int.INV_SMD           = INV_IMU_DISABLE;
-	config_int.INV_WOM_X         = INV_IMU_ENABLE;
-	config_int.INV_WOM_Y         = INV_IMU_ENABLE;
-	config_int.INV_WOM_Z         = INV_IMU_ENABLE;
+	config_int.INV_WOM_X         = INV_IMU_DISABLE;
+	config_int.INV_WOM_Y         = INV_IMU_DISABLE;
+	config_int.INV_WOM_Z         = INV_IMU_DISABLE;
 	config_int.INV_FF            = INV_IMU_DISABLE;
 	config_int.INV_LOWG          = INV_IMU_DISABLE;
 	config_int.INV_STEP_DET      = INV_IMU_DISABLE;
 	config_int.INV_STEP_CNT_OVFL = INV_IMU_DISABLE;
-	config_int.INV_TILT_DET      = INV_IMU_ENABLE;
+	config_int.INV_TILT_DET      = INV_IMU_DISABLE;
 	status |= inv_imu_set_config_int1(s, &config_int);
+
+	/* Enable push pull on INT2 to avoid moving in Test Mode after a soft reset */
+	status |= inv_imu_read_reg(s, INT_CONFIG, 1, &value);
+	value &= ~INT_CONFIG_INT2_DRIVE_CIRCUIT_MASK;
+	value |= (uint8_t)INT_CONFIG_INT2_DRIVE_CIRCUIT_PP;
+	status |= inv_imu_write_reg(s, INT_CONFIG, 1, &value);
 
 	/* Configure the INT2 interrupt pulse as active high */
 	status |= inv_imu_read_reg(s, INT_CONFIG, 1, &value);
 	value &= ~INT_CONFIG_INT2_POLARITY_MASK;
 	value |= (uint8_t)INT_CONFIG_INT2_POLARITY_HIGH;
-    /* value |= (uint8_t)INT_CONFIG_INT2_MODE_LATCHED; */
 	status |= inv_imu_write_reg(s, INT_CONFIG, 1, &value);
     
     /* Set interrupt config (INT2)*/
 	config_int.INV_UI_FSYNC      = INV_IMU_DISABLE;
-	config_int.INV_UI_DRDY       = INV_IMU_DISABLE;
-	config_int.INV_FIFO_THS      = INV_IMU_DISABLE;
-	config_int.INV_FIFO_FULL     = INV_IMU_DISABLE;
+	config_int.INV_UI_DRDY       = INV_IMU_ENABLE;
+	config_int.INV_FIFO_THS      = INV_IMU_ENABLE;
+	config_int.INV_FIFO_FULL     = INV_IMU_ENABLE;
 	config_int.INV_SMD           = INV_IMU_DISABLE;
-	config_int.INV_WOM_X         = INV_IMU_ENABLE;
-	config_int.INV_WOM_Y         = INV_IMU_ENABLE;
-	config_int.INV_WOM_Z         = INV_IMU_ENABLE;
+	config_int.INV_WOM_X         = INV_IMU_DISABLE;
+	config_int.INV_WOM_Y         = INV_IMU_DISABLE;
+	config_int.INV_WOM_Z         = INV_IMU_DISABLE;
 	config_int.INV_FF            = INV_IMU_DISABLE;
 	config_int.INV_LOWG          = INV_IMU_DISABLE;
 	config_int.INV_STEP_DET      = INV_IMU_DISABLE;

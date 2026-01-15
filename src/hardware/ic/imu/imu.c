@@ -47,7 +47,6 @@ LOG_MODULE_REGISTER(imu, LOG_LEVEL_INF);
 
 uint8_t irq_received = 0;
 
-
 Circular_Buffer * imu_data_buffer = NULL;
 
 volatile uint32_t step_count;
@@ -55,7 +54,6 @@ volatile uint32_t step_count;
 
 #define FLASH_INTEGRITY_WRITE_CYCLE              10
 int flash_write_num = 0;
-
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,10 +68,32 @@ int flash_write_num = 0;
  */
 int imu_init() {
     LOG_INF("Initializing IMU ...");
-    int rc = 0;
 
+    // imu_data_buffer = circular_buffer_init(200, sizeof(inv_imu_sensor_event_t));
+    // LOG_INF("\nIMU data buffer setup");
+    // LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
+    // LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
+
+
+    int rc = 0;
     #ifdef USE_DERS_IMU
+        // do rough init
         rc |= init_icm();
+        if (rc != 0) {
+            return rc;
+        }
+
+        // start IMU
+        rc |= imu_start();
+
+        // actually configure and start IMU
+        if (IMU_FIFO_ENABLED) {
+            rc |= imu_fifo_interrupt();
+        }
+        if (IMU_APEX_ENABLED) {
+            rc |= imu_apex();
+        }
+
     #else
         rc |= icm42670_init();
         /* Set initial sample rates */
@@ -100,10 +120,6 @@ int imu_init() {
         LOG_INF("Failed to initialize ICM42670 with code [%d]\n", rc);
     }
 
-    // LOG_INF("\nIMU data buffer setup");
-    // LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
-    // LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
-
     return rc;
 }
  
@@ -114,18 +130,13 @@ int imu_init() {
 int imu_start() {
     int rc = 0;
 
-    LOG_INF("\nStarting accel...");
+    LOG_INF("Starting accel...");
     rc |= startAccel(100, 16);     // ODR=100 Hz, full-scale range=16
 
     LOG_INF("Starting gyro...");
     rc |= startGyro(100, 2000);    // ODR=100 Hz, full-scale range=2000 dps
 
-    if (!rc) {
-        return 1;
-    }
-    else {
-        return 0;
-    }
+    return rc;
 }
 
 
@@ -135,6 +146,16 @@ int imu_start() {
 int imu_apex() {
     int rc = 0;
     rc |= startApex();
+    return rc;
+}
+
+
+/*
+ * imu_fifo_interrupts: Enables the FIFO interrupt on the IMU
+ */
+int imu_fifo_interrupt() {
+    LOG_INF("\nEnabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
+    int rc = enableFifoInterrupt(IMU_FIFO_WM);
     return rc;
 }
 
@@ -189,15 +210,6 @@ void write_to_flash() {
 
 
 /*
- * imu_fifo_interrupts: Enables the FIFO interrupt on the IMU
- */
-void imu_fifo_interrupt() {
-    LOG_INF("\nEnabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
-    int status = enableFifoInterrupt(IMU_FIFO_WM);
-    LOG_INF("\nimu_fifo_interrupt error: %d\n", status);
-}
-
-/*
  * imu_reg_poll: polls data and adds it to the circular buffer
  */
 void imu_reg_poll() {
@@ -208,11 +220,11 @@ void imu_reg_poll() {
         LOG_INF("\tgetDataFromIMUReg error: %d", error);
     }
 
-   event_print(&imu_event);
+//    event_print(&imu_event);
 
     /* ADD TO CIRCULAR BUFFER */
 //    bool added = 0;
-    circular_buffer_add(imu_data_buffer, &imu_event);
+    // circular_buffer_add(imu_data_buffer, &imu_event);
 
 //    if (!added) {
 //        LOG_INF(display, 0, 0, "ERROR in adding to circular buffer. Probably full");
@@ -247,6 +259,7 @@ int16_t imu_get_temp() {
 
     return imu_f;
 }
+
 
 /*
  * imu_get_pedo

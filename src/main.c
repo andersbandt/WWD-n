@@ -45,8 +45,8 @@ bool imu_status;
 
 /* Thread stack sizes */
 // TODO: give more thought to these stack sizes (pairs with next TODO down below about stack printing)
-#define CLOCK_UPDATE_STACK_SIZE 512
-#define UI_REFRESH_STACK_SIZE 1026
+#define CLOCK_UPDATE_STACK_SIZE 1024
+#define UI_REFRESH_STACK_SIZE 1024
 #define DISPLAY_TIMEOUT_STACK_SIZE 512
 #define BUTTON_HANDLER_STACK_SIZE 1024
 
@@ -91,8 +91,8 @@ void clock_update_thread_entry(void *p1, void *p2, void *p3) {
         /* Wait for timer1 semaphore */
         k_sem_take(&timer1_sem, K_FOREVER);
 
-        /* Update IMU pedometer */
-        // TODO: Add IMU update code
+        /* Update IMU */
+        // imu_reg_poll();
 
         /* Update BMS */
         // TODO: Add BMS update code
@@ -146,8 +146,8 @@ void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
  */
 void button_handler_thread_entry(void *p1, void *p2, void *p3) {
     while (1) {
-        /* Wait for any button press (using k_poll would be more efficient for multiple semaphores) */
-        struct k_poll_event events[4] = {
+        /* Wait for any button press or IMU interrupt */
+        struct k_poll_event events[6] = {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button1_sem),
@@ -160,9 +160,15 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button4_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
+                                     K_POLL_MODE_NOTIFY_ONLY,
+                                     &imu_int1_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
+                                     K_POLL_MODE_NOTIFY_ONLY,
+                                     &imu_int2_sem),
         };
 
-        k_poll(events, 4, K_FOREVER);
+        k_poll(events, 6, K_FOREVER);
 
         /* Button 1 pressed */
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
@@ -194,6 +200,24 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             k_sem_take(&button4_sem, K_NO_WAIT);
             handle_ui_input();
         }
+
+        /* IMU INT1 */
+        if (events[4].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&imu_int1_sem, K_NO_WAIT);
+            /* TODO: Add IMU INT1 handling code */
+            LOG_INF("IMU INT1 triggered");
+            led_set(2, 1);
+            get_fifo_data();
+        }
+
+        /* IMU INT2 */
+        if (events[5].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&imu_int2_sem, K_NO_WAIT);
+            /* TODO: Add IMU INT2 handling code */
+            LOG_INF("IMU INT2 triggered");
+            led_set(3, 1);
+            get_fifo_data();
+        }
     }
 }
 
@@ -210,6 +234,7 @@ int main(void)
 	led_fast_blink(1, 10);
 
     init_buttons();
+    config_all_interrupts();
 
     /*
     DISPLAY and UI config
@@ -222,11 +247,6 @@ int main(void)
     if (display_status == 1) {
         init_ui();
     }
-
-    // initialize interrupts
-    config_all_interrupts();
-
-    LOG_INF("Starting WWD program!");
 
     /*
     NVS CONFIG BLOCK
@@ -253,13 +273,17 @@ int main(void)
     ret |= imu_init();
     if (ret == 0) {
         imu_status = true;
+        k_msleep(2000);
     }
     else {
         imu_status = false;
+        led_set(3, 1);
     }
+    // get_fifo_data();
     /*
     END OF IMU CONFIG BLOCK
     */
+
 
     /*
     CREATE THREADS
@@ -267,12 +291,12 @@ int main(void)
     LOG_INF("Creating application threads...");
 
     /* Create clock/IMU/BMS update thread */
-    // k_thread_create(&clock_update_thread, clock_update_stack,
-    //                 K_THREAD_STACK_SIZEOF(clock_update_stack),
-    //                 clock_update_thread_entry,
-    //                 NULL, NULL, NULL,
-    //                 CLOCK_UPDATE_PRIORITY, 0, K_NO_WAIT);
-    // k_thread_name_set(&clock_update_thread, "clock_update");
+    k_thread_create(&clock_update_thread, clock_update_stack,
+                    K_THREAD_STACK_SIZEOF(clock_update_stack),
+                    clock_update_thread_entry,
+                    NULL, NULL, NULL,
+                    CLOCK_UPDATE_PRIORITY, 0, K_NO_WAIT);
+    k_thread_name_set(&clock_update_thread, "clock_update");
 
     /* Create UI refresh thread */
     k_thread_create(&ui_refresh_thread, ui_refresh_stack,
@@ -298,9 +322,9 @@ int main(void)
                     BUTTON_HANDLER_PRIORITY, 0, K_NO_WAIT);
     k_thread_name_set(&button_handler_thread, "button_handler");
 
-    LOG_INF("All threads created successfully");
 
     /* Main thread can now sleep - all work is done by worker threads */
+    LOG_INF("Starting WWD program!");
     init_timer();
 
 

@@ -19,6 +19,10 @@ extern struct k_sem button2_sem;
 extern struct k_sem button3_sem;
 extern struct k_sem button4_sem;
 
+/* IMU interrupt semaphores */
+extern struct k_sem imu_int1_sem;
+extern struct k_sem imu_int2_sem;
+
 /* Future interrupt flags for other peripherals */
 extern volatile int BMS_INT_FLAG;
 extern volatile int IMU_1_INT_FLAG;

@@ -26,8 +26,8 @@
 
 
 // FIFO configuration
-#define IMU_FIFO_ENABLED     0
-#define IMU_APEX_ENABLED     1
+#define IMU_FIFO_ENABLED     1
+#define IMU_APEX_ENABLED     0
 #define IMU_FIFO_WM          50
 
 
@@ -85,12 +85,11 @@ int16_t imu_get_temp();
 /**
  * @brief function for enabling the FIFO interrupt for the IMU
  */
-void imu_fifo_interrupt();
+int imu_fifo_interrupt();
 
 
 /**
- * @brief retrieve
- s the data from the FIFO
+ * @brief retrieves the data from the FIFO
  */
 void get_fifo_data();
 
