@@ -31,6 +31,8 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 
 int cntr = 0;
+bool imu_status;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! GLOBAL VARIABLES ------------------------------------------------------------------------------------------------------//
@@ -39,12 +41,15 @@ int cntr = 0;
 
 extern int display_status;
 
-// BELOW ARE ACTUALLY NOT GLOBAL but probably should be
-bool imu_status;
-
 
 /* Thread stack sizes */
-// TODO: give more thought to these stack sizes (pairs with next TODO down below about stack printing)
+// TODO: give more thought to these stack sizes
+        // size_t free_stack = 2000;
+        // k_thread_stack_space_get(&ui_refresh_thread, &free_stack);
+        // LOG_INF("ui_refresh  free: %d", free_stack);
+        // k_thread_stack_space_get(&button_handler_thread, &free_stack);
+        // LOG_INF("btn_handler free: %d", free_stack);
+
 #define CLOCK_UPDATE_STACK_SIZE 1024
 #define UI_REFRESH_STACK_SIZE 1024
 #define DISPLAY_TIMEOUT_STACK_SIZE 512
@@ -74,10 +79,11 @@ struct k_thread button_handler_thread;
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// /* Increment counter and check for UI mode change */
-// cntr++;
-// if (cntr == 2) {
-//     change_ui_mode(1);
+// void dump_task(void)
+// {
+//     if (dump.active) {
+//         dump_send_chunk(&dump);
+//     }
 // }
 
 
@@ -91,11 +97,15 @@ void clock_update_thread_entry(void *p1, void *p2, void *p3) {
         /* Wait for timer1 semaphore */
         k_sem_take(&timer1_sem, K_FOREVER);
 
-        /* Update IMU */
-        // imu_reg_poll();
+          // Update clock data (automatically marks dirty)
+          ui_clock_set_time(get_current_time());
+          ui_clock_set_temp(imu_get_temp());
 
-        /* Update BMS */
-        // TODO: Add BMS update code
+          // TODO: Enable when BMS is ready
+          // ui_clock_set_battery(read_battery_percent());
+          // ui_clock_set_charging(read_charging_status());
+
+          ui_clock_set_steps(step_count);
     }
 }
 
@@ -108,12 +118,6 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
     while (1) {
         /* Wait for timer2 semaphore */
         k_sem_take(&timer2_sem, K_FOREVER);
-
-        // size_t free_stack = 2000;
-        // k_thread_stack_space_get(&ui_refresh_thread, &free_stack);
-        // LOG_INF("ui_refresh  free: %d", free_stack);
-        // k_thread_stack_space_get(&button_handler_thread, &free_stack);
-        // LOG_INF("btn_handler free: %d", free_stack);
 
         /* Refresh UI if display is on */
         if (display_status == 1) {
@@ -180,12 +184,6 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         /* Button 2 pressed */
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button2_sem, K_NO_WAIT);
-
-
-            /* Toggle display */
-            // display_state = !display_state;
-            // switch_display(display_state);
-            // timer_start(3);
             handle_ui_input();
         }
 
@@ -204,7 +202,6 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         /* IMU INT1 */
         if (events[4].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int1_sem, K_NO_WAIT);
-            /* TODO: Add IMU INT1 handling code */
             LOG_INF("IMU INT1 triggered");
             led_set(2, 1);
             get_fifo_data();
@@ -213,7 +210,6 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         /* IMU INT2 */
         if (events[5].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int2_sem, K_NO_WAIT);
-            /* TODO: Add IMU INT2 handling code */
             LOG_INF("IMU INT2 triggered");
             led_set(3, 1);
             get_fifo_data();
@@ -234,6 +230,7 @@ int main(void)
 	led_fast_blink(1, 10);
 
     init_buttons();
+    init_button_buffer();
     config_all_interrupts();
 
     /*
@@ -242,12 +239,9 @@ int main(void)
     // led_set(1, 1);
     // init_display();
     // led_set(1, 0);
+    init_ui();
 
-    // TODO: bundle this `display_status` into the init_ui statement
-    if (display_status == 1) {
-        init_ui();
-    }
-
+ 
     /*
     NVS CONFIG BLOCK
     */
@@ -279,7 +273,6 @@ int main(void)
         imu_status = false;
         led_set(3, 1);
     }
-    // get_fifo_data();
     /*
     END OF IMU CONFIG BLOCK
     */

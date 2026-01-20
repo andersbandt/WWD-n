@@ -62,6 +62,27 @@ bool button_is_pressed(uint8_t button_mask);
  */
 int button_wait_press(uint8_t button_num, int32_t timeout_ms);
 
+/**
+ * @brief Initialize the circular buffer for button inputs
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int init_button_buffer(void);
+
+/**
+ * @brief Push a button event to the input buffer
+ *
+ * @param button_event Button state byte to add to buffer
+ */
+void button_buffer_push(uint8_t button_event);
+
+/**
+ * @brief Get the next button event from the input buffer
+ *
+ * @return uint8_t Button state byte, or 0 if buffer is empty
+ */
+uint8_t get_button_event(void);
+
 #endif /* INTERFACECONTROL_H_ */
 
 

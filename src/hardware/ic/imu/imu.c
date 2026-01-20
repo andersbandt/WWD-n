@@ -45,15 +45,17 @@
 
 LOG_MODULE_REGISTER(imu, LOG_LEVEL_INF);
 
-uint8_t irq_received = 0;
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! GLOBAL VARIABLES ------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Circular_Buffer * imu_data_buffer = NULL;
-
-volatile uint32_t step_count;
-
-
-#define FLASH_INTEGRITY_WRITE_CYCLE              10
-int flash_write_num = 0;
+uint32_t step_count;
+int16_t imu_temperature = 0;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -160,54 +162,6 @@ int imu_fifo_interrupt() {
 }
 
 
-/*
- * imu_deque: returns the last IMU event on the buffer
- */
-inv_imu_sensor_event_t  imu_deque() {
-    inv_imu_sensor_event_t event;
-    circular_buffer_remove(imu_data_buffer, &event);
-    return event;
-}
-
-
-/*
- * imu_process: this function currently processes the circular buffers of raw data
- */
-/* // handle sample cycle spacing integrity check */
-/* } */
-void imu_process() {
-    inv_imu_sensor_event_t event;
-
-    if (!circular_buffer_empty(imu_data_buffer)) {
-        // get current buffer count
-        /* size_t buf_count = circular_buffer_get_count(imu_data_buffer); */
-        /* LOG_INF(display, 0, 0, "buf count: [%d]\n", buf_count); */
-
-        while (!circular_buffer_empty(imu_data_buffer)) {
-            circular_buffer_remove(imu_data_buffer, &event);
-            event_print(&event);
-        }
-    }
-} // end of function
-
-
-
-void write_to_flash() {
-/* if (flash_write_num % FLASH_INTEGRITY_WRITE_CYCLE == 0) { */
-/*     uint8_t flash_cycle_pad = 0xD8; */
-/*     status = nvs_write_auto_offset(&flash_cycle_pad, 1); */
-/*     LOG_INF(display, 0, 0, "\tFlash cycle integrity write. Write status: [%d]", status); */
-//////////////////////////////////////////////
-// WRITE TO FLASH MEMORY /////////////////////
-//////////////////////////////////////////////
-/*     status = nvs_write_auto_offset(&a_x, 2); */
-/*     if (status != 0) { */
-/*         LOG_INF(display, 0, 0, "\tERROR: NVS write for the IMU got status: [%d]", status); */
-/*         nvs_error(status, 0, display); */
-/*     } */
-        /*     flash_write_num++; */
-}
-
 
 /*
  * imu_reg_poll: polls data and adds it to the circular buffer
@@ -231,6 +185,7 @@ void imu_reg_poll() {
 //    }
 }
 
+
 /*
  * get_fifo_data: reads data from the FIFO
  */
@@ -242,6 +197,17 @@ void get_fifo_data() {
     LOG_INF("\tgot FIFO read status [%d] (0 is GOOD)", fifo_status);
     LOG_INF("... done with IMU FIFO retrieve!");
 }
+
+
+/*
+ * imu_deque: returns the last IMU event on the buffer
+ */
+inv_imu_sensor_event_t imu_deque() {
+    inv_imu_sensor_event_t event;
+    circular_buffer_remove(imu_data_buffer, &event);
+    return event;
+}
+
 
 /*
  * imu_get_temp: function to return temperature from IMU
@@ -266,22 +232,57 @@ int16_t imu_get_temp() {
  */
 int imu_get_pedo() {
     float step_cadence = 0;
-    const char* activity = 0;
+    const char* activity[20]; // NOTE: I think this thing will be something like "walking, running, etc?"
 
     uint32_t count = 0;
 
     #ifdef USE_DERS_IMU
-        volatile int status = getPedometer(&count, step_cadence, activity); // TODO: figure out what the `step_cadence` variable is doing in this example? (same with activity?)
+        volatile int status = getPedometer(&count, step_cadence, activity);
     #else
         volatile int status = 999;
     #endif
         step_count = count;
 
-    if (status != -1) {
-        step_count = step_count;
+    if (status == 0) {
+        step_count = count;
     }
 
     return step_count;
 }
+
+
+/*
+ * imu_process: this function currently processes the circular buffers of raw data
+ */
+void imu_process() {
+    inv_imu_sensor_event_t event;
+
+    if (!circular_buffer_empty(imu_data_buffer)) {
+        while (!circular_buffer_empty(imu_data_buffer)) {
+            circular_buffer_remove(imu_data_buffer, &event);
+            event_print(&event);
+        }
+    }
+}
+
+
+/*
+ * imu_log: logs IMU data to NVS
+ */
+int imu_log(void) {
+    struct imu_sample sample = {
+        .step_count = step_count,
+        .temperature = imu_temperature,
+    };
+
+    return nvs_log_record(
+        SAMPLE,
+        &sample,
+        sizeof(sample),
+        get_dt_ticks()
+    );
+}
+
+
 
 

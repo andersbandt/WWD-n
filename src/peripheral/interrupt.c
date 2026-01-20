@@ -132,60 +132,85 @@ static void imu_int2_handler(const struct device *dev,
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+
+static int setup_gpio_interrupt(const struct gpio_dt_spec *spec,
+                                gpio_flags_t flags,
+                                struct gpio_callback *cb,
+                                gpio_callback_handler_t handler)
+{
+    int ret;
+
+    ret = gpio_pin_configure_dt(spec, GPIO_INPUT);
+    if (ret) {
+        LOG_ERR("gpio_pin_configure failed (%d)", ret);
+        return ret;
+    }
+
+    ret = gpio_pin_interrupt_configure_dt(spec, flags);
+    if (ret) {
+        LOG_ERR("gpio_pin_interrupt_configure failed (%d)", ret);
+        return ret;
+    }
+
+    gpio_init_callback(cb, handler, BIT(spec->pin));
+
+    ret = gpio_add_callback(spec->port, cb);
+    if (ret) {
+        LOG_ERR("gpio_add_callback failed (%d)", ret);
+        return ret;
+    }
+
+    return 0;
+}
+
+
 /*
  *  config_all_interrupts: configures all the interrupts for the program
  */
-void config_all_interrupts()
+int config_all_interrupts(void)
 {
+    int ret;
 
-    // verify GPIO DeviceTree is ready
-    if (!gpio_is_ready_dt(&imu_int1)) {
-        LOG_ERR("ERROR: interrupt IO not ready\r\n");
-        while (1) { }
-    }
-    if (!gpio_is_ready_dt(&imu_int2)) {
-        LOG_ERR("ERROR: interrupt IO not ready\r\n");
-        while (1) { }
-    }
+    /* Buttons */
+    ret = setup_gpio_interrupt(&btn_int1,
+                               GPIO_INT_EDGE_TO_ACTIVE,
+                               &btn_int1_cb,
+                               btn_int1_handler);
+    if (ret) return ret;
 
+    ret = setup_gpio_interrupt(&btn_int2,
+                               GPIO_INT_EDGE_TO_ACTIVE,
+                               &btn_int2_cb,
+                               btn_int2_handler);
+    if (ret) return ret;
 
-    // BTN1 setup
-    // TODO: have this return a status
-    int ret = 0;
-    ret |= gpio_pin_configure_dt(&btn_int1, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&btn_int1, GPIO_INT_EDGE_TO_ACTIVE);
-    gpio_init_callback(&btn_int1_cb, btn_int1_handler, BIT(btn_int1.pin));
-    gpio_add_callback(btn_int1.port, &btn_int1_cb);
+    ret = setup_gpio_interrupt(&btn_int3,
+                               GPIO_INT_EDGE_TO_ACTIVE,
+                               &btn_int3_cb,
+                               btn_int3_handler);
+    if (ret) return ret;
 
-    // BTN2 setup
-    gpio_pin_configure_dt(&btn_int2, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&btn_int2, GPIO_INT_EDGE_TO_ACTIVE);
-    gpio_init_callback(&btn_int2_cb, btn_int2_handler, BIT(btn_int2.pin));
-    gpio_add_callback(btn_int2.port, &btn_int2_cb);
+    ret = setup_gpio_interrupt(&btn_int4,
+                               GPIO_INT_EDGE_TO_ACTIVE,
+                               &btn_int4_cb,
+                               btn_int4_handler);
+    if (ret) return ret;
 
-    // BTN3 setup
-    gpio_pin_configure_dt(&btn_int3, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&btn_int3, GPIO_INT_EDGE_TO_ACTIVE);
-    gpio_init_callback(&btn_int3_cb, btn_int3_handler, BIT(btn_int3.pin));
-    gpio_add_callback(btn_int3.port, &btn_int3_cb);
+    /* IMU interrupts (rising edge, active high) */
+    ret = setup_gpio_interrupt(&imu_int1,
+                               GPIO_INT_EDGE_RISING,
+                               &imu_int1_cb,
+                               imu_int1_handler);
+    if (ret) return ret;
 
-    // BTN4 setup
-    gpio_pin_configure_dt(&btn_int4, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&btn_int4, GPIO_INT_EDGE_TO_ACTIVE);
-    gpio_init_callback(&btn_int4_cb, btn_int4_handler, BIT(btn_int4.pin));
-    gpio_add_callback(btn_int4.port, &btn_int4_cb);
+    ret = setup_gpio_interrupt(&imu_int2,
+                               GPIO_INT_EDGE_RISING,
+                               &imu_int2_cb,
+                               imu_int2_handler);
+    if (ret) return ret;
 
-    // IMU INT1 setup (rising edge, active high)
-    gpio_pin_configure_dt(&imu_int1, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&imu_int1, GPIO_INT_EDGE_RISING);
-    gpio_init_callback(&imu_int1_cb, imu_int1_handler, BIT(imu_int1.pin));
-    gpio_add_callback(imu_int1.port, &imu_int1_cb);
-
-    // IMU INT2 setup (rising edge, active high)
-    gpio_pin_configure_dt(&imu_int2, GPIO_INPUT);
-    gpio_pin_interrupt_configure_dt(&imu_int2, GPIO_INT_EDGE_RISING);
-    gpio_init_callback(&imu_int2_cb, imu_int2_handler, BIT(imu_int2.pin));
-    gpio_add_callback(imu_int2.port, &imu_int2_cb);
+    return 0;
 }
+
 
 

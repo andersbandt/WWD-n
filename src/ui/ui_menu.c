@@ -18,7 +18,7 @@
 #include <zephyr/logging/log.h>
 
 /* My header files */
-#include <display.h> // TODO: for complete abstraction, shouldn't this not be included here?
+#include <display.h>
 #include <ui_menu.h>
 #include <ui_display.h>
 #include <UIFunctions.h>
@@ -105,6 +105,152 @@ bool in_sub_menu = 0;
 bool run_sub_menu = 0;
 
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! LOCAL FUNCTIONS -------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// local helper prototypes
+static void changeMainMenuPosition(int action);
+static void changeSubMenuPosition(int action);
+static int getSubMenuLength(int menu_number);
+static bool should_update_page(int current_pos, int prev_position, int force);
+static void render_menu_items(char **items, int start_idx, int count);
+static void render_sub_menu_items(int menu_idx, int start_item_idx, int count);
+
+/**
+ * @brief changes position based on input direction
+ *
+ * @param action should represent the direction we are moving. +2 for "up", and +1 for "down". A 0 (for select) should not be sent to this function
+ *
+ * @returns None (void)
+ */
+static void changeMainMenuPosition(int action)
+{
+    prev_pos = abs_position;
+
+    // if we are moving up
+    if (action == -1) {
+        if (abs_position == 0) {  // if we are already at the top (first) absolute position
+            return;
+        }
+        else {  // otherwise decrease position by one
+            abs_position--;
+        }
+    }
+
+    // if we are moving down (towards the end of the positions)
+    if (action == 1) {
+        if (abs_position == UI_MAIN_MENU_ITEMS-1) {  // if we are already at the end (last) absolute position
+            return;
+        }
+        else {
+            abs_position++;
+        }
+    }
+}
+
+
+/**
+ * @brief changeSubMenuPosition
+ *
+ * @param action should represent the direction we are moving. +2 for "up", and +1 for "down". A 0 (for select) should not be sent to this function
+ *
+ * @returns None (void)
+ */
+static void changeSubMenuPosition(int action)
+{
+    prev_pos = sub_menu_position;
+
+    if (action == -1) {  // if we are moving up
+        if (sub_menu_position == 0) { // if already at the top do nothing
+            return;
+        }
+        else {
+            sub_menu_position--;
+        }
+    }
+
+    if (action == 1) {  // if we are moving down
+        if (sub_menu_position == getSubMenuLength(abs_position)-1) {  // do nothing if we would move past the menu length
+            return;
+        }
+        else {
+            sub_menu_position++;
+        }
+    }
+}
+
+
+/**
+ * @brief getSubMenuLength
+ *
+ * @param The menu number we are examining (0, 1, 2, ... and so on)
+ *
+ * @returns None (void)
+ */
+static int getSubMenuLength(int menu_number)
+{
+    if (menu_number == 0) {
+        return sizeof(sub_menu_0)/sizeof(sub_menu_0[0]);
+    }
+    else if (menu_number == 1) {
+        return sizeof(sub_menu_1)/sizeof(sub_menu_0[0]);
+    }
+
+    return -1;
+}
+
+
+/**
+ * @brief Check if page needs updating
+ *
+ * @param current_pos Current menu position
+ * @param prev_position Previous menu position
+ * @param force Force update flag
+ *
+ * @returns true if page should be redrawn
+ */
+static bool should_update_page(int current_pos, int prev_position, int force)
+{
+    return (current_pos / UI_MENU_ITEMS_PAGE != prev_position / UI_MENU_ITEMS_PAGE) || force;
+}
+
+
+/**
+ * @brief Render menu items on display
+ *
+ * @param items Array of string pointers to menu items
+ * @param start_idx Starting index in the items array
+ * @param count Number of items to render
+ */
+static void render_menu_items(char **items, int start_idx, int count)
+{
+    for (int i = 0; i < count; i++) {
+        clearAndPrintLine(items[start_idx + i], i + 1, START_X, FONT_MEDIUM);
+    }
+}
+
+
+/**
+ * @brief Render sub menu items on display
+ *
+ * @param menu_idx Menu number (0, 1, 2, etc.)
+ * @param start_item_idx Starting item index within the sub menu
+ * @param count Number of items to render
+ */
+static void render_sub_menu_items(int menu_idx, int start_item_idx, int count)
+{
+    for (int i = 0; i < count; i++) {
+        clearAndPrintLine(sub_menu[menu_idx] + SUB_MENU_CHAR_LENGTH * (start_item_idx + i),
+                         i + 1, START_X, FONT_MEDIUM);
+    }
+}
+
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! GLOBAL FUNCTIONS ------------------------------------------------------------------------------------------------------//
@@ -114,6 +260,18 @@ bool run_sub_menu = 0;
 void initMenu() {
     abs_position = 0;
     sub_menu_position = 0;
+}
+
+
+/**
+ * @brief returns if we are currently running a sub menu item
+ *
+ * @param None
+ *
+ * @returns bool representing state
+ */
+bool get_running_state() {
+    return run_sub_menu;
 }
 
 
@@ -136,7 +294,7 @@ void updateMenuScreen(int8_t action)
             if (action == 2) {
                 run_sub_menu = false;
                 reset_uifunc_params(); // NOTE: this has to be called to wipe things like position for setting clock
-                returnMenu(); // TODO: this should actually return to sub menu instead of main menu
+                returnSubMenu();
                 change_ui_mode(UI_MODE_MENU); // Return to menu mode
                 return;
             }
@@ -161,7 +319,6 @@ void updateMenuScreen(int8_t action)
     }
 
     // main menu updates
-    // TODO: really for massive code complexity improvements i need to make the following logic more concise
     else {  // if we are not in a sub menu
         if (action == 2) {  // if the select button was pressed
             in_sub_menu = 1;
@@ -181,19 +338,16 @@ void updateMenuScreen(int8_t action)
  */
 void updateMainMenuScreen(int absolute_pos, int force)
 {
-    // only update if we are going to a new page or 'force' is set
-    if ((absolute_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {  // only update if we are going to a new page
-
-        // clear_out_display();
+    if (should_update_page(absolute_pos, prev_pos, force)) {
         int page_num = absolute_pos / UI_MENU_ITEMS_PAGE;
+        int start_idx = page_num * UI_MENU_ITEMS_PAGE;
+        int items_to_display = UI_MAIN_MENU_ITEMS - start_idx;
 
-        int i;
-        for(i = 0; i < UI_MENU_ITEMS_PAGE; i++) {
-            if (i == UI_MAIN_MENU_ITEMS) {
-                break;
-            }
-            clearAndPrintLine(main_menu_options[page_num*UI_MENU_ITEMS_PAGE + i], i+1, START_X, FONT_MEDIUM);
+        if (items_to_display > UI_MENU_ITEMS_PAGE) {
+            items_to_display = UI_MENU_ITEMS_PAGE;
         }
+
+        render_menu_items(main_menu_options, start_idx, items_to_display);
     }
 
     in_sub_menu = 0;
@@ -201,7 +355,6 @@ void updateMainMenuScreen(int absolute_pos, int force)
 }
 
 
-// TODO: code improvement? Combine this function with updateMainMenuScreen ... 
 /*
  * updateSubMenuScreen: updates the sub menu screen based on absolute position (menu number) and sub menu position
  *
@@ -209,34 +362,24 @@ void updateMainMenuScreen(int absolute_pos, int force)
  */
 void updateSubMenuScreen(int abs_pos, int sub_pos, int force)
 {
-    int page_num = sub_pos / UI_MENU_ITEMS_PAGE;  // tracks what page we are on (0, 1, 2, etc.)
+    int page_num = sub_pos / UI_MENU_ITEMS_PAGE;
+    int start_idx = page_num * UI_MENU_ITEMS_PAGE;
+    int sub_menu_length = getSubMenuLength(abs_pos);
+    int items_to_display = sub_menu_length - start_idx;
 
-    // grab how many options need to be displayed
-    int num_to_display = getSubMenuLength(abs_pos) - UI_MENU_ITEMS_PAGE*page_num;
-
-    if (num_to_display > UI_MENU_ITEMS_PAGE) {
-        num_to_display = UI_MENU_ITEMS_PAGE;
+    if (items_to_display > UI_MENU_ITEMS_PAGE) {
+        items_to_display = UI_MENU_ITEMS_PAGE;
     }
 
-    // only update on new page or 'force' condition
-    if ((sub_pos / UI_MENU_ITEMS_PAGE != prev_pos / UI_MENU_ITEMS_PAGE) || force) {
-
-        int page_addition = page_num * UI_MENU_ITEMS_PAGE;
-
-        // print lines of the sub menu
-        int i;
-        for(i = 0; i < num_to_display; i++) {
-            clearAndPrintLine(sub_menu[abs_pos] + 22*(i+page_addition), i+1, START_X, FONT_MEDIUM);
-        }
+    if (should_update_page(sub_pos, prev_pos, force)) {
+        render_sub_menu_items(abs_pos, start_idx, items_to_display);
     }
 
-    // update the cursor - only to the point where menu items exist
-    if (sub_pos % UI_MENU_ITEMS_PAGE < num_to_display) {
-        updateCursor(prev_pos, sub_pos);
-    }
-    else {
-        updateCursor(prev_pos, num_to_display-1);
-    }
+    // Update cursor - clamp to available items
+    int cursor_pos = (sub_pos % UI_MENU_ITEMS_PAGE < items_to_display)
+                     ? sub_pos
+                     : items_to_display - 1;
+    updateCursor(prev_pos, cursor_pos);
 }
 
 
@@ -249,9 +392,8 @@ void updateCursor(int prev_position, int position)
    int relative_position = position % UI_MENU_ITEMS_PAGE;  // generate the 'relative position' with modulus division
    int prev_relative_position = prev_position % UI_MENU_ITEMS_PAGE;
 
-   // TODO: is there a better way to perform this erasing?
    printLine(" ", prev_relative_position+1, 0, FONT_MEDIUM); // erase old cursor
-   printLineTransparent("x", relative_position+1, 0, FONT_MEDIUM); // draw new cursor
+   printLineTransparent(">", relative_position+1, 0, FONT_MEDIUM); // draw new cursor
 }
 
 
@@ -263,6 +405,17 @@ void returnMenu()
     updateMainMenuScreen(abs_position, 1);
     sub_menu_position = 0;
     in_sub_menu = 0;
+}
+
+
+
+/*
+ * returnSubMenu: returns to a sub menu
+ */
+void returnSubMenu()
+{
+    updateSubMenuScreen(abs_position, sub_menu_position, 1);
+    in_sub_menu = 1;
 }
 
 
@@ -290,86 +443,7 @@ void commenceUIAction(int absolute_position, int sub_menu_position)
 }
 
 
-////////////////////////////////////////////////////////////////////////
-////////  HELPER LOGIC FUNCTIONS    ////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-// TODO: convert these to local functions only? Does that help compiler space and stuff?
 
-/*
- * changeMainMenuPosition: changes the absolute and relative position based on action
- */
-void changeMainMenuPosition(int action)
-{
-    prev_pos = abs_position;
-
-    // if we are moving up
-    if (action == -1) {
-        if (abs_position == 0) {  // if we are already at the top (first) absolute position
-            return;
-        }
-        else {  // otherwise decrease position by one
-            abs_position--;
-        }
-    }
-
-    // if we are moving down (towards the end of the positions)
-    if (action == 1) {
-        if (abs_position == UI_MAIN_MENU_ITEMS-1) {  // if we are already at the end (last) absolute position
-            return;
-        }
-        else {
-            abs_position++;
-        }
-    }
-}
-
-
-/*
- * changeSubMenuPosition: changes the sub menu position based on action
- */
-void changeSubMenuPosition(int action)
-{
-    prev_pos = sub_menu_position;
-
-    if (action == -1) {  // if we are moving up
-        if (sub_menu_position == 0) { // if already at the top do nothing
-            return;
-        }
-        else {
-            sub_menu_position--;
-        }
-    }
-
-    if (action == 1) {  // if we are moving down
-        if (sub_menu_position == getSubMenuLength(abs_position)-1) {  // do nothing if we would move past the menu length
-            return;
-        }
-        else {
-            sub_menu_position++;
-        }
-    }
-}
-
-
-bool get_running_state() {
-    return run_sub_menu;
-}
-
-
-/*
- * getSubMenuLength: gets the length of a certain sub menu
- */
-int getSubMenuLength(int menu_number)
-{
-    if (menu_number == 0) {
-        return sizeof(sub_menu_0)/sizeof(sub_menu_0[0]);
-    }
-    else if (menu_number == 1) {
-        return sizeof(sub_menu_1)/sizeof(sub_menu_0[0]);
-    }
-
-    return -1;
-}
 
 
 

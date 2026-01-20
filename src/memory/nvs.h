@@ -19,17 +19,69 @@
 
 
 
+// define flash parameters (mainly size stuff)
+static const mt29f_cfg_t cfg = {
+    .num_dies = 2,
+    .blocks_per_die = 1024,
+    .pages_per_block = 64,
+    .bytes_per_page = 2176,
+    .oob_bytes = 128
+};
+
+uint64_t flash_size = (uint64_t)cfg.num_dies *cfg.blocks_per_die * cfg.pages_per_block * cfg.bytes_per_page;
+
+
+
+#define TOTAL_PAGES         cfg.num_dies * cfg.blocks_per_die * cfg.pages_per_block
+
+
+
+// define NVS META info
+#define META_BLOCK_COUNT    8
+#define TOTAL_BLOCKS        (cfg.blocks_per_die * cfg.num_dies)
+#define META_BLOCK_START    (TOTAL_BLOCKS - META_BLOCK_COUNT)
+
+
+
+struct log_state {
+    uint32_t magic;
+    uint32_t seq;
+    uint64_t nand_offset;
+    uint32_t crc;
+}
+
+
+enum record_type {
+    SAMPLE,
+    TIME_ANCHOR,
+    RESET_MARKER,
+}
+
+
+struct log_entry_hdr {
+    uint16_t record_type;  // type of record
+    uint16_t length;       // length of data
+    uint16_t dt_ticks;    // timestamp of record
+} __packed;
+
+
+
 /**
  * @brief initializes the NVS handle
  */
 void nvs_init();
 
 
-
 /*
  * @brief close the NVS handle
  */
 void nvs_close();
+
+
+/**
+ * @brief erases the whole NVS region
+ */
+void nvs_erase_region();
 
 
 /**
@@ -47,15 +99,9 @@ int nvs_get_addr_offset();
 
 
 /**
- * @brief getter function for NVS region size
- */
-size_t nvs_get_region_size();
-
-
-/**
  * @brief performs an NVS write
  */
-int nvs_write(void * data, size_t len);
+int nvs_write(off_t addr, void * data, size_t len);
 
 
 /**
@@ -67,23 +113,17 @@ int nvs_write_auto_offset(void * data, size_t num_bytes);
 /**
  * @brief reads the NVS
  */
-int nvs_read(void * buffer, size_t len, off_t addr);
+int nvs_read(off_t addr, void * buffer, size_t len);
 
-
-/**
- * @brief erases the whole NVS region
- */
-void nvs_erase_region();
 
 
 /**
- * @brief error handler for NVS
- *
- * @param[in]   error_status      received error code
- * @param[in]   report_success    flag for determining if we want to report success
- * @param[in]   display           Display handle
+ * @brief logs a record to NVS
+ * @param[in]   entry   pointer to log entry structure
+ * @param[in]   type    type of record being logged
  */
-void nvs_error(int error_status, bool report_success);
+int nvs_log_record(struct log_entry *entry, enum record_type type);
+
 
 
 

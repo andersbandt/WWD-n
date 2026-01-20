@@ -35,7 +35,6 @@
 LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 
 
-
 #define FORE_R 10
 #define FORE_G 10
 #define FORE_B 10
@@ -79,6 +78,27 @@ static uint8_t* getFontPointer(font_size_t fontSize)
 
 
 /*
+ * calculateLineY: calculates Y position for a line based on font size
+ */
+static uint32_t calculateLineY(uint32_t lineNum, font_size_t fontSize)
+{
+    if (lineNum == 0) {
+        return 2;  // special case for line 0 - always at top
+    }
+
+    // Get font height from the enum value
+    uint32_t fontHeight = (uint32_t)fontSize;
+
+    // Add some spacing between lines (30% of font height)
+    uint32_t lineSpacing = fontHeight * 3 / 10;
+
+    // Calculate Y position: top margin + (line_number * (font_height + spacing))
+    uint32_t topMargin = 10;
+    return topMargin + (lineNum * (fontHeight + lineSpacing));
+}
+
+
+/*
  * printToScreen: prints a certain text value to a certain position on the screen
  */
 void printToScreen(const char * text, const uint32_t posY, const uint32_t posX, font_size_t fontSize)
@@ -92,7 +112,6 @@ void printToScreen(const char * text, const uint32_t posY, const uint32_t posX, 
 }
 
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! GLOBAL FUNCTIONS ------------------------------------------------------------------------------------------------------//
@@ -102,7 +121,12 @@ void printToScreen(const char * text, const uint32_t posY, const uint32_t posX, 
 void init_display() {
 #ifdef USE_ST7735S
     /* ST7735S initialization */
-    ST7735S_Init();
+    int rc = ST7735S_Init();
+    if (rc != 0) {
+        LOG_ERR("ST7735S_Init failed with code %d", rc);
+        display_status = 0;
+        return;
+    }
     // setOrientation(R90);
 
     // set initial background
@@ -114,7 +138,11 @@ void init_display() {
     display_status = 1;
 #else
     /* ST7789 initialization (existing code) */
-    ST7789_Init(ST77XX_ROTATE_270 | ST77XX_RGB);
+    int rc = ST7789_Init(ST77XX_ROTATE_270 | ST77XX_RGB);    if (rc != 0) {
+        LOG_ERR("ST7789_Init failed with code %d", rc);
+        display_status = 0;
+        return;
+    }
 
     uint16_t i;
     ST7789_ClearScreen(WHITE);
@@ -144,28 +172,6 @@ void clear_display()
     setbgColor(BACK_R, BACK_G, BACK_B);
     fillScreen();
     flushBuffer();
-}
-
-
-
-/*
- * calculateLineY: calculates Y position for a line based on font size
- */
-static uint32_t calculateLineY(uint32_t lineNum, font_size_t fontSize)
-{
-    if (lineNum == 0) {
-        return 2;  // special case for line 0 - always at top
-    }
-
-    // Get font height from the enum value
-    uint32_t fontHeight = (uint32_t)fontSize;
-
-    // Add some spacing between lines (30% of font height)
-    uint32_t lineSpacing = fontHeight * 3 / 10;
-
-    // Calculate Y position: top margin + (line_number * (font_height + spacing))
-    uint32_t topMargin = 10;
-    return topMargin + (lineNum * (fontHeight + lineSpacing));
 }
 
 
@@ -220,11 +226,11 @@ void printLineTransparent(const char * text, const uint32_t lineNum, const uint3
         return;
     }
 
-    // Calculate Y position based on font size and line number
-    uint32_t posY = calculateLineY(lineNum, fontSize);
-
     // Enable transparent background mode
     setTransparent(true);
+
+    // Calculate Y position based on font size and line number
+    uint32_t posY = calculateLineY(lineNum, fontSize);
 
     // Draw the text
     printToScreen(text, posY, posX, fontSize);
@@ -236,28 +242,102 @@ void printLineTransparent(const char * text, const uint32_t lineNum, const uint3
 }
 
 
-void printNum(int number, const uint32_t lineNum, const uint32_t posX)
-{
-    // TODO: finish this function to print a number
-    // basically can relegate many sprintf calls to same function
-
-    // HOWEVER also consider that I have `display_out_measurement` to work with
-}
-
-
 /*
  * printToScreenInverted: prints a certain INVERTED text value to a certain position on the screen
  */
-// TODO: somehow have to combine this with my printLineTransparent
-void printToScreenInverted(char * text, int posY, int posX)
+void printToScreenInverted(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize)
 {
     if (text == 0) {  // handle null pointers being passed in
         return;
     }
 
-    // ssd1306PrintStringInverted(text, posY, posX, source_pro_set);
+    // set colors INVERTED
+    setColor(BACK_R, BACK_G, BACK_B);
+    setbgColor(FORE_B, FORE_G, FORE_B);
+
+    // draw text after calculating Y position
+    uint32_t posY = calculateLineY(lineNum, fontSize);
+    printToScreen(text, posY, posX, fontSize);
+
+    // set colors back to normal
+    setColor(FORE_B, FORE_G, FORE_B);
+    setbgColor(BACK_R, BACK_G, BACK_B);
+
+
+    flushBuffer();
 }
 
+
+/*
+ * printLineWithInversion: prints text with selective character inversion
+ */
+void printLineWithInversion(const char * text, const uint32_t lineNum, const uint32_t posX,
+                            font_size_t fontSize, int invertStart, int invertEnd)
+{
+    if (text == 0) {  // handle null pointers being passed in
+        return;
+    }
+
+    int textLen = strlen(text);
+
+    // Validate inversion range
+    if (invertStart < 0) invertStart = 0;
+    if (invertEnd >= textLen) invertEnd = textLen - 1;
+    if (invertStart > invertEnd) {
+        // No inversion, just print normally
+        printLine(text, lineNum, posX, fontSize);
+        return;
+    }
+
+    // Calculate Y position
+    uint32_t posY = calculateLineY(lineNum, fontSize);
+
+    // Get font width (approximate - most monospace fonts have width ~= height/2)
+    uint32_t charWidth = (uint32_t)fontSize / 2;
+
+    // Set font
+    setFont(getFontPointer(fontSize));
+
+    // Create buffers for text segments
+    char segment[64];
+    uint32_t currentX = posX;
+
+    // Print text before inversion (if any)
+    if (invertStart > 0) {
+        setColor(FORE_R, FORE_G, FORE_B);
+        setbgColor(BACK_R, BACK_G, BACK_B);
+
+        strncpy(segment, text, invertStart);
+        segment[invertStart] = '\0';
+        drawText(currentX, posY, segment);
+        currentX += charWidth * invertStart;
+    }
+
+    // Print inverted text
+    setColor(BACK_R, BACK_G, BACK_B);
+    setbgColor(FORE_R, FORE_G, FORE_B);
+
+    int invertLen = invertEnd - invertStart + 1;
+    strncpy(segment, text + invertStart, invertLen);
+    segment[invertLen] = '\0';
+    drawText(currentX, posY, segment);
+    currentX += charWidth * invertLen;
+
+    // Print text after inversion (if any)
+    if (invertEnd < textLen - 1) {
+        setColor(FORE_R, FORE_G, FORE_B);
+        setbgColor(BACK_R, BACK_G, BACK_B);
+
+        strcpy(segment, text + invertEnd + 1);
+        drawText(currentX, posY, segment);
+    }
+
+    // Restore normal colors
+    setColor(FORE_R, FORE_G, FORE_B);
+    setbgColor(BACK_R, BACK_G, BACK_B);
+
+    flushBuffer();
+}
 
 
 void changeContrast(const uint8_t contrast)

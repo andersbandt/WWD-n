@@ -30,7 +30,7 @@ static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 
 
 /* GPIO definitions*/
-#define DISP0_NODE DT_NODELABEL(st7735s) // TODO: for some reason `display0` doesn't work here like it does in my ST7789 driver
+#define DISP0_NODE DT_NODELABEL(st7735s)
 
 static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP0_NODE, dc_gpios);
 static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP0_NODE, reset_gpios);
@@ -40,27 +40,27 @@ static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP0_NODE, reset_gpio
 uint8_t backlight_pct = 100;
 
 /* SPI Initialization */
-void SPI_Init_ST7735(void) {
+int SPI_Init_ST7735(void) {
     if (!spi_is_ready_dt(&spi_dev)) {
-        /* TODO: Better error handling */
-        while (1) { }
+        return -1;
     }
 
-    /* Initialize GPIO pins */
-    if (!gpio_is_ready_dt(&dc_dt)) while (1) { }
-    if (!gpio_is_ready_dt(&rs_dt)) while (1) { }
+    // initialize GPIO pins
+    if (!gpio_is_ready_dt(&dc_dt)) return -2;
+    if (!gpio_is_ready_dt(&rs_dt)) return -2;
 
+    // set GPIO pins as inactive
     gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_INACTIVE);
     gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
+    return 0;
 }
 
 
-// TODO: refactor these reset functions to be more intuitive (with it being ACTIVE_LOW and all)
-void Pin_RES_High(void) {
+void Pin_RES_Active(void) {
     gpio_pin_set_dt(&rs_dt, 0);
 }
 
-void Pin_RES_Low(void) {
+void Pin_RES_Inactive(void) {
     gpio_pin_set_dt(&rs_dt, 1);
 }
 
@@ -87,7 +87,6 @@ void Pin_BLK_Pct(uint8_t pct) {
 }
 
 /* SPI Communication */
-// TODO (small): can I combine this one with the other display transport layers?
 void SPI_send(uint16_t len, uint8_t *data) {
     struct spi_buf buf = {
         .buf = data,

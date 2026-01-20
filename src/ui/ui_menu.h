@@ -39,12 +39,21 @@ extern ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH];
 void initMenu();
 
 
-// TODO: need to update this comment
+/**
+ * @brief This method returns whether a sub menu function is currently running
+ * 
+ * @returns true if a sub menu function is running, false otherwise
+ */
+bool get_running_state();
+
+
 /**
  * @brief This method handles updating the UI screen based on a new user action
  *
- * @param Represents what action occurred. +2 represents a move "up" in the menu where +1 represents a move "down". A 0 represents a select
- * button being pressed
+ * @param Represents what action occurred
+ *                      -1 represents a move "up" in the menu
+ *                      +1 represents a move "down"
+ *                      +2 represents a "select" action
  *
  * @returns None (void)
  */
@@ -93,6 +102,14 @@ void returnMenu();
 
 
 /**
+ * @brief returns one menu level up in the UI
+ *
+ * @returns None (void)
+ */
+void returnSubMenu();
+
+
+/**
  * @brief commences a certain UI action
  *
  * @param The absolute position we are currently at
@@ -102,55 +119,6 @@ void returnMenu();
  * @returns None (void)
  */
 void commenceUIAction(int absolute_position, int sub_menu_position);
-
-
-////////////////////////////////////////////////////////////////////////
-////////  HELPER LOGIC FUNCTIONS    ////////////////////////////////////
-////////////////////////////////////////////////////////////////////////
-
-/**
- * @brief changes position based on input direction
- *
- * @param action should represent the direction we are moving. +2 for "up", and +1 for "down". A 0 (for select) should not be sent to this function
- *
- * @returns None (void)
- */
-void changeMainMenuPosition(int action);
-
-
-/**
- * @brief changeSubMenuPosition
- *
- * @param action should represent the direction we are moving. +2 for "up", and +1 for "down". A 0 (for select) should not be sent to this function
- *
- * @returns None (void)
- */
-void changeSubMenuPosition(int action);
-
-
-/**
- * @brief returns if we are currently running a sub menu item
- *
- * @param None
- *
- * @returns bool representing state
- */
-bool get_running_state();
-
-/**
- * @brief getSubMenuLength
- *
- * @param The menu number we are examining (0, 1, 2, ... and so on)
- *
- * @returns None (void)
- */
-int getSubMenuLength(int menu_num);
-
-
-
-
-
-
 
 
 

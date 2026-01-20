@@ -87,6 +87,14 @@ struct inv_imu_transport {
 	uint8_t need_mclk_cnt;
 };
 
+
+
+/* MAIN FUNCTIONS TO EDIT WHEN SWITCHING MCU VENDORS*/
+int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, uint32_t len);
+int imu_spi_read(struct inv_imu_serif *serif, uint8_t reg, uint8_t *buf, uint32_t len);
+/* END OF MAIN FUNCTIONS TO EDIT WHEN SWITCHING MCU VENDORS*/
+
+
 /** @brief Init cache variable.
  *  @param[in] s  Pointer to device.
  *  @return       0 on success, negative value on error.

@@ -39,7 +39,7 @@ extern color565_t bg_color;
 
 void Delay(uint32_t);
 void Backlight_Pct(uint8_t p);
-void ST7735S_Init(void);
+int ST7735S_Init(void);
 void ST7735S_flush(void);
 void ST7735S_Pixel(uint16_t x, uint16_t y);
 void ST7735S_bgPixel(uint16_t x, uint16_t y);
