@@ -24,6 +24,8 @@ sleep 1
 
 echo "[2] Launching GDB..."
 arm-none-eabi-gdb $ELF \
+    -ex "tui-enable" \
+    -ex "layout-split" \
     -ex "target remote localhost:$PORT" \
     -ex "monitor reset halt" \
     -ex "load" \
