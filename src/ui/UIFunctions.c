@@ -59,6 +59,7 @@ bool first_ui_time = false; // useful for doing things the first time a function
 
 void reset_uifunc_params() {
     position = 0;
+    first_ui_time = false;
 }
 
 
@@ -73,33 +74,41 @@ void system_prompt_for_time_UI_FUNC() {
     if (first_ui_time) {
         position = 0;
         clearAndPrintLine("HOURS", 0, 12, FONT_LARGE);
-        display_out_time(time_offset); // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
+        display_out_time(time_offset, TIME_INVERT_HOURS);
+        first_ui_time = false;
     }
 
-
-    uint8_t btn_poll = button_poll();
+    // Get button event from buffer instead of polling directly
+    uint8_t btn_poll = get_button_event();
 
     // INCREMENT (button 1)
     if (btn_poll == 1) {
         if (position == 0) { // increment HOURS
-            time_offset.hours = increment_hour(time_offset.hours);
+            time_offset.hours = increment_hour(time_offset.hours, DIR_UP);
         }
         else if (position == 1) { // increment MINUTES
-            time_offset.minutes = increment_minute(time_offset.minutes);
+            time_offset.minutes = increment_minute(time_offset.minutes, DIR_UP);
         }
         else if (position == 2) { // increment SECONDS
-            time_offset.seconds = increment_second(time_offset.seconds);
+            time_offset.seconds = increment_second(time_offset.seconds, DIR_UP);
         }
     }
     // DECREMENT (button 2)
     if (btn_poll == 2) {
-        // TODO: with expanded buttons lets add increment and decrement here
+        if (position == 0) { // increment HOURS
+            time_offset.hours = increment_hour(time_offset.hours, DIR_DOWN);
+        }
+        else if (position == 1) { // increment MINUTES
+            time_offset.minutes = increment_minute(time_offset.minutes, DIR_DOWN);
+        }
+        else if (position == 2) { // increment SECONDS
+            time_offset.seconds = increment_second(time_offset.seconds, DIR_DOWN);
+        }
     }
 
     // update display if we changed offset digit value
     if (btn_poll == 1 || btn_poll == 2) {
-        display_out_time(time_offset); 
-        // TODO: would be helpful to display current position INVERTED. Workaround is to print "HOURS", "MINUTES", "SECONDS"
+        display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS); 
     }
         
     // ADVANCE (button 3 or 4)
@@ -131,7 +140,7 @@ void system_change_display_contrast_UI_FUNC() {
 
     while (status) {
         k_usleep(10000);
-        btn_poll = button_poll();
+        btn_poll = get_button_event();
         
         // decrement
         if (btn_poll == 1) {
@@ -179,17 +188,16 @@ void system_clear_faults_UI_FUNC(void) {
 void imuRead_UI_FUNC(void) {
     inv_imu_sensor_event_t event;
     event = imu_deque();
-    display_out_imu(event.accel);
+    display_out_imu(&event, IMU_DISPLAY_BOTH);
     return;
 }
 
 
 void imutempRead_UI_FUNC() {
-    int16_t imu_temp = imu_get_temp(NULL);
+    int16_t imu_temp = imu_get_temp();
     display_out_measurement("IMU temp", imu_temp);
     return;
 }
-
 
 
 /* /\** */

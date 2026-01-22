@@ -1,6 +1,6 @@
 //*****************************************************************************
 //!
-//! @file wwd.c
+//! @file clock.c
 //! @author Anders Bandt
 //! @brief This file contains main function for WWD device
 //! @version 0.9
@@ -37,14 +37,21 @@ static uint32_t prev_ticks = 0;
 
 static uint32_t tick_offset = 0;
 
-#define SLOPE_VALUE 6652
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! LOCAL FUNCTIONS -------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
-void init_time_offset() {
-    time_offset.hours = 10;
-    time_offset.minutes = 25;
-    time_offset.seconds = 37;
-}
+/*
+ * get_current_time: returns the current time in uint32_t format instead of a struct
+ */
+// uint32_t get_current_time_uint32() {
+//     return (time_offset.hours << 16) | (time_offset.minutes << 8) | time_offset.seconds;
+// }
+
 
 
 Time add_time(Time t1, Time t2) {
@@ -66,53 +73,39 @@ Time add_time(Time t1, Time t2) {
 }
 
 
-// TODO: possible move these to like arithmetic helper file? Same with above function?
-uint8_t increment_second(uint8_t second) {
-    second += 1;
-    if (second > 59) {
-        second = 0;
+static inline uint8_t wrap_inc(uint8_t value, uint8_t max, direction_t dir) {
+    if (dir) {
+        return (value >= max) ? 0 : value + 1;
+    } else {
+        return (value == 0) ? max : value - 1;
     }
-    return second;
 }
 
 
-uint8_t increment_hour(uint8_t hour) {
-    hour += 1;
-    if (hour > 23) {
-        hour = 0;
-    }
-    return hour;
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! GLOBAL FUNCTIONS ------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+uint8_t increment_second(uint8_t s, direction_t dir) {
+    return wrap_inc(s, 59, dir);
+}
+
+uint8_t increment_minute(uint8_t m, direction_t dir) {
+    return wrap_inc(m, 59, dir);
+}
+
+uint8_t increment_hour(uint8_t h, direction_t dir) {
+    return wrap_inc(h, 23, dir);
 }
 
 
-uint8_t increment_minute(uint8_t minute) {
-        minute += 1;
-        if (minute > 60) {
-            minute = 0;
-        }
-        return minute;
-}
 
-
-
-// the clock period is 10us last I checked
-uint32_t get_clock_period() {
-    // return ClockP_getSystemTickPeriod();
-    return 0;
-}
-
-/*
- *
- */
-uint32_t get_slope() {
-    return SLOPE_VALUE;
-}
-
-
-uint32_t get_raw_ms() {
-    //uint32_t ticks = ClockP_getSystemTicks();
-    uint32_t ticks = 0;
-    // TODO: need another way to get system ticks
+uint32_t get_raw_ticks() {
+    uint32_t ticks = sys_clock_tick_get();
 
     // handle overflow condition
     if (ticks < prev_ticks) {
@@ -124,11 +117,8 @@ uint32_t get_raw_ms() {
 }
 
 
-/*
- * get_ms: 
- */
 uint32_t get_ms(void) {
-    raw_ms = get_raw_ms();
+    raw_ms = get_raw_ticks();
     raw_ms = raw_ms - tick_offset;
     
     // METHOD 3: using double
@@ -170,35 +160,28 @@ Time get_sys_time() {
  * get_current_time: returns RTC time
  */
 Time get_current_time() {
-    // return add_time(get_sys_time(), time_offset);
+    return add_time(get_sys_time(), time_offset);
     return get_sys_time();
 }
 
 /*
  *
  */
-void set_time_offset() {
-    // tick_offset = ClockP_getSystemTicks();
+void set_time_offset(Time t) {
+    time_offset = t;
     ticks_overflow = 0;
 }
 
-/*
- * get_current_time: returns the current time
- */
-uint32_t get_current_time_uint32() {
-    return (time_offset.hours << 16) | (time_offset.minutes << 8) | time_offset.seconds;
-}
 
 
 /*
- *
+ * 
  */
 void print_time() {
-    uint32_t cur_ms = get_ms();
     Time cur_time = get_current_time();
     
-    LOG_INF("\n%d,%u", ticks_overflow, prev_ticks);
-    LOG_INF("%u,%u,[%d:%d:%d]", raw_ms, cur_ms,
+    LOG_DBG("\n%d,%u", ticks_overflow, prev_ticks);
+    LOG_DBG("[%d:%d:%d]",
                    cur_time.hours,
                    cur_time.minutes,
                    cur_time.seconds);

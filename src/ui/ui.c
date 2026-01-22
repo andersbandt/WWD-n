@@ -49,12 +49,19 @@ LOG_MODULE_REGISTER(ui, LOG_LEVEL_INF);
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+int ui_status = 0;
 ui_mode_t ui_mode = UI_MODE_CLOCK; // internal variable
 // volatile uint32_t step_count; // defined in imu.h
 
 
 int bat_percent; // defined in BQ25120A.h
 int charging_status; // defined in BQ25120A.h
+
+
+// Static clock data with dirty tracking
+static ui_clock_data_t clock_data = {
+    .dirty_flags = UI_CLOCK_DIRTY_ALL  // Start with everything dirty
+};
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -64,42 +71,120 @@ int charging_status; // defined in BQ25120A.h
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /**
+ * @brief Mark clock data fields as dirty (needing update)
+ */
+void ui_clock_mark_dirty(uint32_t flags)
+{
+    clock_data.dirty_flags |= flags;
+}
+
+/**
+ * @brief Clear dirty flags for clock data fields
+ */
+void ui_clock_clear_dirty(uint32_t flags)
+{
+    clock_data.dirty_flags &= ~flags;
+}
+
+/**
+ * @brief Check if clock data fields are dirty
+ */
+bool ui_clock_is_dirty(uint32_t flags)
+{
+    return (clock_data.dirty_flags & flags) != 0;
+}
+
+/**
+ * @brief Set clock time and mark dirty
+ */
+void ui_clock_set_time(Time time)
+{
+    clock_data.time = time;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_TIME);
+}
+
+/**
+ * @brief Set IMU temperature and mark dirty
+ */
+void ui_clock_set_temp(int16_t temp)
+{
+    clock_data.imu_temp = temp;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_TEMP);
+}
+
+/**
+ * @brief Set battery percentage and mark dirty
+ */
+void ui_clock_set_battery(int percent)
+{
+    clock_data.bat_percent = percent;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_BATTERY);
+}
+
+/**
+ * @brief Set charging status and mark dirty
+ */
+void ui_clock_set_charging(int status)
+{
+    clock_data.charging_status = status;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_CHARGING);
+}
+
+/**
+ * @brief Set step count and mark dirty
+ */
+void ui_clock_set_steps(uint32_t steps)
+{
+    clock_data.step_count = steps;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_STEPS);
+}
+
+
+/**
  * initUI: initializes the user interface
  */
 void init_ui()
 {
     LOG_INF("Initializing UI ...");
+    if (display_status == 0) {
+        LOG_ERR("Can't initialize UI! Display has bad status");
+        ui_status = 0;
+        return;
+    }
+
     ui_mode = UI_MODE_CLOCK;
     initMenu();
+    ui_status = 1;
 }
 
 
-bool first_time = true;
 void ui_refresh() {
     switch (ui_mode) {
         case UI_MODE_CLOCK:
-            // Handle updating clock display
-            Time cur_time = get_current_time();
-            display_out_time(cur_time);
+            // Handle updating clock display using dirty flags
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_TIME)) {
+                display_out_time(clock_data.time, TIME_INVERT_NONE);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_TIME);
+            }
 
-            if (first_time) {
-                // handle updating battery percent
-                // display_out_bms(charging_status, bat_percent);
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_TEMP)) {
+                display_out_temp(clock_data.imu_temp);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_TEMP);
+            }
 
-                // handle updating health statistics
-                // display_out_pedometer(step_count);
+            // enable when BMS is ready
+            // if (ui_clock_is_dirty(UI_CLOCK_DIRTY_CHARGING | UI_CLOCK_DIRTY_BATTERY)) {
+            //     display_out_bms(clock_data.charging_status, clock_data.bat_percent);
+            //     ui_clock_clear_dirty(UI_CLOCK_DIRTY_CHARGING | UI_CLOCK_DIRTY_BATTERY);
+            // }
 
-                // handle updating IMU temp
-                // int16_t imu_temp = imu_get_temp(NULL);
-                // display_out_temp(imu_temp);
-
-                // TODO: delete this later
-                first_time = false;
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_STEPS)) {
+                display_out_pedometer(clock_data.step_count);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_STEPS);
             }
             break;
 
         case UI_MODE_MENU:
-            // Handle menu updates
             updateMenuScreen(0); // passing in NULL for `action`
             break;
 
@@ -133,11 +218,10 @@ void ui_refresh() {
 }
 
 void handle_ui_input() {
-    // do some delay (mainly to handle case for both button press)
-    // do other shit
-    if (ui_mode == UI_MODE_MENU) {
-        uint8_t button_status = button_poll();
+    uint8_t button_status = button_poll();
 
+    // Handle menu-specific input
+    if (ui_mode == UI_MODE_MENU) {
         // parse `button_status` into a format needed for UI menu API
         if (button_status == 1) {
             updateMenuScreen(-1);
@@ -151,6 +235,12 @@ void handle_ui_input() {
         else if (button_status == 8) {
             updateMenuScreen(2);
         }
+        return;
+    }
+
+    // Push non-zero button events to buffer for UI functions to consume
+    if (button_status != 0) {
+        button_buffer_push(button_status);
     }
 }
 
@@ -174,7 +264,8 @@ void change_ui_mode(ui_mode_t new_mode) {
         ui_refresh();
     }
     else if (ui_mode == UI_MODE_MENU) {
-        updateMainMenuScreen(0, 1); // TODO: calling this assumes that absolute_position = 0. How to ensure this?
+        abs_position = 0;
+        updateMainMenuScreen(0, 1);
     }
 }
 

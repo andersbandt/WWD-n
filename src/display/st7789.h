@@ -251,9 +251,9 @@
    *
    * @param   uint8_t madctl
    *
-   * @return  void
+   * @return  status code (0 = success, any other value = error)
    */
-  void ST7789_Init(uint8_t madctl);
+  int ST7789_Init(uint8_t madctl);
 
   /**
    * @desc    RAM Content Show
@@ -332,6 +332,13 @@
    * @return  void
    */
   void ST7789_Reset_HW(void);
+
+    /**
+   * @desc    Software Reset
+   *
+   * @return  void
+   */
+  void ST7789_Reset_SW(void);
 
   /**
    * @desc    Init sequence

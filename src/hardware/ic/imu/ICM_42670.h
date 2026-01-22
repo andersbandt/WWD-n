@@ -119,7 +119,7 @@ int getDataFromFifo(inv_imu_sensor_event_t *evt);
 /*
  * @brief gets the current step count recorded by the IMU
  */
-int getPedometer(uint32_t * step_count, float step_cadence, const char* activity);
+int getPedometer(uint32_t * step_count, float * step_cadence, const char* activity);
 
 
 // ICM42670P C++ class functions

@@ -22,11 +22,11 @@
 extern "C" {
 #endif
 
-void SPI_Init_ST7735(void);
+int SPI_Init_ST7735(void);
 void Pin_CS_Low(void);
 void Pin_CS_High(void);
-void Pin_RES_High(void);
-void Pin_RES_Low(void);
+void Pin_RES_Active(void);
+void Pin_RES_Inactive(void);
 void Pin_DC_High(void);
 void Pin_DC_Low(void);
 void Pin_BLK_Pct(uint8_t);

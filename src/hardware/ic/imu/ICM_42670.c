@@ -59,86 +59,11 @@ bool apex_tilt_enable;
 bool apex_pedometer_enable;
 
 
-#ifdef USE_DERS_IMU
-    #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(tdk_icm42670p)
-#else
-    #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(invensense_icm42670p)
-#endif
-
-
-#define SPI_OP SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE
-static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! SPI and EVENT FUNCTIONS -------------------------------------------------------------------------------------------------------------//
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// TODO: why does this thing take in the serif?
-// TODO: move all this stuff to transport??? right???
-int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, uint32_t len) {
-    uint8_t tx_data[len+1];
-    tx_data[0] = reg;
-    memcpy(&tx_data[1], buf, len);
-
-    // Single spi_buf pointing to entire tx_data
-    struct spi_buf tx_buf = {
-        .buf = tx_data,
-        .len = len + 1,
-    };
-
-    struct spi_buf_set tx_set = {
-        .buffers = &tx_buf,
-        .count = 1,
-    };
-
-
-    return spi_write_dt(&spi_dev, &tx_set);
-}
-
-
-int imu_spi_read(struct inv_imu_serif *serif,
-                 uint8_t reg,
-                 uint8_t *buf,
-                 uint32_t len)
-{
-    uint8_t tx_data[len + 1];
-    uint8_t rx_data[len + 1];
-
-    tx_data[0] = reg;
-    memset(&tx_data[1], 0x00, len);  // dummy bytes to clock data out
-
-    struct spi_buf tx_buf = {
-        .buf = tx_data,
-        .len = len + 1,
-    };
-
-    struct spi_buf_set tx_set = {
-        .buffers = &tx_buf,
-        .count = 1,
-    };
-
-    struct spi_buf rx_buf = {
-        .buf = rx_data,
-        .len = len + 1,
-    };
-
-    struct spi_buf_set rx_set = {
-        .buffers = &rx_buf,
-        .count = 1,
-    };
-
-    int rc = spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
-
-    // Copy received data (skip first byte which is register echo/dummy)
-    memcpy(buf, &rx_data[1], len);
-
-    // return status code (0 for success)
-    return rc;
-}
-
-
 
 /*
  * readIMUReg: I created this function to abstract the one in the driver
@@ -184,15 +109,10 @@ void event_print(inv_imu_sensor_event_t *evt) {
  * event_cb: callback for new event
  */
 void event_cb(inv_imu_sensor_event_t *evt) {
-    memcpy(event, evt, sizeof(inv_imu_sensor_event_t)); // TODO: what is this memcpy doing? Nothing right?
+    memcpy(event, evt, sizeof(inv_imu_sensor_event_t)); // TODO: should probably get things working and then eliminate this memcpy
     
     /* ADD TO CIRCULAR BUFFER */
     circular_buffer_add(imu_data_buffer, event);
-    
-    //    bool added = circular_buffer_add(imu_data_buffer, event);
-    //    if (!added) {
-    //        while (1) {}
-    //    }
 }
 
 
@@ -231,7 +151,7 @@ int init_icm() {
 
     // /* Check WHOAMI */
     rc = inv_imu_get_who_am_i(&icm_driver, &who_am_i);
-    if(rc != 0) {
+    if (rc != 0) {
         return -2;
     }
 
@@ -546,32 +466,37 @@ int getDataFromFifo(inv_imu_sensor_event_t *evt) {
 }
 
 
+/*
+* updateApex: checks INT_STATUS3 (interrupt status for APEX functions?)
+*/
 int updateApex(void) {
     int rc = 0;
     uint8_t data;
     rc = inv_imu_read_reg(&icm_driver, INT_STATUS3, 1, &data );
-    if (rc == 0)
-    {
-    /* Update interrupt status */
-    int_status3 |= data;
+    if (rc == 0) {
+        int_status3 |= data;
     }
     return rc;
 }
 
 
-int getPedometer(uint32_t * step_count, float step_cadence, const char* activity) {
+/*
+* getPedometer: returns info on the pedometer function of the ICM-42670
+*/
+int getPedometer(uint32_t * step_count, float * step_cadence, const char* activity) {
     int rc = 0;
 
     /* Read APEX interrupt status */
     rc |= updateApex();
 
+    // check for overflow
     if (int_status3 & INT_STATUS3_STEP_CNT_OVF_INT_MASK) {
         step_cnt_ovflw++;
         /* Reset pedometer overflow internal status */
         int_status3 &= ~INT_STATUS3_STEP_CNT_OVF_INT_MASK;
     }
 
-
+    // check for interrupt
     if (int_status3 & (INT_STATUS3_STEP_DET_INT_MASK)) {
         inv_imu_apex_step_activity_t apex_data0;
         float nb_samples           = 0;
@@ -580,20 +505,21 @@ int getPedometer(uint32_t * step_count, float step_cadence, const char* activity
         int_status3 &= ~INT_STATUS3_STEP_DET_INT_MASK;
 
         rc |= inv_imu_apex_get_data_activity(&icm_driver, &apex_data0);
-        // to do: detect step counter overflow?
         *step_count = apex_data0.step_cnt + step_cnt_ovflw*(uint32_t)UINT16_MAX;
         /* Converting u6.2 to float */
-        nb_samples = (apex_data0.step_cadence >> 2) +
-            (float)(apex_data0.step_cadence & 0x03) * 0.25f;
-        if(nb_samples != 0)
-            {
-                step_cadence = (float)50 / nb_samples;
-            } else {
+        nb_samples = (apex_data0.step_cadence >> 2) + (float)(apex_data0.step_cadence & 0x03) * 0.25f;
+
+        // set step cadence
+        if (nb_samples != 0) {
+            step_cadence = (float)50 / nb_samples;
+        } 
+        else {
             step_cadence = 0;
         }
-//            activity = APEX_ACTIVITY[apex_data0.activity_class];
-        activity = NULL;
-    } else {
+
+        activity = APEX_ACTIVITY[apex_data0.activity_class];
+    } 
+    else {
         return -11;
     }
 
@@ -601,15 +527,13 @@ int getPedometer(uint32_t * step_count, float step_cadence, const char* activity
 }
 
 
-
-// TODO: debug this function to determine valid accelerometer data
+// TODO: debug this function to determine valid accelerometer data (and gryo data below)
 bool isAccelDataValid(inv_imu_sensor_event_t *evt) {
     return 1;
 //  return (evt->sensor_mask & (1<<INV_SENSOR_ACCEL));
 }
 
 
-// TODO: debug this function to determine valid gyroscopic data
 bool isGyroDataValid(inv_imu_sensor_event_t *evt) {
     return 1;
 //  return (evt->sensor_mask & (1<<INV_SENSOR_GYRO));

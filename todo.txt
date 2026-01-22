@@ -1,0 +1,72 @@
+===============================================================================
+WEARABLE DEVICE - SIMULATION-FRIENDLY TODO LIST
+===============================================================================
+
+1. IMPLEMENT BATTERY PERCENTAGE CALCULATION (BMS Enhancement)
+   Location: src/hardware/ic/bms/BQ25120A.c
+
+   Tasks:
+   - Add battery discharge curve lookup table (typical Li-Po 3.7V)
+     * 4.2V = 100%
+     * 3.7V = 50%
+     * 3.0V = 0%
+   - Implement bms_get_battery_percentage() using voltage interpolation
+   - Add battery state tracking (charging/discharging/full)
+   - Create helper functions for charge state estimation
+   - Add low battery threshold warnings (<20%, <10%, <5%)
+
+   Why good for sim: Pure algorithmic work. Test with mock voltage values
+   and validate the math without hardware.
+
+-------------------------------------------------------------------------------
+
+2. ACTIVITY DATA LOGGER WITH FLASH STORAGE
+   Location: New files src/activity/activity_logger.c/h
+
+   Tasks:
+   - Design compact binary log format
+     * timestamp + step count + temp = ~8 bytes/entry
+   - Implement circular buffer in flash (auto-overwrite old data when full)
+   - Add functions:
+     * log_activity_sample()
+     * read_activity_history()
+     * clear_history()
+   - Create daily summary calculations
+     * total steps
+     * avg temp
+     * active hours
+   - Add UI menu to display activity history (today, yesterday, last 7 days)
+
+   Why good for sim: File I/O and data structure design. nvs_read/write
+   functions already exist. Test with simulated data.
+
+   RECOMMENDED: Start here - most "wearable-like" feature, leverages existing
+   flash dump protocol, ties together multiple subsystems (IMU, storage, UI).
+
+-------------------------------------------------------------------------------
+
+3. SLEEP/LOW-POWER STATE MACHINE
+   Location: New file src/power/power_manager.c/h
+
+   Tasks:
+   - Define power states:
+     * ACTIVE
+     * IDLE
+     * LIGHT_SLEEP
+     * DEEP_SLEEP
+   - Create transition logic based on:
+     * User inactivity timeout (no button press for N seconds)
+     * Motion detection (IMU activity/no activity)
+     * Battery level (aggressive sleep when <20%)
+   - Implement "raise-to-wake" logic using IMU accelerometer data
+   - Add scheduled wake events (hourly sync, midnight rollover)
+   - Design peripheral sleep behavior for each state:
+     * Display off
+     * IMU low-power mode
+     * Reduced polling rates
+
+   Why good for sim: Pure state machine logic and decision-making. Write unit
+   tests with mock sensor inputs. Hook up actual sleep/wake calls when
+   hardware is available.
+
+===============================================================================

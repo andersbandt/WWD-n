@@ -34,7 +34,6 @@
 #include <inv_imu_driver.h>
 #include <inv_time.h>
 #include <inv_imu_transport.h>
-#include <ICM_42670.h> // TODO: plz delete this one just added it for event_print
 
 
 LOG_MODULE_REGISTER(inv_imu_driver, LOG_LEVEL_INF);
@@ -1085,7 +1084,6 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s) {
 			        /* /\* call sensor event callback *\/ */
 			        if (s->sensor_event_cb) {
                         s->sensor_event_cb(&event);
-//                       event_print(display, &event);
                     }
 				} /* end of else invalid frame */
 			} /* end of FIFO read for loop */
@@ -1225,7 +1223,6 @@ int inv_imu_configure_fifo(struct inv_imu_device *s, INV_IMU_FIFO_CONFIG_t fifo_
 {
 	int status = 0;
 	uint8_t data;
-	inv_imu_interrupt_parameter_t config_int = { (inv_imu_interrupt_value)0 };
 
 	s->fifo_is_used = fifo_config;
 

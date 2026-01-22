@@ -446,11 +446,6 @@ static int spi_nand_page_write(const off_t offset, const uint8_t *data, const si
   spi_nand_die_select(row_addr.die_num);
   spi_nand_write_enable();
 
-  // TODO: This is destructive, but required before writing to an already-written block
-  if (row_addr.page_num == 0) {
-    spi_nand_block_erase(row_addr);
-  }
-
   // This only writes 1 whole page at a time
   rc = spi_nand_program_load(0, data, inst.bytes_per_page);
   if (rc != 0) {
@@ -475,11 +470,12 @@ static int spi_nand_page_write(const off_t offset, const uint8_t *data, const si
   return rc;
 }
 
-/**
- * --------------------------------------------------------
- * Public API
- * --------------------------------------------------------
-*/ 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//! -----------------------------------------------------------------------------------------------------------------------//
+//! GLOBAL FUNCTIONS ------------------------------------------------------------------------------------------------------//
+//! -----------------------------------------------------------------------------------------------------------------------//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /**
 * @brief this function execute flash memory init on selected die.
 */

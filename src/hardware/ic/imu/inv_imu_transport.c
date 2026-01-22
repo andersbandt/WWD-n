@@ -29,6 +29,7 @@
 
 /* Zephyr files */
 #include <zephyr/kernel.h>
+#include <zephyr/drivers/spi.h>
 
 
 //#include "imu/inv_imu_extfunc.h"
@@ -38,7 +39,20 @@
 
 
 
+#ifdef USE_DERS_IMU
+    #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(tdk_icm42670p)
+#else
+    #define SPI_DEV DT_COMPAT_GET_ANY_STATUS_OKAY(invensense_icm42670p)
+#endif
+
+
+#define SPI_OP SPI_OP_MODE_MASTER | SPI_WORD_SET(8) | SPI_LINES_SINGLE
+static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
+
+
 #define TIMEOUT_US 1000000 /* 1 sec */
+
+
 
 /* Function definition */
 static uint8_t *get_register_cache_addr(struct inv_imu_device *s, const uint32_t reg);
@@ -48,6 +62,69 @@ static int      write_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8
                                const uint8_t *buf);
 
 static int read_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t rd_cnt, uint8_t *buf);
+
+
+// TODO: why does this thing take in the serif?
+int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, uint32_t len) {
+    uint8_t tx_data[len+1];
+    tx_data[0] = reg;
+    memcpy(&tx_data[1], buf, len);
+
+    // Single spi_buf pointing to entire tx_data
+    struct spi_buf tx_buf = {
+        .buf = tx_data,
+        .len = len + 1,
+    };
+
+    struct spi_buf_set tx_set = {
+        .buffers = &tx_buf,
+        .count = 1,
+    };
+
+
+    return spi_write_dt(&spi_dev, &tx_set);
+}
+
+
+int imu_spi_read(struct inv_imu_serif *serif,
+                 uint8_t reg,
+                 uint8_t *buf,
+                 uint32_t len)
+{
+    uint8_t tx_data[len + 1];
+    uint8_t rx_data[len + 1];
+
+    tx_data[0] = reg;
+    memset(&tx_data[1], 0x00, len);  // dummy bytes to clock data out
+
+    struct spi_buf tx_buf = {
+        .buf = tx_data,
+        .len = len + 1,
+    };
+
+    struct spi_buf_set tx_set = {
+        .buffers = &tx_buf,
+        .count = 1,
+    };
+
+    struct spi_buf rx_buf = {
+        .buf = rx_data,
+        .len = len + 1,
+    };
+
+    struct spi_buf_set rx_set = {
+        .buffers = &rx_buf,
+        .count = 1,
+    };
+
+    int rc = spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+
+    // Copy received data (skip first byte which is register echo/dummy)
+    memcpy(buf, &rx_data[1], len);
+
+    // return status code (0 for success)
+    return rc;
+}
 
 
 

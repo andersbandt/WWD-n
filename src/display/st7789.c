@@ -71,7 +71,6 @@ struct S_SCREEN Screen = {
  */
 void SPI_Init () {
   if (!spi_is_ready_dt(&spi_dev)) {
-    // TODO: figure out how to handle this error
     while (1) { }
   }
 }
@@ -104,7 +103,6 @@ uint8_t SPI_Transfer(uint8_t data)
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO: are the delays in the DC functions below needed?
 
 /* Command Active */
 static inline void ST7789_DC_Command() { 
@@ -130,21 +128,22 @@ static inline void ST7789_DC_Data () {
  *
  * @return  void
  */
-void ST7789_Init(uint8_t madctl) {
+int ST7789_Init(uint8_t madctl) {
   // initialize the SPI interface
   SPI_Init();
 
   // initialize GPIO
-  // TODO: make this cleaner and take up less lines
     if (!gpio_is_ready_dt(&dc_dt)) {
-		return 0;
+		return -2;
 	}
     if (!gpio_is_ready_dt(&bl_dt)) {
-		return 0;
+		return -2;
 	}
     if (!gpio_is_ready_dt(&rs_dt)) {
-		return 0;
+		return -2;
 	}
+
+  // configure initial GPIO states
   gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_ACTIVE);
   gpio_pin_configure_dt(&bl_dt, GPIO_OUTPUT_ACTIVE);
   gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
@@ -161,6 +160,9 @@ void ST7789_Init(uint8_t madctl) {
   
   // set configuration
   ST7789_Set_MADCTL(madctl);
+
+  // return success
+  return 0;
 }
 
 

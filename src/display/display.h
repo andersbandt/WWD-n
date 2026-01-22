@@ -125,7 +125,28 @@ void printLineTransparent(const char * text, const uint32_t lineNum, const uint3
  *
  * @param posY: the y position to start printing the text to the screen
  */
-void printToScreenInverted(char * text, int posX, int posY);
+void printToScreenInverted(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize);
+
+
+/**
+ * @brief Prints text to a line with selective character inversion
+ *
+ * @param text: pointer to char for the string. String should terminate in \0
+ *
+ * @param lineNum: line number to print to (0-4)
+ *
+ * @param posX: x position to start printing to
+ *
+ * @param fontSize: font size to use (FONT_SMALL, FONT_MEDIUM, FONT_LARGE, etc.)
+ *
+ * @param invertStart: starting index of characters to invert (inclusive)
+ *
+ * @param invertEnd: ending index of characters to invert (inclusive)
+ */
+void printLineWithInversion(const char * text, const uint32_t lineNum, const uint32_t posX,
+                            font_size_t fontSize, int invertStart, int invertEnd);
+
+
 
 
 void changeContrast(const uint8_t contrast);

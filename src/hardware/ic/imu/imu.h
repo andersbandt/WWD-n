@@ -33,7 +33,8 @@
 
 extern Circular_Buffer *imu_data_buffer;
 
-extern volatile uint32_t step_count;
+extern uint32_t step_count;
+extern int16_t imu_temperature;
 
 
 /**
@@ -98,6 +99,12 @@ void get_fifo_data();
  * @brief prints out pedometer info from the IMU
  */
 int imu_get_pedo();
+
+
+/**
+ * @brief prints out pedometer info from the IMU
+ */
+int imu_log();
 
 
 #endif /* SRC_IC_IMU_IMU_H_ */

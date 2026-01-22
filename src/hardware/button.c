@@ -18,9 +18,13 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/device.h>
+#include <zephyr/logging/log.h>
 
 /* My header files */
 #include <hardware/button.h>
+#include <circular_buffer.h>
+
+LOG_MODULE_REGISTER(button, LOG_LEVEL_INF);
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -37,6 +41,9 @@ static const struct gpio_dt_spec btn4 = GPIO_DT_SPEC_GET(DT_NODELABEL(button4), 
 // Holds the current state of each button. A 0 in a bit indicates
 // that button is currently pressed (active low), otherwise it is released.
 static uint8_t g_ui8ButtonStates = 0xFF;  // Start with all buttons released
+
+// Button input buffer for storing button events
+static Circular_Buffer *button_input_buffer = NULL;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -163,6 +170,57 @@ bool button_is_pressed(uint8_t button_mask)
 
 //     return ret;
 // }
+
+/**
+ * @brief Initialize the circular buffer for button inputs
+ *
+ * This function allocates and initializes a circular buffer to store
+ * button events. Should be called during initialization.
+ *
+ * @return 0 on success, negative error code on failure
+ */
+int init_button_buffer(void)
+{
+    button_input_buffer = circular_buffer_init(16, sizeof(uint8_t));
+    if (button_input_buffer == NULL) {
+        LOG_ERR("Failed to initialize button input buffer");
+        return -ENOMEM;
+    }
+    LOG_INF("Button input buffer initialized");
+    return 0;
+}
+
+/**
+ * @brief Push a button event to the input buffer
+ *
+ * Adds a button event to the circular buffer. If the buffer is full,
+ * the event is silently dropped.
+ *
+ * @param button_event Button state byte to add to buffer
+ */
+void button_buffer_push(uint8_t button_event)
+{
+    if (button_input_buffer != NULL && button_event != 0) {
+        circular_buffer_add(button_input_buffer, &button_event);
+    }
+}
+
+/**
+ * @brief Get the next button event from the input buffer
+ *
+ * Retrieves and removes the oldest button event from the circular buffer.
+ * Returns 0 if the buffer is empty or not initialized.
+ *
+ * @return uint8_t Button state byte, or 0 if buffer is empty
+ */
+uint8_t get_button_event(void)
+{
+    uint8_t btn_event = 0;
+    if (button_input_buffer != NULL && !circular_buffer_empty(button_input_buffer)) {
+        circular_buffer_remove(button_input_buffer, &btn_event);
+    }
+    return btn_event;
+}
 
 
 
