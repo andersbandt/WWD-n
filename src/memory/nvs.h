@@ -87,9 +87,27 @@ void nvs_erase_region();
 /**
  * @brief calculates address offset
  *
- * @desc reads through flash memory until sequence of 0xFF is found
+ * @desc reads metadata from META blocks to find current write position
  */
 bool nvs_calc_offset();
+
+
+/**
+ * @brief writes metadata to META blocks with wear leveling
+ *
+ * @param[in]   offset  current write offset to store
+ * @return      0 on success, negative error code on failure
+ */
+int nvs_write_metadata(uint64_t offset);
+
+
+/**
+ * @brief reads metadata from META blocks
+ *
+ * @param[out]  offset  pointer to store recovered write offset
+ * @return      0 on success, negative error code on failure
+ */
+int nvs_read_metadata(uint64_t *offset);
 
 
 /**
