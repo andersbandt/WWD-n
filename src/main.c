@@ -97,15 +97,15 @@ void clock_update_thread_entry(void *p1, void *p2, void *p3) {
         /* Wait for timer1 semaphore */
         k_sem_take(&timer1_sem, K_FOREVER);
 
-          // Update clock data (automatically marks dirty)
-          ui_clock_set_time(get_current_time());
-          ui_clock_set_temp(imu_get_temp());
+        // Update clock data (automatically marks dirty)
+        // ui_clock_set_time(get_current_time());
+        // ui_clock_set_temp(imu_get_temp());
 
-          // TODO: Enable when BMS is ready
-          // ui_clock_set_battery(read_battery_percent());
-          // ui_clock_set_charging(read_charging_status());
+        // TODO: Enable when BMS is ready
+        // ui_clock_set_battery(read_battery_percent());
+        // ui_clock_set_charging(read_charging_status());
 
-          ui_clock_set_steps(step_count);
+        // ui_clock_set_steps(step_count);
     }
 }
 
@@ -121,7 +121,7 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
 
         /* Refresh UI if display is on */
         if (display_status == 1) {
-            ui_refresh();
+            // ui_refresh();
         }
     }
 }
@@ -142,6 +142,7 @@ void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
         // change_ui_mode(1);
     }
 }
+
 
 /**
  * @brief Button handler thread
@@ -203,16 +204,16 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         if (events[4].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int1_sem, K_NO_WAIT);
             LOG_INF("IMU INT1 triggered");
-            led_set(2, 1);
-            get_fifo_data();
         }
 
         /* IMU INT2 */
         if (events[5].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int2_sem, K_NO_WAIT);
-            LOG_INF("IMU INT2 triggered");
-            led_set(3, 1);
-            get_fifo_data();
+            // LOG_INF("IMU INT2 triggered");
+            if (imu_status) {
+                get_fifo_data();
+                imu_process();
+            }
         }
     }
 }
@@ -291,7 +292,7 @@ int main(void)
                     CLOCK_UPDATE_PRIORITY, 0, K_NO_WAIT);
     k_thread_name_set(&clock_update_thread, "clock_update");
 
-    /* Create UI refresh thread */
+    // /* Create UI refresh thread */
     k_thread_create(&ui_refresh_thread, ui_refresh_stack,
                     K_THREAD_STACK_SIZEOF(ui_refresh_stack),
                     ui_refresh_thread_entry,

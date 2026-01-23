@@ -16,8 +16,7 @@
 #include <circular_buffer.h>
 
 /* Display driver selection */
-// #define USE_ZEPHYR_IMU
-// #define USE_DERS_IMU
+// NOTE: these are done in the CMakeLists.txt file (USE_DERS_IMU and USE_ZEPHYR_IMU)
 
 #ifdef USE_DERS_IMU
     #include <inv_imu_driver.h>
@@ -27,7 +26,7 @@
 // FIFO configuration
 #define IMU_FIFO_ENABLED     1
 #define IMU_APEX_ENABLED     0
-#define IMU_FIFO_WM          50
+#define IMU_FIFO_WM          5
 
 
 struct imu_sample {

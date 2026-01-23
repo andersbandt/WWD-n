@@ -111,7 +111,7 @@ void event_print(inv_imu_sensor_event_t *evt) {
 void event_cb(inv_imu_sensor_event_t *evt) {
     memcpy(event, evt, sizeof(inv_imu_sensor_event_t)); // TODO: should probably get things working and then eliminate this memcpy
     
-    /* ADD TO CIRCULAR BUFFER */
+//     /* ADD TO CIRCULAR BUFFER */
     circular_buffer_add(imu_data_buffer, event);
 }
 
@@ -126,7 +126,6 @@ void event_cb(inv_imu_sensor_event_t *evt) {
  * init_icm: initializes the IMU. Sets some needed serial interface parameters and calls the driver init function
  */
 int init_icm() {
-    LOG_INF("\nInitialization IMU.");
     struct inv_imu_serif icm_serif;
     int rc = 0;
     uint8_t who_am_i;
@@ -145,7 +144,7 @@ int init_icm() {
 
     rc = inv_imu_init(&icm_driver, &icm_serif, event_cb);
     if (rc != INV_ERROR_SUCCESS) {
-        LOG_INF("Error with IMU initialization, got status code [%d]", rc);
+        LOG_ERR("Error with IMU initialization, got status code [%d]", rc);
         return rc;
     }
 
@@ -160,7 +159,6 @@ int init_icm() {
     }
 
     LOG_INF("\tgot IMU WHOAMI: [0x%x]", who_am_i);    
-    LOG_INF("\nDone initializing IMU");
     return 0;
 }
 

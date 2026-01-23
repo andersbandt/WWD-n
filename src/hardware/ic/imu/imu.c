@@ -71,7 +71,7 @@ int16_t imu_temperature = 0;
 int imu_init() {
     LOG_INF("Initializing IMU ...");
 
-    // imu_data_buffer = circular_buffer_init(200, sizeof(inv_imu_sensor_event_t));
+    imu_data_buffer = circular_buffer_init(200, sizeof(inv_imu_sensor_event_t));
     // LOG_INF("\nIMU data buffer setup");
     // LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
     // LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
@@ -119,7 +119,7 @@ int imu_init() {
         LOG_INF("Initialized IMU\n");
     }
     else {
-        LOG_INF("Failed to initialize ICM42670 with code [%d]\n", rc);
+        LOG_ERR("Failed to initialize ICM42670 with code [%d]\n", rc);
     }
 
     return rc;
@@ -156,7 +156,7 @@ int imu_apex() {
  * imu_fifo_interrupts: Enables the FIFO interrupt on the IMU
  */
 int imu_fifo_interrupt() {
-    LOG_INF("\nEnabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
+    LOG_INF("Enabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
     int rc = enableFifoInterrupt(IMU_FIFO_WM);
     return rc;
 }
@@ -189,13 +189,10 @@ void imu_reg_poll() {
 /*
  * get_fifo_data: reads data from the FIFO
  */
+// TODO: really should document the flow. Where the event callback is stored, all the functions involved, circular buffer, etc
 void get_fifo_data() {
-    LOG_INF("IMU FIFO retrieve");
-
     inv_imu_sensor_event_t imu_event;
     int fifo_status = getDataFromFifo(&imu_event);
-    LOG_INF("\tgot FIFO read status [%d] (0 is GOOD)", fifo_status);
-    LOG_INF("... done with IMU FIFO retrieve!");
 }
 
 

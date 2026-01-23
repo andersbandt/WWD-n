@@ -904,7 +904,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s) {
 
 		total_packet_count = (uint16_t)(data[0] | (data[1] << 8));
 		packet_count       = total_packet_count;
-        LOG_INF("\tFIFO packet count is: %d\n", packet_count);
+        LOG_DBG("\tFIFO packet count is: %d\n", packet_count);
 		while (packet_count > 0) {
 			uint16_t invalid_frame_cnt = 0;
 			/* Read FIFO only when data is expected in FIFO */
@@ -921,7 +921,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s) {
 				 * Sensor data is in FIFO according to FIFO_COUNT but failed to read FIFO,
 				 * reset FIFO and try next chance
 				 */
-			    LOG_INF("\tFIFO read failed. Reset FIFO.\n");
+			    LOG_ERR("\tFIFO read failed. Reset FIFO.\n");
 				status |= inv_imu_reset_fifo(s);
 				status |= inv_imu_switch_off_mclk(s);
 				return status;
@@ -942,7 +942,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s) {
                    and we do not wait the oscillator wake-up time so we will receive 1 invalid packet,
                    which we will read again upon next FIFO read operation thanks to while() loop*/
 				if (header->Byte == 0x80) {
-                    LOG_INF("\tInvalid frame detected.");
+                    LOG_ERR("\tInvalid frame detected.");
 					uint8_t is_invalid_frame = 1;
 					/* Check N-FIFO_HEADER_SIZE remaining bytes are all 0 to be invalid frame */
 					for (uint8_t j = 0; j < (packet_size - FIFO_HEADER_SIZE); j++) {
@@ -1586,7 +1586,7 @@ static int init_hardware_from_ui(struct inv_imu_device *s)
 	/* Set interrupt config */
 	config_int.INV_UI_FSYNC      = INV_IMU_DISABLE;
 	config_int.INV_UI_DRDY       = INV_IMU_DISABLE;
-	config_int.INV_FIFO_THS      = INV_IMU_DISABLE;
+	config_int.INV_FIFO_THS      = INV_IMU_ENABLE;
 	config_int.INV_FIFO_FULL     = INV_IMU_DISABLE;
 	config_int.INV_SMD           = INV_IMU_DISABLE;
 	config_int.INV_WOM_X         = INV_IMU_DISABLE;
@@ -1613,7 +1613,7 @@ static int init_hardware_from_ui(struct inv_imu_device *s)
     
     /* Set interrupt config (INT2)*/
 	config_int.INV_UI_FSYNC      = INV_IMU_DISABLE;
-	config_int.INV_UI_DRDY       = INV_IMU_ENABLE;
+	config_int.INV_UI_DRDY       = INV_IMU_DISABLE;
 	config_int.INV_FIFO_THS      = INV_IMU_ENABLE;
 	config_int.INV_FIFO_FULL     = INV_IMU_ENABLE;
 	config_int.INV_SMD           = INV_IMU_DISABLE;
@@ -1624,7 +1624,7 @@ static int init_hardware_from_ui(struct inv_imu_device *s)
 	config_int.INV_LOWG          = INV_IMU_DISABLE;
 	config_int.INV_STEP_DET      = INV_IMU_DISABLE;
 	config_int.INV_STEP_CNT_OVFL = INV_IMU_DISABLE;
-	config_int.INV_TILT_DET      = INV_IMU_ENABLE;
+	config_int.INV_TILT_DET      = INV_IMU_DISABLE;
 	status |= inv_imu_set_config_int2(s, &config_int);
 
 	/* 
