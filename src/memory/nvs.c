@@ -41,10 +41,11 @@ void nvs_init(void)
     mt29f_init(&cfg);
 
     // write a reset marker at the start of NVS
-    offset_status = nvs_calc_offset();
-    if (offset_status) {
-        LOG_INF("NVS offset calculated at: [%d]", addr_offset);
-        nvs_log_record(NULL, RESET_MARKER);
+    addr_status = nvs_calc_offset();
+    if (addr_status) {
+        LOG_INF("NVS offset calculated at: [%d]", write_addr);
+        uint32_t marker = MAGIC_MARKER;
+        nvs_log_record(RESET_MARKER, &marker, sizeof(marker), get_dt_ticks());
 
     } else {
         LOG_INF("NVS offset calculation failed");
@@ -64,13 +65,13 @@ void nvs_close() {
  * nvs_erase_region: erases the whole NVS region
  */
 void nvs_erase_region() {
-    LOG_INFO("Erasing flash REGION... like the whole thing...\n");
+    LOG_INF("Erasing flash REGION... like the whole thing...\n");
 
     mt29f_chip_erase();
 
     // regenerate the address offset
     nvs_calc_offset();
-    LOG_INFO("\tnew write offset set at: [%d]", addr_offset);
+    LOG_INF("\tnew write offset set at: [%d]", write_addr);
 }
 
 
@@ -80,7 +81,8 @@ void nvs_erase_region() {
 int nvs_write(off_t addr, void * data, size_t len) {
     // perform some gross-check on address range
         if (addr < 0 || (uint64_t)addr >= flash_size) {
-        return MT29F_ROW_ADDR_INVALID;
+            return -1;
+        // return MT29F_ROW_ADDR_INVALID;
     }
 
     int status = mt29f_write(addr, data, len);
@@ -92,18 +94,18 @@ int nvs_write(off_t addr, void * data, size_t len) {
  * nvs_write_auto_offsets: performs a write operation with auto-increment of the "fresh space" offset
  */
 int nvs_write_auto_offset(void * data, size_t len) {
-    int status = nvs_write(addr_offset, data, len);
+    int status = nvs_write(write_addr, data, len);
 
-    addr_offset += len; // increment the offset up by `len` bytes
+    write_addr += len; // increment the offset up by `len` bytes
     return status;
 }
 
 
 // TODO: complete this function where it writes metadata information
 int nvs_write_auto_offset_new(void * data, size_t len) {
-    int status = nvs_write(addr_offset, data, len);
+    int status = nvs_write(write_addr, data, len);
 
-    addr_offset += len; // increment the offset up by `len` bytes
+    write_addr += len; // increment the offset up by `len` bytes
     return status;
 }
 
@@ -139,7 +141,7 @@ bool nvs_calc_offset() {
                 rec[1] == 0xFF &&
                 rec[2] == 0xFF) {
 
-                addr_offset = (page * cfg.bytes_per_page) + r;
+                write_addr = (page * cfg.bytes_per_page) + r;
                 return true;
             }
         }
@@ -165,10 +167,10 @@ bool nvs_calc_offset() {
 
 
 /*
- * nvs_get_addr_offset: "Getter" function for the address offset
+ * nvs_get_write_addr: "Getter" function for the address offset
  */
 int nvs_get_addr_offset() {
-    return addr_offset;
+    return write_addr;
 }
 
 
@@ -178,11 +180,10 @@ int nvs_get_addr_offset() {
 // TODO: this needs to check if the record is the size of one page?
 int nvs_log_record(enum record_type type, const void *payload, uint16_t length, uint16_t dt_ticks)
 {
-    struct log_record_hdr hdr = {
-        .type = type,
-        .length = length,
-        .dt_ticks = dt_ticks,
-    };
+    struct log_entry_hdr hdr;
+    hdr.record_type = type;
+    hdr.length = length;
+    hdr.dt_ticks = dt_ticks;
 
     nvs_write_auto_offset(&hdr, sizeof(hdr));
     nvs_write_auto_offset(payload, length);

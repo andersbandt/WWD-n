@@ -26,7 +26,7 @@
 /* My header files */
 #include <hardware/button.h>
 #include <imu.h>
-#include <clock.h>
+#include <peripheral/clock.h>
 
 /* UI and display */
 #include <display.h>

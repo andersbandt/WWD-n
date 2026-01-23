@@ -1,0 +1,1 @@
+west build --build-dir /home/anders/Documents/NCS/WWD-n/build /home/anders/Documents/NCS/WWD-n --pristine --board 96b_nitrogen/nrf52832 --no-sysbuild -- -DCONF_FILE=prj.conf -DDEBUG_THREAD_INFO=Off -DCONFIG_DEBUG_OPTIMIZATIONS=y

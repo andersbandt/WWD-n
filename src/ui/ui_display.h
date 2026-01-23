@@ -23,7 +23,7 @@
 
 
 /* My header files */
-#include <clock.h>
+#include <peripheral/clock.h>
 #include <inv_imu_driver.h>
 
 

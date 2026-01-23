@@ -511,13 +511,15 @@ int getPedometer(uint32_t * step_count, float * step_cadence, const char* activi
 
         // set step cadence
         if (nb_samples != 0) {
-            step_cadence = (float)50 / nb_samples;
+            *step_cadence = (float)50 / nb_samples;
         } 
         else {
             step_cadence = 0;
         }
 
-        activity = APEX_ACTIVITY[apex_data0.activity_class];
+        // TODO: I think I need some char variable containg activities if I want this to return a string?
+        // activity = apex_data0.activity_class;
+        // activity = APEX_ACTIVITY[apex_data0.activity_class];
     } 
     else {
         return -11;

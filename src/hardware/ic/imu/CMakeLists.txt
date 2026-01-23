@@ -30,6 +30,7 @@ target_sources(app PRIVATE
 )
 
 if (USE_DERS_IMU)
+    target_compile_definitions(app PRIVATE USE_DERS_IMU=1)
     target_sources(app PRIVATE
         ICM_42670.c
         inv_imu_driver.c
@@ -42,6 +43,7 @@ endif()
 
 
 if (USE_ZEPHYR_IMU)
+    target_compile_definitions(app PRIVATE USE_ZEPHYR_IMU=1)
     target_sources(app PRIVATE
         icm42670.c
     )

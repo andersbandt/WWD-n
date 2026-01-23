@@ -24,7 +24,7 @@
 
 
 /* my driver files */
-#include <clock.h>
+#include <peripheral/clock.h>
 
 
 LOG_MODULE_REGISTER(clock, LOG_LEVEL_INF);
@@ -114,6 +114,13 @@ uint32_t get_raw_ticks() {
     prev_ticks = ticks;
     
     return ticks;
+}
+
+
+// TODO: really think about when this will get run and when `get_raw_ticks` will get run
+uint32_t get_dt_ticks() {
+    uint32_t ticks = sys_clock_tick_get();
+    return ticks - prev_ticks;
 }
 
 

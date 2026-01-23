@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 #include <ui_display.h>
-#include <clock.h>
+#include <peripheral/clock.h>
 
 
 /**

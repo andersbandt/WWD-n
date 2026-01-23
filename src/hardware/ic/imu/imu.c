@@ -29,7 +29,7 @@
 #include <peripheral/interrupt.h>
 #include <circular_buffer.h>
 #include <memory/nvs.h>
-#include <clock.h>
+#include <peripheral/clock.h>
 
 /* IMU header files*/
 #include <imu.h>
@@ -237,7 +237,7 @@ int imu_get_pedo() {
     uint32_t count = 0;
 
     #ifdef USE_DERS_IMU
-        volatile int status = getPedometer(&count, step_cadence, activity);
+        volatile int status = getPedometer(&count, &step_cadence, activity);
     #else
         volatile int status = 999;
     #endif
@@ -270,10 +270,9 @@ void imu_process() {
  * imu_log: logs IMU data to NVS
  */
 int imu_log(void) {
-    struct imu_sample sample = {
-        .step_count = step_count,
-        .temperature = imu_temperature,
-    };
+    struct imu_sample sample;
+    sample.step_count = step_count;
+    sample.temperature = imu_temperature;
 
     return nvs_log_record(
         SAMPLE,

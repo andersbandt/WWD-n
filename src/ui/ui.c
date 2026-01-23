@@ -33,7 +33,7 @@
 
 /* My header files */
 #include <display.h>
-#include <clock.h>
+#include <peripheral/clock.h>
 #include <imu.h>
 #include <hardware/button.h>
 #include <hardware/led.h>

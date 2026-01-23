@@ -13,7 +13,7 @@ file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 target_sources(app PRIVATE 
     src/main.c
     src/circular_buffer.c
-    src/clock.c
+    src/peripheral/clock.c
     src/peripheral/interrupt.c
     src/peripheral/timer.c
     src/hardware/led.c

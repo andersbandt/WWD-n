@@ -51,6 +51,10 @@ uint8_t increment_hour(uint8_t hour, direction_t dir);
 uint32_t get_raw_ms();
 
 
+
+uint32_t get_dt_ticks();
+
+
 /**
  * @brief 
  *
