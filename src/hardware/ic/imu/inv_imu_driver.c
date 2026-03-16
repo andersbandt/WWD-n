@@ -1582,7 +1582,7 @@ static int init_hardware_from_ui(struct inv_imu_device *s)
 	value |= (uint8_t)INT_CONFIG_INT1_POLARITY_HIGH;
 	status |= inv_imu_write_reg(s, INT_CONFIG, 1, &value);
 
-	/* Set interrupt config */
+	/* Set interrupt config (INT1) */
 	config_int.INV_UI_FSYNC      = INV_IMU_DISABLE;
 	config_int.INV_UI_DRDY       = INV_IMU_DISABLE;
 	config_int.INV_FIFO_THS      = INV_IMU_DISABLE;

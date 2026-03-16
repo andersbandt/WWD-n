@@ -80,6 +80,7 @@ struct k_thread button_handler_thread;
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+// TODO: what is this doing here?
 // void dump_task(void)
 // {
 //     if (dump.active) {
@@ -212,9 +213,9 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         if (events[5].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int2_sem, K_NO_WAIT);
             LOG_DBG("IMU INT2 triggered");
+            led_fast_blink(3, 10);
             if (imu_status) {
-                //led_fast_blink(2, 10);
-                // get_fifo_data();
+                //get_fifo_data();
                 // imu_process();
             }
         }
@@ -249,12 +250,12 @@ int main(void)
     END OF UI CONFIG
     */
 
- 
+
     /*
     NVS CONFIG BLOCK
     */
-    k_msleep(200);
-	nvs_init();
+    //k_msleep(200);
+	//nvs_init();
     /*
     END OF NVS CONFIG BLOCK
     */

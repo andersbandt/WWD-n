@@ -244,48 +244,48 @@ void checkInterruptIMU() {
 
     // check interrupt 1
     status |= inv_imu_get_config_int1(&icm_driver, &config_int);
-    LOG_INF("\nInterrupt 1.");
-    LOG_INF("INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
-    LOG_INF("INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
-    LOG_INF("INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
-    LOG_INF("INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
-    LOG_INF("INV_SMD: %d", config_int.INV_SMD);
-    LOG_INF("INV_WOM_X: %d", config_int.INV_WOM_X);
-    LOG_INF("INV_WOM_Y: %d", config_int.INV_WOM_Y);
-    LOG_INF("INV_WOM_Z: %d", config_int.INV_WOM_Z);
-    LOG_INF("INV_FF: %d", config_int.INV_FF);
-    LOG_INF("INV_LOWG: %d", config_int.INV_LOWG);
-    LOG_INF("INV_STEP_DET: %d", config_int.INV_STEP_DET);
-    LOG_INF("INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
-    LOG_INF("INV_TILT_DET: %d", config_int.INV_TILT_DET);
+    LOG_INF("Interrupt 1.");
+    LOG_INF("  INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
+    LOG_INF("  INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
+    LOG_INF("  INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
+    LOG_INF("  INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
+    LOG_INF("  INV_SMD: %d", config_int.INV_SMD);
+    LOG_INF("  INV_WOM_X: %d", config_int.INV_WOM_X);
+    LOG_INF("  INV_WOM_Y: %d", config_int.INV_WOM_Y);
+    LOG_INF("  INV_WOM_Z: %d", config_int.INV_WOM_Z);
+    LOG_INF("  INV_FF: %d", config_int.INV_FF);
+    LOG_INF("  INV_LOWG: %d", config_int.INV_LOWG);
+    LOG_INF("  INV_STEP_DET: %d", config_int.INV_STEP_DET);
+    LOG_INF("  INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
+    LOG_INF("  INV_TILT_DET: %d", config_int.INV_TILT_DET);
 
     // check interrupt 2
     status |= inv_imu_get_config_int2(&icm_driver, &config_int);
-    LOG_INF("\nInterrupt 2.");
-    LOG_INF("INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
-    LOG_INF("INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
-    LOG_INF("INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
-    LOG_INF("INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
-    LOG_INF("INV_SMD: %d", config_int.INV_SMD);
-    LOG_INF("INV_WOM_X: %d", config_int.INV_WOM_X);
-    LOG_INF("INV_WOM_Y: %d", config_int.INV_WOM_Y);
-    LOG_INF("INV_WOM_Z: %d", config_int.INV_WOM_Z);
-    LOG_INF("INV_FF: %d", config_int.INV_FF);
-    LOG_INF("INV_LOWG: %d", config_int.INV_LOWG);
-    LOG_INF("INV_STEP_DET: %d", config_int.INV_STEP_DET);
-    LOG_INF("INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
-    LOG_INF("INV_TILT_DET: %d", config_int.INV_TILT_DET);
+    LOG_INF("Interrupt 2.");
+    LOG_INF("  INV_UI_FSYNC: %d", config_int.INV_UI_FSYNC);
+    LOG_INF("  INV_UI_DRDY: %d", config_int.INV_UI_DRDY);
+    LOG_INF("  INV_FIFO_THS: %d", config_int.INV_FIFO_THS);
+    LOG_INF("  INV_FIFO_FULL: %d", config_int.INV_FIFO_FULL);
+    LOG_INF("  INV_SMD: %d", config_int.INV_SMD);
+    LOG_INF("  INV_WOM_X: %d", config_int.INV_WOM_X);
+    LOG_INF("  INV_WOM_Y: %d", config_int.INV_WOM_Y);
+    LOG_INF("  INV_WOM_Z: %d", config_int.INV_WOM_Z);
+    LOG_INF("  INV_FF: %d", config_int.INV_FF);
+    LOG_INF("  INV_LOWG: %d", config_int.INV_LOWG);
+    LOG_INF("  INV_STEP_DET: %d", config_int.INV_STEP_DET);
+    LOG_INF("  INV_STEP_CNT_OVFL: %d", config_int.INV_STEP_CNT_OVFL);
+    LOG_INF("  INV_TILT_DET: %d", config_int.INV_TILT_DET);
 
     // check the actual interrupt status register
-    LOG_INF("Printing out some critical IMU interrupt registers ...");
+    LOG_INF("Interrupt registers:");
     uint8_t reg_data = readIMUReg(INT_STATUS);
-    LOG_INF("\n\tINT_STATUS = [0x%x]", reg_data);
+    LOG_INF("  INT_STATUS = [0x%x]", reg_data);
     reg_data = readIMUReg(INT_CONFIG);
-    LOG_INF("\tINT_CONFIG[0x%x] = 0x%x", INT_CONFIG, reg_data);
+    LOG_INF("  INT_CONFIG[0x%x] = 0x%x", INT_CONFIG, reg_data);
     reg_data = readIMUReg(INT_CONFIG0_MREG1);
-    LOG_INF("\tINT_CONFIG0[0x%x] = 0x%x", INT_CONFIG0_MREG1, reg_data);
+    LOG_INF("  INT_CONFIG0[0x%x] = 0x%x", INT_CONFIG0_MREG1, reg_data);
     reg_data = readIMUReg(INT_CONFIG1_MREG1);
-    LOG_INF("\tINT_CONFIG1[0x%x] = 0x%x", INT_CONFIG1_MREG1, reg_data);
+    LOG_INF("  INT_CONFIG1[0x%x] = 0x%x", INT_CONFIG1_MREG1, reg_data);
 }
 
 

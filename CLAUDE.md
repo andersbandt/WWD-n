@@ -136,7 +136,13 @@ UI updates use a dirty-flag optimization pattern - data structures track whether
 
 Hardware configuration is in `boards/96b_nitrogen_nrf52832.overlay`:
 - SPI1 peripherals: MT29F NAND (@0), ICM42670P IMU (@1), ST7789 display (@2), ST7735S display (@3)
-- IMU interrupts on GPIO P0.9 (INT1) and P0.3 (INT2)
+- IMU interrupts on GPIO P0.9 (INT1) and P0.3 (INT2) — P0.9 is the NFC1 antenna pin on nRF52832 and requires `nfct-pins-as-gpios` in the `&uicr` device tree node (prj.conf alone is not sufficient):
+  ```
+  &uicr {
+      gpio-as-nreset;
+      nfct-pins-as-gpios;
+  };
+  ```
 - Display control pins configured per device
 
 ## Configuration
@@ -244,7 +250,7 @@ nvs_log_record()
 
 ## Known Issues
 
-- IMU INT1/INT2: Hardware soldering issue on INT1, INT2 requires push-pull configuration
+- IMU INT1 (P0.9): Previously non-functional due to P0.9 being the NFC1 antenna pin — fixed by adding `nfct-pins-as-gpios` to `&uicr` in the device tree. Both INT1 and INT2 require push-pull configuration on the IMU side.
 - NAND flash support is implemented but not actively used in main application
 - Display timeout thread code exists but is currently commented out in main.c
 - BMS (battery management) code is stubbed out but not implemented
