@@ -153,6 +153,12 @@ void init_ui()
     }
 
     ui_mode = UI_MODE_CLOCK;
+
+    
+    // TODO: I can somehow make my UI testing easier now by just altering this UI_mode ... I started some testing thing that probably is old now
+    // NOTE: I don't think it's currently working though because clicking buttons throws me into the menu ... might have to set ui_mode too?
+    // ui_mode = UI_MODE_MENU;
+    // ui_mode = UI_MODE_PROMPT_TIME;
     initMenu();
     ui_status = 1;
 }
@@ -217,8 +223,10 @@ void ui_refresh() {
     }
 }
 
+
 void handle_ui_input() {
     uint8_t button_status = button_poll();
+
 
     // Handle menu-specific input
     if (ui_mode == UI_MODE_MENU) {
@@ -236,6 +244,10 @@ void handle_ui_input() {
             updateMenuScreen(2);
         }
         return;
+    }
+    else if (ui_mode == UI_MODE_CLOCK) {
+        if (button_status == 1 || button_status == 2)
+        change_ui_mode(UI_MODE_MENU);
     }
 
     // Push non-zero button events to buffer for UI functions to consume

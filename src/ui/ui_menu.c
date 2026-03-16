@@ -105,7 +105,6 @@ bool in_sub_menu = 0;
 bool run_sub_menu = 0;
 
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! LOCAL FUNCTIONS -------------------------------------------------------------------------------------------------------//
@@ -164,8 +163,10 @@ static void changeSubMenuPosition(int action)
 {
     prev_pos = sub_menu_position;
 
-    if (action == -1) {  // if we are moving up
-        if (sub_menu_position == 0) { // if already at the top do nothing
+    // if we are moving up
+    if (action == -1) {
+        if (sub_menu_position == 0) {
+             // if already at the top do nothing
             return;
         }
         else {
@@ -173,8 +174,10 @@ static void changeSubMenuPosition(int action)
         }
     }
 
-    if (action == 1) {  // if we are moving down
-        if (sub_menu_position == getSubMenuLength(abs_position)-1) {  // do nothing if we would move past the menu length
+    // if we are moving down
+    if (action == 1) {
+        if (sub_menu_position == getSubMenuLength(abs_position) - 1) {
+            // do nothing if we would move past the menu length
             return;
         }
         else {
@@ -257,9 +260,13 @@ static void render_sub_menu_items(int menu_idx, int start_item_idx, int count)
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void initMenu() {
+void initMenu()
+{
     abs_position = 0;
     sub_menu_position = 0;
+
+    // TODO: I think I need to incorporate this into my testing framework too?
+    // in_sub_menu = true;
 }
 
 
@@ -270,7 +277,8 @@ void initMenu() {
  *
  * @returns bool representing state
  */
-bool get_running_state() {
+bool get_running_state()
+{
     return run_sub_menu;
 }
 
@@ -285,27 +293,25 @@ bool get_running_state() {
  */
 void updateMenuScreen(int8_t action)
 {
-    // if we are already in a sub menu
+    // SUB MENU UPDATES
     if (in_sub_menu) {
-
         // if sub menu function already running ...
         if (run_sub_menu) {
             // Check if user wants to exit the UI function
-            if (action == 2) {
-                run_sub_menu = false;
-                reset_uifunc_params(); // NOTE: this has to be called to wipe things like position for setting clock
-                returnSubMenu();
-                change_ui_mode(UI_MODE_MENU); // Return to menu mode
-                return;
-            }
+            // if (action == 2) {
+            //     run_sub_menu = false;
+            //     reset_uifunc_params(); // NOTE: this has to be called to wipe things like position for setting clock
+            //     returnSubMenu();
+            //     change_ui_mode(UI_MODE_MENU); // Return to menu mode
+            //     return;
+            // }
             // UI function is still running - ui_refresh() handles calling it
-            return;
+            // return;
         }
 
         // if select button was pressed
         else if (action == 2) {
             run_sub_menu = true;
-            k_usleep(1000*200);
             commenceUIAction(abs_position, sub_menu_position); // Set the UI mode
             return;
         }
@@ -318,8 +324,8 @@ void updateMenuScreen(int8_t action)
         }
     }
 
-    // main menu updates
-    else {  // if we are not in a sub menu
+    // MAIN MENU UPDATES
+    else {
         if (action == 2) {  // if the select button was pressed
             in_sub_menu = 1;
             sub_menu_position = 0;  // might not be needed, added during debugging

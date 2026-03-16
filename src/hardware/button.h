@@ -83,6 +83,13 @@ void button_buffer_push(uint8_t button_event);
  */
 uint8_t get_button_event(void);
 
+/**
+ * @brief Clear all button events from the input buffer
+ *
+ * Removes all pending button events from the circular buffer.
+ */
+void button_buffer_clear(void);
+
 #endif /* INTERFACECONTROL_H_ */
 
 

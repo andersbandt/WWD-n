@@ -180,6 +180,68 @@ k_thread_stack_space_get(&thread_name, &free_stack);
 LOG_INF("thread_name free: %d", free_stack);
 ```
 
+## NVS (Non-Volatile Storage) Implementation
+
+### Flash Layout
+
+The NAND flash is divided into two regions:
+- **Data region**: blocks 0 to `META_BLOCK_START - 1` — stores log records
+- **META region**: last 8 blocks (`META_BLOCK_COUNT = 8`) — stores metadata for write address recovery
+
+### Data Structures
+
+```c
+struct log_state {        // Metadata written to META blocks
+    uint32_t magic;       // 0xACACAC — identifies valid metadata
+    uint32_t seq;         // Monotonically increasing sequence number
+    uint64_t nand_offset; // Write address to resume from
+    uint32_t crc;         // CRC32 over magic+seq+offset
+};
+
+struct log_entry_hdr {    // Prepended to every log record
+    uint16_t record_type; // SAMPLE, TIME_ANCHOR, RESET_MARKER
+    uint16_t length;      // Payload length in bytes
+    uint16_t dt_ticks;    // Timestamp
+};
+```
+
+### Startup Write Address Recovery
+
+On boot, `nvs_init()` → `nvs_calc_offset()` → `nvs_read_metadata()`:
+
+1. Scans all 8 META blocks, reads first page of each
+2. Validates magic (`0xACACAC`) and CRC32 for each candidate
+3. Selects the valid entry with the **highest sequence number** as the authoritative state
+4. Restores `write_addr` from `nand_offset` in that entry
+5. If no valid metadata found (fresh/erased flash): starts at offset 0 and writes an initial metadata entry
+
+### Metadata Wear Leveling
+
+Each metadata write uses `seq % META_BLOCK_COUNT` to select which of the 8 META blocks to write to. This rotates writes across all blocks so no single block wears out from repeated metadata updates.
+
+Metadata is updated:
+- On first init (fresh flash)
+- Every 100 log records (periodic checkpoint)
+- On `nvs_close()` (flush + update)
+
+### Page Buffer
+
+NAND flash requires full-page writes (2176 bytes). Records are accumulated in a static `page_buffer` and flushed to flash when:
+- The buffer is too full to fit the next record
+- A periodic metadata checkpoint fires (every 100 records)
+- `nvs_flush_buffer()` / `nvs_close()` is called explicitly
+
+Unfilled remainder of a page is padded with `0xFF` (erased NAND state).
+
+### Write Flow
+
+```
+nvs_log_record()
+  → copy hdr + payload into page_buffer
+  → if buffer full: nvs_flush_page_buffer() → mt29f_write()
+  → every 100 records: flush + nvs_write_metadata()
+```
+
 ## Known Issues
 
 - IMU INT1/INT2: Hardware soldering issue on INT1, INT2 requires push-pull configuration

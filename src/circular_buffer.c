@@ -61,6 +61,7 @@ void circular_buffer_add(Circular_Buffer *cb, const void *item)
     cb->count++;
 }
 
+
 void circular_buffer_remove(Circular_Buffer *cb, void *item)
 {
     if(cb->count == 0){
@@ -128,8 +129,21 @@ void circular_buffer_delete(Circular_Buffer * buffer)
    free(buffer);
 }
 
-
-
+//*****************************************************************************
+// Clears all elements from the circular buffer.
+//
+// Parameters
+//    buffer  :   The address of the circular buffer.
+//*****************************************************************************
+void circular_buffer_clear(Circular_Buffer *buffer)
+{
+    if (buffer == NULL) {
+        return;
+    }
+    buffer->count = 0;
+    buffer->head = buffer->buffer;
+    buffer->tail = buffer->buffer;
+}
 
 
 

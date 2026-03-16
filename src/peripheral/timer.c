@@ -55,7 +55,11 @@ K_TIMER_DEFINE(timer2, timer2_callback, NULL);
 K_TIMER_DEFINE(timer3, timer3_callback, NULL);
 
 
-#define TIMER0_PERIOD 8  // value in seconds
+
+// NOTE: this has to be here (for at least TIMER0)
+// TODO: put all the timer periods here so they are easy to change and manage
+#define TIMER0_PERIOD 5
+
 
 /* Semaphores for thread synchronization */
 K_SEM_DEFINE(timer1_sem, 0, 1);  /* Clock update semaphore */
@@ -89,17 +93,18 @@ int timer_start(int timer_num) {
 
     switch (timer_num) {
     case 0:
-        /* Timer 0: LED blinking - 10 seconds periodic */
+        /* Timer 0: LED blinking */
         duration = K_SECONDS(TIMER0_PERIOD);
         period = K_SECONDS(TIMER0_PERIOD);
         k_timer_start(&timer0, duration, period);
         break;
     case 1:
-        /* Timer 1: Clock update - 9 seconds periodic */
-        duration = K_SECONDS(9);
-        period = K_SECONDS(9);
+        /* Timer 1: Clock update */
+        duration = K_MSEC(750);
+        period = K_MSEC(750);
         k_timer_start(&timer1, duration, period);
         break;
+        
     case 2:
         /* Timer 2: UI refresh */
         duration = K_MSEC(750);

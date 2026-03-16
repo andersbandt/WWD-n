@@ -25,6 +25,7 @@
 #include <display.h>
 #include <ui.h>
 #include <imu.h>
+#include <nvs.h>
 
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
@@ -90,7 +91,7 @@ struct k_thread button_handler_thread;
 /**
  * @brief Clock/IMU/BMS update thread
  *
- * Triggered every 9 seconds by timer1
+ * Triggered by timer1
  */
 void clock_update_thread_entry(void *p1, void *p2, void *p3) {
     while (1) {
@@ -98,7 +99,7 @@ void clock_update_thread_entry(void *p1, void *p2, void *p3) {
         k_sem_take(&timer1_sem, K_FOREVER);
 
         // Update clock data (automatically marks dirty)
-        // ui_clock_set_time(get_current_time());
+        ui_clock_set_time(get_current_time());
         // ui_clock_set_temp(imu_get_temp());
 
         // TODO: Enable when BMS is ready
@@ -121,7 +122,7 @@ void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
 
         /* Refresh UI if display is on */
         if (display_status == 1) {
-            // ui_refresh();
+            ui_refresh();
         }
     }
 }
@@ -178,7 +179,6 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         /* Button 1 pressed */
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button1_sem, K_NO_WAIT);
-            change_ui_mode(UI_MODE_MENU);
             handle_ui_input();
         }
 
@@ -200,19 +200,22 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             handle_ui_input();
         }
 
+        // TODO: should interrupts be handled in the same thread as buttons? Does it matter?
         /* IMU INT1 */
         if (events[4].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int1_sem, K_NO_WAIT);
-            LOG_INF("IMU INT1 triggered");
+            LOG_DBG("IMU INT1 triggered");
+            led_fast_blink(2, 10);
         }
 
         /* IMU INT2 */
         if (events[5].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int2_sem, K_NO_WAIT);
-            // LOG_INF("IMU INT2 triggered");
+            LOG_DBG("IMU INT2 triggered");
             if (imu_status) {
-                get_fifo_data();
-                imu_process();
+                //led_fast_blink(2, 10);
+                // get_fifo_data();
+                // imu_process();
             }
         }
     }
@@ -234,28 +237,24 @@ int main(void)
     init_button_buffer();
     config_all_interrupts();
 
+
     /*
     DISPLAY and UI config
     */
     // led_set(1, 1);
     // init_display();
     // led_set(1, 0);
-    init_ui();
+    // init_ui();
+    /*
+    END OF UI CONFIG
+    */
 
  
     /*
     NVS CONFIG BLOCK
     */
-	// nvs_init();
-    // static uint8_t data[2176];
-    // data[0] = 8;
-    // data[1] = 9;
-    // nvs_write(&data, 2176);
-    // ret = nvs_read(data, 2176, 0);
-    // for (int i = 0; i < 10; i++) {
-    //     printk("%02X ", data[i]);
-    // }
-    // printk("\n");
+    k_msleep(200);
+	nvs_init();
     /*
     END OF NVS CONFIG BLOCK
     */
@@ -264,6 +263,7 @@ int main(void)
     /*
     IMU CONFIG BLOCK
     */
+    k_msleep(200);
     int ret = 0;
     ret |= imu_init();
     if (ret == 0) {
@@ -301,12 +301,12 @@ int main(void)
     k_thread_name_set(&ui_refresh_thread, "ui_refresh");
 
     /* Create display timeout thread */
-    // k_thread_create(&display_timeout_thread, display_timeout_stack,
-    //                 K_THREAD_STACK_SIZEOF(display_timeout_stack),
-    //                 display_timeout_thread_entry,
-    //                 NULL, NULL, NULL,
-    //                 DISPLAY_TIMEOUT_PRIORITY, 0, K_NO_WAIT);
-    // k_thread_name_set(&display_timeout_thread, "display_timeout");
+    k_thread_create(&display_timeout_thread, display_timeout_stack,
+                    K_THREAD_STACK_SIZEOF(display_timeout_stack),
+                    display_timeout_thread_entry,
+                    NULL, NULL, NULL,
+                    DISPLAY_TIMEOUT_PRIORITY, 0, K_NO_WAIT);
+    k_thread_name_set(&display_timeout_thread, "display_timeout");
 
     /* Create button handler thread */
     k_thread_create(&button_handler_thread, button_handler_stack,

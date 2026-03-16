@@ -132,7 +132,7 @@ void init_display() {
     // set initial background
     setColor(FORE_R, FORE_G, FORE_B);
     setbgColor(BACK_R, BACK_G, BACK_B);
-    fillScreen();
+    // fillScreen();
 
     // set display status
     display_status = 1;

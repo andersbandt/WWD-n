@@ -54,6 +54,15 @@ typedef struct mt29f_row_addr {
 
 typedef uint16_t mt29f_col_addr_t;
 
+// Flash hardware configuration
+static const mt29f_cfg_t cfg = {
+    .num_dies = 2,
+    .blocks_per_die = 1024,
+    .pages_per_block = 64,
+    .bytes_per_page = 2176,
+    .oob_bytes = 128
+};
+
 static mt29f_cfg_t inst = {0};
 
 
@@ -479,17 +488,13 @@ static int spi_nand_page_write(const off_t offset, const uint8_t *data, const si
 /**
 * @brief this function execute flash memory init on selected die.
 */
-void mt29f_init(mt29f_cfg_t const *cfg)
+int mt29f_init(void)
 {
-  if (!cfg) {
-    LOG_ERR("Invalid MT29F Config!");
-    return;
-  }
-  inst = *cfg;
+  inst = cfg;
 
   if (!spi_is_ready_dt(&spi_dev)) {
     LOG_ERR("SPI device not initialized!");
-    return;
+    return -ENODEV;
   }
 
   // Reset the flash memory
@@ -499,17 +504,17 @@ void mt29f_init(mt29f_cfg_t const *cfg)
       LOG_ERR("Fail to reset NAND! err: %d", rc);
     }
   }
- 
+
   // Wait for power on reset (Datasheet value is equal to 1.25mSec)
   k_msleep(2);
   spi_nand_wait_until_ready();
 
-  // Check ID response 
+  // Check ID response
   {
     int rc = spi_nand_check_id();
     if (rc) {
       LOG_ERR("Check ID Failed");
-      return;
+      return -ENODEV;
     }
   }
 
@@ -527,6 +532,12 @@ void mt29f_init(mt29f_cfg_t const *cfg)
   spi_nand_unlock(DIE_0);
 
   LOG_INF("MT29F Init Complete");
+  return 0;
+}
+
+const mt29f_cfg_t* mt29f_get_config(void)
+{
+  return &cfg;
 }
 
 int mt29f_read(const off_t offset, uint8_t *data, const size_t len)
@@ -552,22 +563,38 @@ int mt29f_write(const off_t offset, const uint8_t *data, const size_t len)
   }
 
   if (len % inst.bytes_per_page != 0) {
-    LOG_ERR("Write in blocks of page bytes!");
+    LOG_ERR("Write in chunks of page bytes!");
     return -EINVAL;
   }
 
   return spi_nand_page_write(offset, data, len);
 }
 
+void mt29f_block_erase(off_t offset)
+{
+  mt29f_row_addr_t addr = spi_nand_offset_to_row_addr(offset);
+  spi_nand_block_erase(addr);
+}
+
 void mt29f_chip_erase(void)
 {
   LOG_INF("Erasing NAND chip...");
-  
+
+  int total_blocks = inst.num_dies * inst.blocks_per_die;
   for (int i = 0; i < inst.num_dies; i++) {
     for (int j = 0; j < inst.blocks_per_die; j++) {
+      int block_num = i * inst.blocks_per_die + j;
+      if (block_num % 512 == 0) {
+        LOG_INF("Erasing block %d/%d", block_num, total_blocks);
+      }
       mt29f_row_addr_t addr = {.die_num = i, .blk_num = j, .page_num = 0};
       spi_nand_block_erase(addr);
     }
   }
-  LOG_INF("Erase complete");
+  LOG_INF("Erase complete: %d blocks erased", total_blocks);
+}
+
+
+void mt29f_chip_reset(void) {
+  spi_nand_reset();
 }

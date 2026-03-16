@@ -49,7 +49,7 @@ Time time_offset;
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int position = 0;  // position tracks where the cursor is - 0 for on the tens place, 1 for on the tenth place, 2 for on the done button
-bool first_ui_time = false; // useful for doing things the first time a function has to get called
+bool first_ui_time = true; // useful for doing things the first time a function has to get called
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -59,9 +59,11 @@ bool first_ui_time = false; // useful for doing things the first time a function
 
 void reset_uifunc_params() {
     position = 0;
-    first_ui_time = false;
+    first_ui_time = true;
 }
 
+
+// TODO: need to really eliminate all sleep things in here BECAUSE THEY WILL FUCK UP THE ZEPHYR THREADS
 
 /////////////////////////////////////////////////////
 ////////// MENU 0 - SYSTEM SETTINGS /////////////////
@@ -72,9 +74,9 @@ void reset_uifunc_params() {
  */
 void system_prompt_for_time_UI_FUNC() {
     if (first_ui_time) {
-        position = 0;
         clearAndPrintLine("HOURS", 0, 12, FONT_LARGE);
         display_out_time(time_offset, TIME_INVERT_HOURS);
+        button_buffer_clear();
         first_ui_time = false;
     }
 
@@ -114,11 +116,16 @@ void system_prompt_for_time_UI_FUNC() {
     // ADVANCE (button 3 or 4)
     if (btn_poll == 8) {
         position++;
+        display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS);
+        button_buffer_clear();
         if (position == 1) {
             clearAndPrintLine("MINUTES", 0, 12, FONT_LARGE);
         }
         else if (position == 2) {
             clearAndPrintLine("SECONDS", 0, 12, FONT_LARGE);
+        }
+        else if (position == 3) {
+            ui_mode = UI_MODE_CLOCK;
         }
     }
 
@@ -136,7 +143,6 @@ void system_change_display_contrast_UI_FUNC() {
 
     // add delay to prevent user from automatically exiting upon function entry
     display_out_measurement("Contrast", contrast);
-    k_msleep(2000);
 
     while (status) {
         k_usleep(10000);

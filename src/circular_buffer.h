@@ -91,7 +91,13 @@ bool circular_buffer_empty(Circular_Buffer *buffer);
 //*****************************************************************************
 bool circular_buffer_full(Circular_Buffer *buffer);
 
-
+//*****************************************************************************
+// Clears all elements from the circular buffer.
+//
+// Parameters
+//    buffer  :   The address of the circular buffer.
+//*****************************************************************************
+void circular_buffer_clear(Circular_Buffer *buffer);
 
 size_t circular_buffer_get_count(Circular_Buffer *cb);
 

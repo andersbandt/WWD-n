@@ -19,25 +19,8 @@
 #include <mt29f_nand.h>
 
 
-// define flash parameters (mainly size stuff)
-static const mt29f_cfg_t cfg = {
-    .num_dies = 2,
-    .blocks_per_die = 1024,
-    .pages_per_block = 64,
-    .bytes_per_page = 2176,
-    .oob_bytes = 128
-};
-
-static uint64_t flash_size = (uint64_t)cfg.num_dies * cfg.blocks_per_die * cfg.pages_per_block * cfg.bytes_per_page;
-
-
-#define TOTAL_PAGES         cfg.num_dies * cfg.blocks_per_die * cfg.pages_per_block
-
-
-// define NVS META info
+// META block configuration
 #define META_BLOCK_COUNT    8
-#define TOTAL_BLOCKS        (cfg.blocks_per_die * cfg.num_dies)
-#define META_BLOCK_START    (TOTAL_BLOCKS - META_BLOCK_COUNT)
 
 
 
@@ -81,7 +64,7 @@ void nvs_close();
 /**
  * @brief erases the whole NVS region
  */
-void nvs_erase_region();
+void nvs_erase_chip();
 
 
 /**
@@ -140,6 +123,13 @@ int nvs_read(off_t addr, void * buffer, size_t len);
  * @param[in]   type    type of record being logged
  */
 int nvs_log_record(enum record_type type, const void *payload, uint16_t length, uint16_t dt_ticks);
+
+
+/**
+ * @brief flushes erase_ log records to flash
+ * @return 0 on success, negative error code on failure
+ */
+int nvs_flush_buffer(void);
 
 
 

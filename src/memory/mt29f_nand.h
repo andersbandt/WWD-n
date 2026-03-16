@@ -16,20 +16,44 @@ typedef struct mt29f_cfg {
 
 /**
  * @brief This function initializes the flash device
+ * @return 0 on success, -ENODEV if SPI is not ready or chip ID check fails
 */
-void mt29f_init(const mt29f_cfg_t *cfg);
+int mt29f_init(void);
+
+
+/**
+ * @brief Get the flash device configuration
+ * @return pointer to the configuration structure
+*/
+const mt29f_cfg_t* mt29f_get_config(void);
+
 
 /**
  * @brief Read data from flash device
 */
 int mt29f_read(const off_t offset, uint8_t *data, const size_t len);
 
+
 /**
  * @brief Write data to flash device
 */
 int mt29f_write(const off_t offset, const uint8_t *data, const size_t len);
 
+
+/**
+ * @brief Erases a single block
+ * @param offset byte offset of any page within the target block
+*/
+void mt29f_block_erase(off_t offset);
+
+
 /**
  * @brief Erases entire flash device
 */
 void mt29f_chip_erase(void);
+
+
+/**
+ * @brief resets the flash device (unsure what it's actually doing)
+ */
+void mt29f_chip_reset(void);

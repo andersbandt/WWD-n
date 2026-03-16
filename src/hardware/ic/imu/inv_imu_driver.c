@@ -16,7 +16,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 /* Standard C99 stuff */
-#include "inv_imu_defs.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <unistd.h>
@@ -30,6 +29,7 @@
 
 
 /* IMU header files */
+#include "inv_imu_defs.h"
 #include <inv_imu_defs.h>
 #include <inv_imu_driver.h>
 #include <inv_time.h>
@@ -1361,7 +1361,6 @@ int inv_imu_enable_wom(struct inv_imu_device *s)
 {
 	int                           status = 0;
 	uint8_t                       value;
-	// inv_imu_interrupt_parameter_t config_int = { (inv_imu_interrupt_value)0 };
 
 	/* Enable WOM */
 	status |= inv_imu_read_reg(s, WOM_CONFIG, 1, &value);
@@ -1586,12 +1585,12 @@ static int init_hardware_from_ui(struct inv_imu_device *s)
 	/* Set interrupt config */
 	config_int.INV_UI_FSYNC      = INV_IMU_DISABLE;
 	config_int.INV_UI_DRDY       = INV_IMU_DISABLE;
-	config_int.INV_FIFO_THS      = INV_IMU_ENABLE;
+	config_int.INV_FIFO_THS      = INV_IMU_DISABLE;
 	config_int.INV_FIFO_FULL     = INV_IMU_DISABLE;
 	config_int.INV_SMD           = INV_IMU_DISABLE;
-	config_int.INV_WOM_X         = INV_IMU_DISABLE;
-	config_int.INV_WOM_Y         = INV_IMU_DISABLE;
-	config_int.INV_WOM_Z         = INV_IMU_DISABLE;
+	config_int.INV_WOM_X         = INV_IMU_ENABLE;
+	config_int.INV_WOM_Y         = INV_IMU_ENABLE;
+	config_int.INV_WOM_Z         = INV_IMU_ENABLE;
 	config_int.INV_FF            = INV_IMU_DISABLE;
 	config_int.INV_LOWG          = INV_IMU_DISABLE;
 	config_int.INV_STEP_DET      = INV_IMU_DISABLE;

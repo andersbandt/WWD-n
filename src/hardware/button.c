@@ -222,6 +222,20 @@ uint8_t get_button_event(void)
     return btn_event;
 }
 
+/**
+ * @brief Clear all button events from the input buffer
+ *
+ * Removes all pending button events from the circular buffer.
+ * Does nothing if the buffer is not initialized.
+ */
+void button_buffer_clear(void)
+{
+    if (button_input_buffer != NULL) {
+        circular_buffer_clear(button_input_buffer);
+        LOG_DBG("Button buffer cleared");
+    }
+}
+
 
 
 

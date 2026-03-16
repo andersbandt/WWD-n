@@ -331,10 +331,6 @@ int enableFifoInterrupt(uint8_t fifo_watermark) {
     data &= (uint8_t)~FIFO_CONFIG5_WM_GT_TH_EN;
     rc |= inv_imu_write_reg(&icm_driver, FIFO_CONFIG5_MREG1, 1, &data);
     
-    // Disable APEX to use 2.25kB of fifo for raw data
-    data = SENSOR_CONFIG3_APEX_DISABLE_MASK;
-    rc |= inv_imu_write_reg(&icm_driver, SENSOR_CONFIG3_MREG1, 1, &data);
-
     // do some Ders verification
     LOG_DBG("Printing out some critical IMU FIFO registers ...");
     int reg_data = readIMUReg(INTF_CONFIG0);
@@ -367,9 +363,6 @@ int startApex() {
     int rc = 0;
     inv_imu_apex_parameters_t apex_inputs;
 
-    /* Disabling FIFO usage to optimize power consumption */
-    rc |= inv_imu_configure_fifo(&icm_driver, INV_IMU_FIFO_DISABLED);
-
     /* Enable accel in LP mode */
     rc |= inv_imu_enable_accel_low_power_mode(&icm_driver);
 
@@ -389,7 +382,9 @@ int startApex() {
     // ENABLE CERTAIN APEX FEATURES
     rc |= inv_imu_apex_enable_tilt(&icm_driver);
     rc |= inv_imu_apex_enable_pedometer(&icm_driver);
-    /* rc |= inv_imu_configure_wom(&icm_driver, 20, 20, 20, 1, 1); */
+    rc |= inv_imu_configure_wom(&icm_driver, 20, 20, 20,
+                                WOM_CONFIG_WOM_INT_MODE_ORED,
+                                WOM_CONFIG_WOM_INT_DUR_1_SMPL);
     rc |= inv_imu_enable_wom(&icm_driver);
 
     // do some Ders verification
@@ -404,7 +399,7 @@ int startApex() {
     LOG_DBG("\tWOM_CONFIG[0x%x] = 0x%x", WOM_CONFIG, reg_data);
 
     // print out final interrupt configuration
-    /* checkInterruptIMU(display); */
+    checkInterruptIMU();
 
     return rc;
 }
