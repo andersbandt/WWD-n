@@ -113,7 +113,7 @@ void getFifoCount();
 /**
  * @brief gets IMU data from the FIFO
  */
-int getDataFromFifo(inv_imu_sensor_event_t *evt);
+int getDataFromFifo(void);
 
 
 /*

@@ -28,6 +28,8 @@
 #define IMU_APEX_ENABLED     1
 #define IMU_FIFO_WM          50
 
+#define IMU_HIGH_RES_ENABLED 0   /* see imu_notes.md before enabling */
+
 
 struct imu_sample {
     uint32_t step_count;

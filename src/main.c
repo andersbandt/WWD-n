@@ -51,28 +51,32 @@ extern int display_status;
         // k_thread_stack_space_get(&button_handler_thread, &free_stack);
         // LOG_INF("btn_handler free: %d", free_stack);
 
-#define CLOCK_UPDATE_STACK_SIZE 1024
-#define UI_REFRESH_STACK_SIZE 1024
+#define CLOCK_UPDATE_STACK_SIZE    1024
+#define UI_REFRESH_STACK_SIZE      1024
 #define DISPLAY_TIMEOUT_STACK_SIZE 512
-#define BUTTON_HANDLER_STACK_SIZE 1024
+#define BUTTON_HANDLER_STACK_SIZE  1024
+#define IMU_STACK_SIZE             2048
 
 /* Thread priorities (lower number = higher priority) */
-#define CLOCK_UPDATE_PRIORITY 7
-#define UI_REFRESH_PRIORITY 7
+#define CLOCK_UPDATE_PRIORITY    7
+#define UI_REFRESH_PRIORITY      7
 #define DISPLAY_TIMEOUT_PRIORITY 7
-#define BUTTON_HANDLER_PRIORITY 5  /* Higher priority for user input */
+#define BUTTON_HANDLER_PRIORITY  5  /* Highest user priority — buttons only */
+#define IMU_PRIORITY             6  /* FIFO drain, processing, NVS logging */
 
 /* Thread stacks */
-K_THREAD_STACK_DEFINE(clock_update_stack, CLOCK_UPDATE_STACK_SIZE);
-K_THREAD_STACK_DEFINE(ui_refresh_stack, UI_REFRESH_STACK_SIZE);
+K_THREAD_STACK_DEFINE(clock_update_stack,    CLOCK_UPDATE_STACK_SIZE);
+K_THREAD_STACK_DEFINE(ui_refresh_stack,      UI_REFRESH_STACK_SIZE);
 K_THREAD_STACK_DEFINE(display_timeout_stack, DISPLAY_TIMEOUT_STACK_SIZE);
-K_THREAD_STACK_DEFINE(button_handler_stack, BUTTON_HANDLER_STACK_SIZE);
+K_THREAD_STACK_DEFINE(button_handler_stack,  BUTTON_HANDLER_STACK_SIZE);
+K_THREAD_STACK_DEFINE(imu_stack,             IMU_STACK_SIZE);
 
 /* Thread control blocks */
 struct k_thread clock_update_thread;
 struct k_thread ui_refresh_thread;
 struct k_thread display_timeout_thread;
 struct k_thread button_handler_thread;
+struct k_thread imu_thread;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -147,14 +151,55 @@ void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
 
 
 /**
+ * @brief IMU thread
+ *
+ * Handles all IMU interrupt events at priority 6, keeping SPI-heavy work
+ * (FIFO drain, NVS logging) out of the high-priority button handler.
+ *
+ * INT1 — WOM / APEX events
+ * INT2 — FIFO watermark: drain FIFO → circular buffer → process → log NVS
+ */
+void imu_thread_entry(void *p1, void *p2, void *p3) {
+    while (1) {
+        struct k_poll_event events[2] = {
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
+                                     K_POLL_MODE_NOTIFY_ONLY,
+                                     &imu_int1_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
+                                     K_POLL_MODE_NOTIFY_ONLY,
+                                     &imu_int2_sem),
+        };
+
+        k_poll(events, 2, K_FOREVER);
+
+        /* INT1 — WOM / APEX */
+        if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&imu_int1_sem, K_NO_WAIT);
+            LOG_DBG("IMU INT1 triggered");
+            led_fast_blink(2, 10);
+        }
+
+        /* INT2 — FIFO watermark */
+        if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&imu_int2_sem, K_NO_WAIT);
+            LOG_DBG("IMU INT2 triggered");
+            if (imu_status) {
+                get_fifo_data();
+                imu_process();
+            }
+        }
+    }
+}
+
+
+/**
  * @brief Button handler thread
  *
- * Handles button press events
+ * Handles button press events only — no IMU work here.
  */
 void button_handler_thread_entry(void *p1, void *p2, void *p3) {
     while (1) {
-        /* Wait for any button press or IMU interrupt */
-        struct k_poll_event events[6] = {
+        struct k_poll_event events[4] = {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button1_sem),
@@ -167,57 +212,25 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
                                      K_POLL_MODE_NOTIFY_ONLY,
                                      &button4_sem),
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &imu_int1_sem),
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &imu_int2_sem),
         };
 
-        k_poll(events, 6, K_FOREVER);
+        k_poll(events, 4, K_FOREVER);
 
-        /* Button 1 pressed */
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button1_sem, K_NO_WAIT);
             handle_ui_input();
         }
-
-        /* Button 2 pressed */
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button2_sem, K_NO_WAIT);
             handle_ui_input();
         }
-
-        /* Button 3 */
         if (events[2].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button3_sem, K_NO_WAIT);
             handle_ui_input();
         }
-
-        /* Button 4 */
         if (events[3].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button4_sem, K_NO_WAIT);
             handle_ui_input();
-        }
-
-        // TODO: should interrupts be handled in the same thread as buttons? Does it matter?
-        /* IMU INT1 */
-        if (events[4].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&imu_int1_sem, K_NO_WAIT);
-            LOG_DBG("IMU INT1 triggered");
-            led_fast_blink(2, 10);
-        }
-
-        /* IMU INT2 */
-        if (events[5].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&imu_int2_sem, K_NO_WAIT);
-            LOG_DBG("IMU INT2 triggered");
-            //led_fast_blink(3, 10);
-            if (imu_status) {
-                //get_fifo_data();
-                // imu_process();
-            }
         }
     }
 }
@@ -316,6 +329,14 @@ int main(void)
                     NULL, NULL, NULL,
                     BUTTON_HANDLER_PRIORITY, 0, K_NO_WAIT);
     k_thread_name_set(&button_handler_thread, "button_handler");
+
+    /* Create IMU thread */
+    k_thread_create(&imu_thread, imu_stack,
+                    K_THREAD_STACK_SIZEOF(imu_stack),
+                    imu_thread_entry,
+                    NULL, NULL, NULL,
+                    IMU_PRIORITY, 0, K_NO_WAIT);
+    k_thread_name_set(&imu_thread, "imu");
 
 
     /* Main thread can now sleep - all work is done by worker threads */

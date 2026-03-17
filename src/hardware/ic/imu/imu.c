@@ -191,8 +191,7 @@ void imu_reg_poll() {
  */
 // TODO: really should document the flow. Where the event callback is stored, all the functions involved, circular buffer, etc
 void get_fifo_data() {
-    inv_imu_sensor_event_t imu_event;
-    int fifo_status = getDataFromFifo(&imu_event);
+    int fifo_status = getDataFromFifo();
 }
 
 
@@ -254,11 +253,19 @@ int imu_get_pedo() {
 void imu_process() {
     inv_imu_sensor_event_t event;
 
-    if (!circular_buffer_empty(imu_data_buffer)) {
-        while (!circular_buffer_empty(imu_data_buffer)) {
-            circular_buffer_remove(imu_data_buffer, &event);
-            event_print(&event);
-        }
+    while (!circular_buffer_empty(imu_data_buffer)) {
+        circular_buffer_remove(imu_data_buffer, &event);
+        event_print(&event);
+
+        struct record_imu_fifo sample = {
+            .accel = { event.accel[0], event.accel[1], event.accel[2] },
+#if ICM_IS_GYRO_SUPPORTED
+            .gyro  = { event.gyro[0],  event.gyro[1],  event.gyro[2]  },
+#else
+            .gyro  = { 0, 0, 0 },
+#endif
+        };
+        nvs_log_record(RECORD_IMU_FIFO, &sample, sizeof(sample), get_dt_ticks());
     }
 }
 
@@ -267,16 +274,15 @@ void imu_process() {
  * imu_log: logs IMU data to NVS
  */
 int imu_log(void) {
-    struct imu_sample sample;
-    sample.step_count = step_count;
-    sample.temperature = imu_temperature;
+    int ret = 0;
 
-    return nvs_log_record(
-        SAMPLE,
-        &sample,
-        sizeof(sample),
-        get_dt_ticks()
-    );
+    struct record_temperature temp = { .raw = imu_temperature };
+    ret |= nvs_log_record(RECORD_TEMPERATURE, &temp, sizeof(temp), get_dt_ticks());
+
+    struct record_step_count steps = { .steps = step_count };
+    ret |= nvs_log_record(RECORD_STEP_COUNT, &steps, sizeof(steps), 0);
+
+    return ret;
 }
 
 

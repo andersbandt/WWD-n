@@ -94,10 +94,7 @@ int circular_buffer_get_tail(Circular_Buffer *cb) {
 //*****************************************************************************
 bool circular_buffer_empty(Circular_Buffer *buffer)
 {
-    if (buffer->head - buffer->tail == 0) {
-        return 1;
-    }
-    return 0;
+    return buffer->count == 0;
 }
 
 
@@ -107,14 +104,10 @@ bool circular_buffer_empty(Circular_Buffer *buffer)
 // Parameters
 //    buffer  :   The address of the circular buffer.
 //*****************************************************************************
-//bool circular_buffer_full(Circular_Buffer *buffer)
-//{
-//    if (buffer->produce_count - buffer->consume_count == buffer->max_size) {
-//        return 1;
-//    }
-//
-//    return 0;
-//}
+bool circular_buffer_full(Circular_Buffer *buffer)
+{
+    return buffer->count == buffer->capacity;
+}
 
 
 //*****************************************************************************

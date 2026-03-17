@@ -46,7 +46,7 @@ LOG_MODULE_REGISTER(ICM_42670, LOG_LEVEL_INF);
 
 
 // This is used by the event callback (not object aware), declared static
-static inv_imu_sensor_event_t* event;
+static inv_imu_sensor_event_t event;
 
 
 // declare ICM device driver and other C++ variables
@@ -109,10 +109,7 @@ void event_print(inv_imu_sensor_event_t *evt) {
  * event_cb: callback for new event
  */
 void event_cb(inv_imu_sensor_event_t *evt) {
-    memcpy(event, evt, sizeof(inv_imu_sensor_event_t)); // TODO: should probably get things working and then eliminate this memcpy
-    
-//     /* ADD TO CIRCULAR BUFFER */
-    circular_buffer_add(imu_data_buffer, event);
+    circular_buffer_add(imu_data_buffer, evt);
 }
 
 
@@ -445,17 +442,8 @@ void getFifoCount() {
 /*
  *
  */
-int getDataFromFifo(inv_imu_sensor_event_t *evt) {
-    if (evt != NULL){
-        int rc = 0;
-
-        event = evt;
-        rc |= inv_imu_get_data_from_fifo(&icm_driver);
-        return rc;
-    }
-    else {
-        return -1;
-    }
+int getDataFromFifo(void) {
+    return inv_imu_get_data_from_fifo(&icm_driver);
 }
 
 

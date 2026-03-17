@@ -33,18 +33,49 @@ struct log_state {
 
 
 enum record_type {
-    SAMPLE,
-    TIME_ANCHOR,
-    RESET_MARKER,
+    /* infrastructure */
+    TIME_ANCHOR,        /* wall-clock sync point, payload: struct record_time_anchor */
+    RESET_MARKER,       /* device reset event,    payload: none (length=0) */
+
+    /* sensor data */
+    RECORD_IMU_FIFO,    /* raw accel+gyro FIFO sample, payload: struct record_imu_fifo */
+    RECORD_TEMPERATURE, /* temperature reading,         payload: struct record_temperature */
+    RECORD_STEP_COUNT,  /* pedometer snapshot,          payload: struct record_step_count */
+    RECORD_POWER,       /* power mode / battery state,  payload: struct record_power */
 };
 
 #define MAGIC_MARKER 0xACACAC
 
 
 struct log_entry_hdr {
-    uint16_t record_type;  // type of record
-    uint16_t length;       // length of data
-    uint16_t dt_ticks;    // timestamp of record
+    uint16_t record_type;  /* matches enum record_type */
+    uint16_t length;       /* payload length in bytes  */
+    uint16_t dt_ticks;     /* delta-ticks since last record */
+} __packed;
+
+
+/* ---- Per-record payload structs ---- */
+
+/* RECORD_IMU_FIFO: one raw FIFO sample from the ICM-42670 */
+struct record_imu_fifo {
+    int16_t accel[3];   /* X, Y, Z — raw ADC counts, apply sensitivity scale to convert */
+    int16_t gyro[3];    /* X, Y, Z — zero if ICM_IS_GYRO_SUPPORTED == 0 */
+} __packed;
+
+/* RECORD_TEMPERATURE: IMU die temperature */
+struct record_temperature {
+    int16_t raw;        /* raw register value — (raw / 128) + 25 = degrees C */
+} __packed;
+
+/* RECORD_STEP_COUNT: pedometer snapshot */
+struct record_step_count {
+    uint32_t steps;
+} __packed;
+
+/* RECORD_POWER: power mode transition or periodic battery snapshot */
+struct record_power {
+    uint8_t  mode;          /* enum power_mode cast to uint8_t */
+    uint16_t voltage_mv;    /* battery voltage in mV — 0 if not yet implemented */
 } __packed;
 
 

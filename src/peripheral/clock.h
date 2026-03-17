@@ -20,6 +20,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <stdint.h>
+#include <stdbool.h>
 
 
 typedef struct {
@@ -27,6 +28,13 @@ typedef struct {
    int8_t minutes;
    int8_t seconds;
 } Time;
+
+
+typedef struct {
+    uint8_t  day;    /* 1–31  */
+    uint8_t  month;  /* 1–12  */
+    uint16_t year;   /* e.g. 2026 */
+} Date;
 
 
 typedef enum {
@@ -38,6 +46,9 @@ typedef enum {
 
 // set initial time offset
 extern Time time_offset;
+
+// current calendar date — defined in clock.c, updated at midnight
+extern Date current_date;
 
 
 uint8_t increment_second(uint8_t s, direction_t dir);
@@ -88,6 +99,33 @@ void set_time_offset();
  *
  */
 void print_time();
+
+
+/* ---- Date ---- */
+
+/** Returns true if year is a leap year. */
+bool is_leap_year(uint16_t year);
+
+/** Returns the number of days in a given month, accounting for leap years. */
+uint8_t days_in_month(uint8_t month, uint16_t year);
+
+/**
+ * @brief Pure function: returns the date following d.
+ *        Rolls day → month → year as needed.
+ */
+Date increment_date(Date d);
+
+/** Set the current calendar date. */
+void set_date(Date d);
+
+/** Get the current calendar date. */
+Date get_date(void);
+
+/**
+ * @brief Advance current_date by one day.
+ *        Call this from rtc.c when rtc_seconds wraps through midnight.
+ */
+void clock_advance_date(void);
 
 
 #endif

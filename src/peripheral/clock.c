@@ -16,6 +16,7 @@
 
 /* Standard C99 stuff */
 #include <stdint.h>
+#include <stdbool.h>
 
 
 /* Zephyr files */
@@ -34,8 +35,14 @@ uint32_t raw_ms = 0;
 static int ticks_overflow = 0;
 static uint32_t prev_ticks = 0;
 
-
 static uint32_t tick_offset = 0;
+
+Date current_date = {.day = 1, .month = 1, .year = 2026};
+
+/* Days per month for a non-leap year */
+static const uint8_t month_days[12] = {
+    31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
+};
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -89,6 +96,54 @@ static inline uint8_t wrap_inc(uint8_t value, uint8_t max, direction_t dir) {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+/* ---- Date algorithms ---- */
+
+bool is_leap_year(uint16_t year)
+{
+    return (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0);
+}
+
+uint8_t days_in_month(uint8_t month, uint16_t year)
+{
+    if (month == 2 && is_leap_year(year)) {
+        return 29;
+    }
+    return month_days[month - 1];
+}
+
+Date increment_date(Date d)
+{
+    d.day++;
+    if (d.day > days_in_month(d.month, d.year)) {
+        d.day = 1;
+        d.month++;
+        if (d.month > 12) {
+            d.month = 1;
+            d.year++;
+        }
+    }
+    return d;
+}
+
+void set_date(Date d)
+{
+    current_date = d;
+}
+
+Date get_date(void)
+{
+    return current_date;
+}
+
+void clock_advance_date(void)
+{
+    current_date = increment_date(current_date);
+    LOG_INF("Date advanced: %04u-%02u-%02u",
+            current_date.year, current_date.month, current_date.day);
+}
+
+
+/* ---- Time ---- */
 
 uint8_t increment_second(uint8_t s, direction_t dir) {
     return wrap_inc(s, 59, dir);
