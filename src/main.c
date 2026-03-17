@@ -213,7 +213,7 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
         if (events[5].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int2_sem, K_NO_WAIT);
             LOG_DBG("IMU INT2 triggered");
-            led_fast_blink(3, 10);
+            //led_fast_blink(3, 10);
             if (imu_status) {
                 //get_fifo_data();
                 // imu_process();

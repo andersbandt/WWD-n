@@ -382,9 +382,9 @@ int startApex() {
     // ENABLE CERTAIN APEX FEATURES
     rc |= inv_imu_apex_enable_tilt(&icm_driver);
     rc |= inv_imu_apex_enable_pedometer(&icm_driver);
-    rc |= inv_imu_configure_wom(&icm_driver, 20, 20, 20,
+    rc |= inv_imu_configure_wom(&icm_driver, 80, 80, 80,
                                 WOM_CONFIG_WOM_INT_MODE_ORED,
-                                WOM_CONFIG_WOM_INT_DUR_1_SMPL);
+                                WOM_CONFIG_WOM_INT_DUR_3_SMPL);
     rc |= inv_imu_enable_wom(&icm_driver);
 
     // do some Ders verification
