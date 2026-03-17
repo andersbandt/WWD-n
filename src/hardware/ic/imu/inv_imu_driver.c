@@ -1094,10 +1094,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s) {
 		if (status < 0)
 			return status;
 	}
-    else {/*else: FIFO threshold was not reached and FIFO was not full (detected in INT_STATUS register)*/
-        LOG_INF("\n\tFIFO threshold not reached or FIFO not full.");
-        LOG_INF("\tregister contents of INT_STATUS was [0x%d]", int_status);
-        LOG_INF("\tReturning total_packet_count (should be 0?)");
+    else {
         return total_packet_count;
     }
     return 0;

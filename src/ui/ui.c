@@ -99,6 +99,7 @@ bool ui_clock_is_dirty(uint32_t flags)
  */
 void ui_clock_set_time(Time time)
 {
+    LOG_INF("ui_clock_set_time: %02d:%02d:%02d", time.hours, time.minutes, time.seconds);
     clock_data.time = time;
     ui_clock_mark_dirty(UI_CLOCK_DIRTY_TIME);
 }

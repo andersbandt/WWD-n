@@ -71,7 +71,10 @@ int16_t imu_temperature = 0;
 int imu_init() {
     LOG_INF("Initializing IMU ...");
 
-    imu_data_buffer = circular_buffer_init(200, sizeof(inv_imu_sensor_event_t));
+    /* 64 slots: at 100 Hz with FIFO watermark of 50, we drain on every interrupt
+     * and never accumulate more than ~50 events. 200 slots overflowed the 4KB heap
+     * once accel_high_res/gyro_high_res were added to the event struct (6 bytes each). */
+    imu_data_buffer = circular_buffer_init(64, sizeof(inv_imu_sensor_event_t));
     // LOG_INF("\nIMU data buffer setup");
     // LOG_INF("buffer = [%d]", imu_data_buffer->buffer);
     // LOG_INF("buffer_end = [%d]", imu_data_buffer->buffer_end);
@@ -80,20 +83,33 @@ int imu_init() {
     int rc = 0;
     #ifdef USE_DERS_IMU
         // do rough init
-        rc |= init_icm();
+        rc = init_icm();
         if (rc != 0) {
+            LOG_ERR("init_icm() failed: %d", rc);
             return rc;
         }
 
         // start IMU
-        rc |= imu_start();
+        rc = imu_start();
+        if (rc != 0) {
+            LOG_ERR("imu_start() failed: %d", rc);
+            return rc;
+        }
 
         // actually configure and start IMU
         if (IMU_FIFO_ENABLED) {
-            rc |= imu_fifo_interrupt();
+            rc = imu_fifo_interrupt();
+            if (rc != 0) {
+                LOG_ERR("imu_fifo_interrupt() failed: %d", rc);
+                return rc;
+            }
         }
         if (IMU_APEX_ENABLED) {
-            rc |= imu_apex();
+            rc = imu_apex();
+            if (rc != 0) {
+                LOG_ERR("imu_apex() failed: %d", rc);
+                return rc;
+            }
         }
 
     #else
@@ -158,6 +174,9 @@ int imu_apex() {
 int imu_fifo_interrupt() {
     LOG_INF("Enabling IMU interrupt for FIFO watermark level: %d", IMU_FIFO_WM);
     int rc = enableFifoInterrupt(IMU_FIFO_WM);
+#if IMU_HIGH_RES_ENABLED
+    rc |= inv_imu_enable_high_resolution_fifo(&icm_driver);
+#endif
     return rc;
 }
 

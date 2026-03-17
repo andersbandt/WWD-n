@@ -86,11 +86,9 @@ typedef struct {
 	int16_t gyro[3];
 #endif
 	int16_t temperature;
-#if IMU_HIGH_RES_ENABLED
 	int8_t  accel_high_res[3];
 #if ICM_IS_GYRO_SUPPORTED
 	int8_t  gyro_high_res[3];
-#endif
 #endif
 } inv_imu_sensor_event_t;
 

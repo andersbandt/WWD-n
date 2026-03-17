@@ -420,6 +420,10 @@ int nvs_log_record(enum record_type type, const void *payload, uint16_t length, 
     int ret;
     size_t total_size = sizeof(struct log_entry_hdr) + length;
 
+    if (cfg == NULL) {
+        return -ECANCELED;
+    }
+
     // Validate inputs
     if (payload == NULL && length > 0) {
         LOG_ERR("Invalid payload pointer");
@@ -464,7 +468,7 @@ int nvs_log_record(enum record_type type, const void *payload, uint16_t length, 
     memcpy(&page_buffer[page_buffer_offset], payload, length);
     page_buffer_offset += length;
 
-    LOG_INF("Buffered record: type=%d, len=%u, buf_offset=%u", type, length, page_buffer_offset);
+    LOG_DBG("Buffered record: type=%d, len=%u, buf_offset=%u", type, length, page_buffer_offset);
 
     // Update metadata periodically
     static uint32_t record_count = 0;

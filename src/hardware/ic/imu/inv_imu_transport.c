@@ -86,13 +86,21 @@ int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, 
 }
 
 
+/* Static SPI scratch buffers — sized for the largest possible read (max_read=2048 + 1
+ * register byte). Static is safe because imu_spi_read is only ever called from the
+ * single imu_thread. VLAs of up to ~1600 bytes were previously stack-allocated here,
+ * which overflowed the IMU thread stack and corrupted nrfx SPI driver state. */
+#define IMU_SPI_MAX_XFER 2049
+static uint8_t imu_spi_tx_buf[IMU_SPI_MAX_XFER];
+static uint8_t imu_spi_rx_buf[IMU_SPI_MAX_XFER];
+
 int imu_spi_read(struct inv_imu_serif *serif,
                  uint8_t reg,
                  uint8_t *buf,
                  uint32_t len)
 {
-    uint8_t tx_data[len + 1];
-    uint8_t rx_data[len + 1];
+    uint8_t *tx_data = imu_spi_tx_buf;
+    uint8_t *rx_data = imu_spi_rx_buf;
 
     tx_data[0] = reg;
     memset(&tx_data[1], 0x00, len);  // dummy bytes to clock data out

@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## On Session Start
+
+Read `src/hardware/ic/imu/imu_notes.md` at the beginning of every session — it tracks
+ongoing investigations, known hardware quirks, and design decisions for the IMU subsystem.
+
 ## Project Overview
 
 WWD-n is a wearable device firmware project built on the Zephyr RTOS targeting the nRF52832 microcontroller (96b_nitrogen board). The project implements a multi-threaded system with display, IMU, buttons, and various peripherals.
@@ -42,7 +47,8 @@ Use this script to check for compile errors and ensure a clean build from the de
 
 ### Debugging
 The project includes debug scripts in `debug/`:
-- `launch_all.sh` - Automated J-Link GDB server + GDB launch
+- `launch_all.sh` - Automated J-Link GDB server + GDB launch (interactive)
+- `gdb_query.sh` - Non-interactive GDB batch executor for inspection and stepping (see below)
 - VSCode debugging configured via `.vscode/launch.json` using nrf-connect extension
 
 GDB debugging via command line:
@@ -50,6 +56,54 @@ GDB debugging via command line:
 cd debug
 ./launch_all.sh
 ```
+
+## Hardware Observability
+
+### UART Log Stream
+The device UART output is captured by the host GUI application and written to:
+```
+/home/anders/Documents/GitHub/wwd_gui_api/data/text_data/
+```
+Files are named `TEXT_YYYYMMDDHHMMSS.log`. The most recent file is the current session.
+Always check this alongside GDB output when debugging boot issues — it shows the full
+init sequence with timestamps.
+
+### GDB Batch Query Script (`debug/gdb_query.sh`)
+Non-interactive GDB script for live device inspection without manual terminal work.
+Starts a J-Link GDB server, connects, halts the target, runs commands, then resumes.
+Output is saved to `debug/gdb_query_output.txt` and printed to stdout.
+
+```bash
+# Inspect live variables
+debug/gdb_query.sh "p rtc_seconds" "p rtc_tick_hz"
+
+# Dump peripheral registers (e.g. SPIM1 at 0x40004000)
+debug/gdb_query.sh "x/16wx 0x40004000"
+
+# Set breakpoints and step through a function
+debug/gdb_query.sh \
+  "break some_function" \
+  "continue" \
+  "next" \
+  "print some_var" \
+  "detach"
+
+# Call a C function directly on-target
+debug/gdb_query.sh \
+  "break init_icm" \
+  "continue" \
+  "call readIMUReg(0x10075)" \
+  "detach"
+```
+
+**Notes:**
+- Uses `monitor reset halt` to stop the CPU before commands, then `detach` to resume
+- Always kills any stale J-Link server on port 2331 before starting a fresh one
+- `--batch` mode: GDB exits cleanly after all `-ex` commands run
+- Breakpoints + `continue` work — the script waits for each breakpoint to fire
+- Use `next` (step over) rather than `step` (step into) to avoid losing context in optimised builds
+- `call func(args)` executes live C functions on the target — useful for reading registers
+  via existing driver functions (e.g. `readIMUReg`)
 
 ## Architecture
 
@@ -251,6 +305,7 @@ nvs_log_record()
 ## Known Issues
 
 - IMU INT1 (P0.9): Previously non-functional due to P0.9 being the NFC1 antenna pin — fixed by adding `nfct-pins-as-gpios` to `&uicr` in the device tree. Both INT1 and INT2 require push-pull configuration on the IMU side.
+- **IMU init fails when NVS runs first (SPI bus contention, UNRESOLVED)**: MT29F NAND (SPI Mode 3) and ICM-42670 IMU (SPI Mode 0) share SPI1. After `nvs_init()`, MISO reads as 0x00 for all IMU transactions — confirmed via GDB `WHO_AM_I` check. Root cause is NAND holding MISO after page cache reads. Multiple software fixes attempted (wait_until_ready in various places) did not resolve it. CS pins confirmed high during the infinite loop so it is not a CS assertion issue. Needs logic analyzer to see MISO state during first IMU transaction. See `imu_notes.md` for full investigation log.
 - NAND flash support is implemented but not actively used in main application
 - Display timeout thread code exists but is currently commented out in main.c
 - BMS (battery management) code is stubbed out but not implemented

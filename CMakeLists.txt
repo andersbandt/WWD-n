@@ -16,6 +16,7 @@ target_sources(app PRIVATE
     src/peripheral/clock.c
     src/peripheral/interrupt.c
     src/peripheral/timer.c
+    src/peripheral/rtc.c
     src/hardware/led.c
     src/hardware/button.c
 )

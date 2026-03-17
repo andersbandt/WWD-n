@@ -26,6 +26,7 @@
 
 /* my driver files */
 #include <peripheral/clock.h>
+#include <peripheral/rtc.h>
 
 
 LOG_MODULE_REGISTER(clock, LOG_LEVEL_INF);
@@ -222,8 +223,7 @@ Time get_sys_time() {
  * get_current_time: returns RTC time
  */
 Time get_current_time() {
-    return add_time(get_sys_time(), time_offset);
-    return get_sys_time();
+    return rtc_get_time();
 }
 
 /*

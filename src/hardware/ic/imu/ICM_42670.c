@@ -46,7 +46,7 @@ LOG_MODULE_REGISTER(ICM_42670, LOG_LEVEL_INF);
 
 
 // This is used by the event callback (not object aware), declared static
-static inv_imu_sensor_event_t event;
+static inv_imu_sensor_event_t *event;
 
 
 // declare ICM device driver and other C++ variables
@@ -92,7 +92,7 @@ void dumpIMUReg() {
 
 void event_print(inv_imu_sensor_event_t *evt) {
     if (isAccelDataValid(evt) && isGyroDataValid(evt)) {
-        LOG_INF("x-y-z-temp-timestamp: %d,%d,%d,%d,%d",
+        LOG_DBG("x-y-z-temp-timestamp: %d,%d,%d,%d,%d",
                        event->accel[0],
                        event->accel[1],
                        event->accel[2],

@@ -22,6 +22,8 @@
 #include <hardware/button.h>
 #include <peripheral/interrupt.h>
 #include <peripheral/timer.h>
+#include <peripheral/clock.h>
+#include <peripheral/rtc.h>
 #include <display.h>
 #include <ui.h>
 #include <imu.h>
@@ -54,8 +56,8 @@ extern int display_status;
 #define CLOCK_UPDATE_STACK_SIZE    1024
 #define UI_REFRESH_STACK_SIZE      1024
 #define DISPLAY_TIMEOUT_STACK_SIZE 512
-#define BUTTON_HANDLER_STACK_SIZE  1024
-#define IMU_STACK_SIZE             2048
+#define BUTTON_HANDLER_STACK_SIZE  512
+#define IMU_STACK_SIZE             4096
 
 /* Thread priorities (lower number = higher priority) */
 #define CLOCK_UPDATE_PRIORITY    7
@@ -247,9 +249,14 @@ int main(void)
     led_init();
 	led_fast_blink(1, 10);
 
+    // init clocking
+    rtc_init();
+
+    // init GPIO
     init_buttons();
     init_button_buffer();
     config_all_interrupts();
+
 
 
     /*
@@ -267,8 +274,9 @@ int main(void)
     /*
     NVS CONFIG BLOCK
     */
-    //k_msleep(200);
-	//nvs_init();
+    k_msleep(200);
+	nvs_init();
+    led_set(2, 1);
     /*
     END OF NVS CONFIG BLOCK
     */
@@ -282,15 +290,15 @@ int main(void)
     ret |= imu_init();
     if (ret == 0) {
         imu_status = true;
-        k_msleep(2000);
     }
     else {
         imu_status = false;
-        led_set(3, 1);
+        led_set(3, 1); 
     }
     /*
     END OF IMU CONFIG BLOCK
     */
+    led_set(2, 0);
 
 
     /*
@@ -342,7 +350,6 @@ int main(void)
     /* Main thread can now sleep - all work is done by worker threads */
     LOG_INF("Starting WWD program!");
     init_timer();
-
 
     while (1) {
         k_sleep(K_FOREVER);

@@ -89,11 +89,15 @@ static void second_tick_cb(const struct device *dev, uint8_t chan_id,
     if (rtc_seconds >= SECONDS_PER_DAY) {
         rtc_seconds = 0;
         clock_advance_date();
+        // TODO: midnight rollover — reset daily variables here:
+        //   - step_count (imu.h)
+        //   - any other daily accumulators (calories, active minutes, etc.)
     }
 
+    uint32_t top = counter_get_top_value(dev);
     struct counter_alarm_cfg cfg = {
         .callback  = second_tick_cb,
-        .ticks     = ticks + rtc_tick_hz,   /* absolute: next second */
+        .ticks     = (ticks + rtc_tick_hz) % (top + 1),
         .user_data = NULL,
         .flags     = COUNTER_ALARM_CFG_ABSOLUTE,
     };

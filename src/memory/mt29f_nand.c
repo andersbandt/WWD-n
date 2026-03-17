@@ -387,7 +387,7 @@ static int spi_nand_page_read(const off_t offset, uint8_t *dest, const size_t le
     LOG_ERR("Page Cache Read Failed: %d", rc);
     return rc;
   }
-  
+
   return rc;
 }
 
@@ -530,6 +530,7 @@ int mt29f_init(void)
 
   spi_nand_unlock(DIE_1);
   spi_nand_unlock(DIE_0);
+  spi_nand_wait_until_ready();
 
   LOG_INF("MT29F Init Complete");
   return 0;
