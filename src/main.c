@@ -272,17 +272,6 @@ int main(void)
 
 
     /*
-    NVS CONFIG BLOCK
-    */
-    k_msleep(200);
-	nvs_init();
-    led_set(2, 1);
-    /*
-    END OF NVS CONFIG BLOCK
-    */
-
-
-    /*
     IMU CONFIG BLOCK
     */
     k_msleep(200);
@@ -300,6 +289,17 @@ int main(void)
     */
     led_set(2, 0);
 
+
+    /*
+    NVS CONFIG BLOCK
+    */
+    // NOTE: the init order of these might matter ... couldn't get IMU to init properly when it was after
+    k_msleep(200);
+	nvs_init();
+    led_set(2, 1);
+    /*
+    END OF NVS CONFIG BLOCK
+    */
 
     /*
     CREATE THREADS

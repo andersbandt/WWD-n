@@ -22,6 +22,9 @@
 // META block configuration
 #define META_BLOCK_COUNT    8
 
+// Set to 1 to enable logging of IMU FIFO samples to NVS, 0 to disable
+#define NVS_LOG_IMU_SAMPLES 0
+
 
 
 struct log_state {

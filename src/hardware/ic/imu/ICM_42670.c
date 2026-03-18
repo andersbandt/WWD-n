@@ -36,7 +36,7 @@
 #include <inv_imu_defs.h> // added by Anders so I can do some register read verification
 
 
-LOG_MODULE_REGISTER(ICM_42670, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(ICM_42670, CONFIG_LOG_DEFAULT_LEVEL);
 
 
 #define INV_IMU_WHOAMI   0x67
@@ -92,15 +92,15 @@ void dumpIMUReg() {
 
 void event_print(inv_imu_sensor_event_t *evt) {
     if (isAccelDataValid(evt) && isGyroDataValid(evt)) {
-        LOG_DBG("x-y-z-temp-timestamp: %d,%d,%d,%d,%d",
-                       event->accel[0],
-                       event->accel[1],
-                       event->accel[2],
-                       event->temperature,
-                       event->timestamp_fsync);
+        LOG_DBG("x-y-z-temp-timestamp: %d,%d,%d,%d,%u",
+                       evt->accel[0],
+                       evt->accel[1],
+                       evt->accel[2],
+                       evt->temperature,
+                       evt->timestamp_fsync);
     }
     else {
-        LOG_INF("Data invalid");
+        LOG_DBG("Data invalid");
     }
 }
 
@@ -510,16 +510,19 @@ int getPedometer(uint32_t * step_count, float * step_cadence, const char* activi
 }
 
 
-// TODO: debug this function to determine valid accelerometer data (and gryo data below)
 bool isAccelDataValid(inv_imu_sensor_event_t *evt) {
-    return 1;
-//  return (evt->sensor_mask & (1<<INV_SENSOR_ACCEL));
+    return (evt->accel[0] != INVALID_VALUE_FIFO) &&
+           (evt->accel[1] != INVALID_VALUE_FIFO) &&
+           (evt->accel[2] != INVALID_VALUE_FIFO);
 }
 
 
 bool isGyroDataValid(inv_imu_sensor_event_t *evt) {
+#if ICM_IS_GYRO_SUPPORTED
+    return (evt->sensor_mask & (1 << INV_SENSOR_GYRO)) != 0;
+#else
     return 1;
-//  return (evt->sensor_mask & (1<<INV_SENSOR_GYRO));
+#endif
 }
 
 

@@ -284,7 +284,9 @@ void imu_process() {
             .gyro  = { 0, 0, 0 },
 #endif
         };
+#if NVS_LOG_IMU_SAMPLES
         nvs_log_record(RECORD_IMU_FIFO, &sample, sizeof(sample), get_dt_ticks());
+#endif
     }
 }
 

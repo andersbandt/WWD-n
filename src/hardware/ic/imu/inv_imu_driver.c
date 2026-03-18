@@ -36,7 +36,7 @@
 #include <inv_imu_transport.h>
 
 
-LOG_MODULE_REGISTER(inv_imu_driver, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(inv_imu_driver, CONFIG_LOG_DEFAULT_LEVEL);
 
 
 /* Static functions declaration */
@@ -904,7 +904,7 @@ int inv_imu_get_data_from_fifo(struct inv_imu_device *s) {
 
 		total_packet_count = (uint16_t)(data[0] | (data[1] << 8));
 		packet_count       = total_packet_count;
-        LOG_DBG("\tFIFO packet count is: %d\n", packet_count);
+        LOG_DBG("\tFIFO packet count is: %d", packet_count);
 		while (packet_count > 0) {
 			uint16_t invalid_frame_cnt = 0;
 			/* Read FIFO only when data is expected in FIFO */

@@ -47,6 +47,35 @@ corrupting the IMU's SPI reads during its own init.
 - Verify whether the "speedup" coincides exactly with the RESET_DONE_INT check failing —
   if so, MCLK polling may be creating SPI contention on shared bus lines
 
+## APEX Mode: Every Other FIFO Packet Is Invalid
+
+### Symptom
+When `IMU_APEX_ENABLED` is set, the FIFO stream alternates between valid packets and
+invalid packets where all accel values are `0x8000` (`INVALID_VALUE_FIFO` = -32768).
+Pattern is perfectly regular: valid, invalid, valid, invalid.
+
+### Root Cause
+`startApex()` calls `inv_imu_enable_accel_low_power_mode()`, switching accel from LN to
+LP+WUOSC mode. In this mode the ICM-42670 wakes the RCOSC on demand for each FIFO read.
+The WU-OSC needs time to settle after wakeup — every other FIFO packet is captured during
+the oscillator startup window and has invalid accel data. The driver correctly marks these
+with `INVALID_VALUE_FIFO` in all three accel fields; the hardware is behaving as specified.
+
+### Handling
+`isAccelDataValid()` in `ICM_42670.c` filters these out by checking all three accel fields
+against `INVALID_VALUE_FIFO`. Invalid packets are still passed to `event_cb` and enter the
+circular buffer — they are silently dropped at the `event_print` / `imu_process` layer.
+If storage efficiency matters, filter in `event_cb` before `circular_buffer_add`.
+
+### WOM Disables FIFO_THS Interrupt (Related)
+When WOM is enabled via `inv_imu_enable_wom()`, the ICM-42670 hardware **disables the
+FIFO threshold interrupt** (`FIFO_THS`). This is a hardware behavior of the chip, not a
+software configuration issue. `inv_imu_enable_wom()` does not touch `INT_SOURCE` registers
+— the gating happens internally. Consequence: `INT2` (configured for `FIFO_THS`) goes
+silent once WOM is active. The FIFO_FULL interrupt on INT2 is unaffected and may still
+fire, but only when the buffer is completely full (~144 packets at 50Hz = ~2.9s latency).
+Current workaround: drain FIFO from the INT1 (WOM) handler in `imu_thread_entry`.
+
 ## High-Resolution Mode (`IMU_HIGH_RES_ENABLED`)
 
 The `inv_imu_sensor_event_t` struct always contains `accel_high_res[3]` and `gyro_high_res[3]`
@@ -118,3 +147,17 @@ This ruled out timing, reset sequencing, and driver bugs. Pure hardware bus cont
 mechanism of why software fixes don't clear it is unknown. Likely needs a logic analyzer
 to see what MISO is actually doing during the first IMU transaction. Consider running NVS
 and IMU on separate SPI buses as a hardware workaround if software fix can't be found.
+
+**Potential fix to investigate (2026-03-18):** Initializing the IMU *after* NVS with a
+proper MT29F bus-release sequence (explicit RESET command to tri-state MISO before handing
+the bus to the IMU) may resolve the contention. The current workaround is IMU-first with
+NVS commented out — but if NAND can be forced to release MISO cleanly, NVS→IMU ordering
+might work.
+
+**Cleanup note:** The MT29F bus-release hackery added in commits `ebac1d2` and `b130a1e`
+(wait_until_ready calls, SPI fixes attempting to force MISO tri-state) may be removable
+under either of two conditions:
+- (a) Init order fix works — IMU init after NVS succeeds once MT29F is properly reset first
+- (b) Moot in hardware v2 — MT29F and ICM-42670 are planned for **separate SPI buses**,
+  eliminating the shared-bus contention entirely. If v2 ships with separate buses, strip
+  this code before bring-up to avoid masking any new issues.
