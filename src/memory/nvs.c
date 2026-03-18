@@ -440,8 +440,8 @@ void nvs_dump(void)
                 case RECORD_IMU_FIFO: {
                     struct record_imu_fifo s;
                     memcpy(&s, payload, sizeof(s));
-                    LOG_INF("[%u] IMU_FIFO  dt=%u  ax=%d ay=%d az=%d  gx=%d gy=%d gz=%d",
-                            record_count, hdr.dt_ticks,
+                    LOG_INF("[%u] IMU_FIFO  tmst=%u  dt=%u  ax=%d ay=%d az=%d  gx=%d gy=%d gz=%d",
+                            record_count, s.timestamp, hdr.dt_ticks,
                             s.accel[0], s.accel[1], s.accel[2],
                             s.gyro[0],  s.gyro[1],  s.gyro[2]);
                     break;

@@ -277,12 +277,13 @@ void imu_process() {
         event_print(&event);
 
         struct record_imu_fifo sample = {
-            .accel = { event.accel[0], event.accel[1], event.accel[2] },
+            .accel     = { event.accel[0], event.accel[1], event.accel[2] },
 #if ICM_IS_GYRO_SUPPORTED
-            .gyro  = { event.gyro[0],  event.gyro[1],  event.gyro[2]  },
+            .gyro      = { event.gyro[0],  event.gyro[1],  event.gyro[2]  },
 #else
-            .gyro  = { 0, 0, 0 },
+            .gyro      = { 0, 0, 0 },
 #endif
+            .timestamp = event.timestamp_fsync,
         };
 #if NVS_LOG_IMU_SAMPLES
         nvs_log_record(RECORD_IMU_FIFO, &sample, sizeof(sample), get_dt_ticks());

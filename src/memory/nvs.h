@@ -61,8 +61,9 @@ struct log_entry_hdr {
 
 /* RECORD_IMU_FIFO: one raw FIFO sample from the ICM-42670 */
 struct record_imu_fifo {
-    int16_t accel[3];   /* X, Y, Z — raw ADC counts, apply sensitivity scale to convert */
-    int16_t gyro[3];    /* X, Y, Z — zero if ICM_IS_GYRO_SUPPORTED == 0 */
+    int16_t  accel[3];   /* X, Y, Z — raw ADC counts, apply sensitivity scale to convert */
+    int16_t  gyro[3];    /* X, Y, Z — zero if ICM_IS_GYRO_SUPPORTED == 0 */
+    uint16_t timestamp;  /* IMU internal counter, 16us/tick, rolls over every ~1.05s */
 } __packed;
 
 /* RECORD_TEMPERATURE: IMU die temperature */
