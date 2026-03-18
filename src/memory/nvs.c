@@ -18,6 +18,7 @@
 /* Zephyr files */
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/logging/log_ctrl.h>
 #include <zephyr/sys/crc.h>
 
 /* My header files  */
@@ -185,7 +186,7 @@ int nvs_write_metadata(uint64_t offset)
 {
     struct log_state state;
 
-    LOG_INF(">>> METADATA WRITE START: current_seq=%u, offset=%llu", metadata_seq, offset);
+    LOG_DBG(">>> METADATA WRITE START: current_seq=%u, offset=%llu", metadata_seq, offset);
 
     // Populate metadata structure
     state.magic = MAGIC_MARKER;
@@ -195,7 +196,7 @@ int nvs_write_metadata(uint64_t offset)
     // Calculate CRC32 over magic, seq, and offset (exclude crc field itself)
     state.crc = crc32_ieee((uint8_t*)&state, offsetof(struct log_state, crc));
 
-    LOG_INF("CRC input bytes: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+    LOG_DBG("CRC input bytes: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
             ((uint8_t*)&state)[0], ((uint8_t*)&state)[1], ((uint8_t*)&state)[2], ((uint8_t*)&state)[3],
             ((uint8_t*)&state)[4], ((uint8_t*)&state)[5], ((uint8_t*)&state)[6], ((uint8_t*)&state)[7],
             ((uint8_t*)&state)[8], ((uint8_t*)&state)[9], ((uint8_t*)&state)[10], ((uint8_t*)&state)[11],
@@ -239,7 +240,7 @@ int nvs_write_metadata(uint64_t offset)
         return ret;
     }
     else {
-        LOG_INF("Wrote metadata!");
+        LOG_DBG("Wrote metadata!");
     }
 
     return 0;
@@ -378,6 +379,120 @@ bool nvs_calc_offset() {
  */
 int nvs_get_addr_offset() {
     return write_addr;
+}
+
+
+/*
+ * nvs_dump: reads all committed records from flash (offset 0 to write_addr)
+ * and prints them over LOG. Only flushed data is visible — in-memory page
+ * buffer content is not included.
+ */
+void nvs_dump(void)
+{
+    if (cfg == NULL) {
+        LOG_ERR("nvs_dump: NVS not initialized");
+        return;
+    }
+
+    if (write_addr == 0) {
+        LOG_INF("nvs_dump: nothing written yet");
+        return;
+    }
+
+    LOG_INF("=== NVS DUMP: 0 to %ld ===", write_addr);
+
+    uint8_t *page_buf = k_malloc(cfg->bytes_per_page);
+    if (!page_buf) {
+        LOG_ERR("nvs_dump: failed to allocate page buffer");
+        return;
+    }
+
+    uint32_t record_count = 0;
+    off_t addr = 0;
+
+    while (addr < write_addr) {
+        if (mt29f_read(addr, page_buf, cfg->bytes_per_page) != 0) {
+            LOG_ERR("nvs_dump: read failed at addr=%ld", addr);
+            break;
+        }
+
+        uint16_t page_offset = 0;
+
+        while (page_offset + sizeof(struct log_entry_hdr) <= cfg->bytes_per_page) {
+            if (page_buf[page_offset] == 0xFF) {
+                break; /* rest of page is 0xFF padding */
+            }
+
+            struct log_entry_hdr hdr;
+            memcpy(&hdr, &page_buf[page_offset], sizeof(hdr));
+            page_offset += sizeof(hdr);
+
+            if (page_offset + hdr.length > cfg->bytes_per_page) {
+                LOG_WRN("nvs_dump: record overruns page at addr=%ld offset=%u", addr, page_offset);
+                break;
+            }
+
+            const uint8_t *payload = &page_buf[page_offset];
+            page_offset += hdr.length;
+            record_count++;
+
+            switch ((enum record_type)hdr.record_type) {
+                case RECORD_IMU_FIFO: {
+                    struct record_imu_fifo s;
+                    memcpy(&s, payload, sizeof(s));
+                    LOG_INF("[%u] IMU_FIFO  dt=%u  ax=%d ay=%d az=%d  gx=%d gy=%d gz=%d",
+                            record_count, hdr.dt_ticks,
+                            s.accel[0], s.accel[1], s.accel[2],
+                            s.gyro[0],  s.gyro[1],  s.gyro[2]);
+                    break;
+                }
+                case RECORD_TEMPERATURE: {
+                    struct record_temperature t;
+                    memcpy(&t, payload, sizeof(t));
+                    LOG_INF("[%u] TEMPERATURE  dt=%u  raw=%d", record_count, hdr.dt_ticks, t.raw);
+                    break;
+                }
+                case RECORD_STEP_COUNT: {
+                    struct record_step_count sc;
+                    memcpy(&sc, payload, sizeof(sc));
+                    LOG_INF("[%u] STEP_COUNT  dt=%u  steps=%u", record_count, hdr.dt_ticks, sc.steps);
+                    break;
+                }
+                case RECORD_POWER: {
+                    struct record_power p;
+                    memcpy(&p, payload, sizeof(p));
+                    LOG_INF("[%u] POWER  dt=%u  mode=%u  voltage_mv=%u",
+                            record_count, hdr.dt_ticks, p.mode, p.voltage_mv);
+                    break;
+                }
+                case TIME_ANCHOR:
+                    LOG_INF("[%u] TIME_ANCHOR  dt=%u  len=%u", record_count, hdr.dt_ticks, hdr.length);
+                    break;
+                case RESET_MARKER:
+                    LOG_INF("[%u] RESET_MARKER  dt=%u", record_count, hdr.dt_ticks);
+                    break;
+                default:
+                    LOG_WRN("[%u] UNKNOWN  type=%u  len=%u", record_count, hdr.record_type, hdr.length);
+                    break;
+            }
+
+            /* Drain the log queue every 10 records to prevent buffer overflow.
+             * log_process() flushes one pending message; loop until empty, then
+             * sleep briefly to allow the UART backend to transmit. */
+            if (record_count % 10 == 0) {
+                while (log_process()) {}
+                k_sleep(K_MSEC(10));
+            }
+        }
+
+        addr += cfg->bytes_per_page;
+    }
+
+    k_free(page_buf);
+    while (log_process()) {}
+    k_sleep(K_MSEC(10));
+    LOG_INF("=== NVS DUMP COMPLETE: %u records ===", record_count);
+    while (log_process()) {}
 }
 
 

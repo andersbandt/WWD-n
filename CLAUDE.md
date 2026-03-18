@@ -207,6 +207,16 @@ Key configuration in `prj.conf`:
 - `CONFIG_DISPLAY=n` (display is manually driven, not using Zephyr display API)
 - Stack debugging enabled: `CONFIG_STACK_SENTINEL`, `CONFIG_THREAD_STACK_INFO`, `CONFIG_INIT_STACKS`
 
+### Logging Level Control
+
+`LOG_MODULE_REGISTER(name, level)` — if `level` is set to a literal like `LOG_LEVEL_DBG`, it **overrides** `prj.conf`'s `CONFIG_LOG_DEFAULT_LEVEL` for that module regardless of build config. Use `CONFIG_LOG_DEFAULT_LEVEL` as the level argument so that `prj.conf` controls verbosity uniformly:
+
+```c
+LOG_MODULE_REGISTER(my_module, CONFIG_LOG_DEFAULT_LEVEL);
+```
+
+Hardcoded levels in individual modules have been a source of confusion — changing `LOG_LEVEL` in `prj.conf` had no effect because module-level overrides silently took precedence.
+
 ## Testing
 
 UI function tests are available in `test/` directory. See `test/README.md` for detailed instructions.
@@ -269,15 +279,19 @@ struct log_entry_hdr {    // Prepended to every log record
 
 On boot, `nvs_init()` → `nvs_calc_offset()` → `nvs_read_metadata()`:
 
-1. Scans all 8 META blocks, reads first page of each
-2. Validates magic (`0xACACAC`) and CRC32 for each candidate
-3. Selects the valid entry with the **highest sequence number** as the authoritative state
-4. Restores `write_addr` from `nand_offset` in that entry
-5. If no valid metadata found (fresh/erased flash): starts at offset 0 and writes an initial metadata entry
+**Phase 1** — scans page 0 of all 8 META blocks, validates magic + CRC32, selects the block whose page 0 has the highest valid `seq` as the "active block".
+
+**Phase 2** — scans pages 1, 2, … within the active block in order, advancing `best_state` for each valid page until an invalid magic or CRC is encountered (indicating an unwritten page).
+
+The highest-seq entry found across both phases is authoritative. `write_addr` is restored from its `nand_offset`.
+
+If no valid metadata found (fresh/erased flash): starts at offset 0 and writes an initial metadata entry.
+
+**Recovery granularity caveat:** The recovered offset is only as current as the last metadata checkpoint. Checkpoints fire every 100 log records. If the device powers off between checkpoints, recovery will resume from the previous checkpoint — any records written after it but before power-off are lost (they were in the in-memory page buffer or flushed pages with no metadata update yet). Reducing the checkpoint interval (currently 100) improves recovery granularity at the cost of more META region wear.
 
 ### Metadata Wear Leveling
 
-Each metadata write uses `seq % META_BLOCK_COUNT` to select which of the 8 META blocks to write to. This rotates writes across all blocks so no single block wears out from repeated metadata updates.
+Each metadata write uses `seq % total_meta_pages` (where `total_meta_pages = META_BLOCK_COUNT * pages_per_block`) to select a specific page within the META region. Pages are written sequentially across all pages of all META blocks; a block is erased only when the rotation reaches its first page (`page_within_block == 0`). This distributes writes across all pages in all META blocks, not just one page per block.
 
 Metadata is updated:
 - On first init (fresh flash)
@@ -302,10 +316,18 @@ nvs_log_record()
   → every 100 records: flush + nvs_write_metadata()
 ```
 
+### IMU Sample Logging Gate
+
+`NVS_LOG_IMU_SAMPLES` in `nvs.h` (0 or 1) controls whether `RECORD_IMU_FIFO` samples are written to flash. The call site in `imu.c` is wrapped in `#if NVS_LOG_IMU_SAMPLES`.
+
+### Debugging NVS Contents
+
+`nvs_dump()` reads all committed pages from offset 0 to `write_addr` and prints every record over `LOG_INF`. Only flushed data is visible — the in-memory page buffer is not included. Call it after `nvs_init()` during boot (before new records are written) to inspect a prior session's data.
+
 ## Known Issues
 
 - IMU INT1 (P0.9): Previously non-functional due to P0.9 being the NFC1 antenna pin — fixed by adding `nfct-pins-as-gpios` to `&uicr` in the device tree. Both INT1 and INT2 require push-pull configuration on the IMU side.
 - **IMU init fails when NVS runs first (SPI bus contention, UNRESOLVED)**: MT29F NAND (SPI Mode 3) and ICM-42670 IMU (SPI Mode 0) share SPI1. After `nvs_init()`, MISO reads as 0x00 for all IMU transactions — confirmed via GDB `WHO_AM_I` check. Root cause is NAND holding MISO after page cache reads. Multiple software fixes attempted (wait_until_ready in various places) did not resolve it. CS pins confirmed high during the infinite loop so it is not a CS assertion issue. Needs logic analyzer to see MISO state during first IMU transaction. See `imu_notes.md` for full investigation log.
-- NAND flash support is implemented but not actively used in main application
+- NVS/NAND logging is implemented and functional (`NVS_LOG_IMU_SAMPLES=1` in nvs.h). `nvs_init()` is currently commented out in `main.c` due to the unresolved SPI bus contention issue with IMU init — NVS and IMU cannot both run on the same boot until that is resolved.
 - Display timeout thread code exists but is currently commented out in main.c
 - BMS (battery management) code is stubbed out but not implemented

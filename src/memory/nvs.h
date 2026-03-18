@@ -23,7 +23,7 @@
 #define META_BLOCK_COUNT    8
 
 // Set to 1 to enable logging of IMU FIFO samples to NVS, 0 to disable
-#define NVS_LOG_IMU_SAMPLES 0
+#define NVS_LOG_IMU_SAMPLES 1
 
 
 
@@ -164,6 +164,13 @@ int nvs_log_record(enum record_type type, const void *payload, uint16_t length, 
  * @return 0 on success, negative error code on failure
  */
 int nvs_flush_buffer(void);
+
+
+/**
+ * @brief dumps all committed NVS records from flash (offset 0 to write_addr) over LOG_INF.
+ * In-memory page buffer content (not yet flushed) is not included.
+ */
+void nvs_dump(void);
 
 
 

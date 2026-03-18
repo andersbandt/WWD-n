@@ -25,7 +25,7 @@
 
 // FIFO configuration
 #define IMU_FIFO_ENABLED     1
-#define IMU_APEX_ENABLED     1
+#define IMU_APEX_ENABLED     0
 #define IMU_FIFO_WM          10
 
 #define IMU_HIGH_RES_ENABLED 0   /* see imu_notes.md before enabling */

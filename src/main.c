@@ -258,7 +258,6 @@ int main(void)
     config_all_interrupts();
 
 
-
     /*
     DISPLAY and UI config
     */
@@ -287,7 +286,6 @@ int main(void)
     /*
     END OF IMU CONFIG BLOCK
     */
-    led_set(2, 0);
 
 
     /*
@@ -297,9 +295,13 @@ int main(void)
     k_msleep(200);
 	nvs_init();
     led_set(2, 1);
+    nvs_dump();
     /*
     END OF NVS CONFIG BLOCK
     */
+
+
+    led_set(2, 0);
 
     /*
     CREATE THREADS
