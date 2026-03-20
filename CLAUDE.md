@@ -105,6 +105,46 @@ debug/gdb_query.sh \
 - `call func(args)` executes live C functions on the target — useful for reading registers
   via existing driver functions (e.g. `readIMUReg`)
 
+## Lab Bench (MCP Tools)
+
+Claude Code has direct access to bench equipment via an MCP server (`~/Documents/GitHub/wwd_gui_api/mcp_server.py`). All `mcp__lab__*` tools are pre-authorized — no prompts required.
+
+### Equipment
+| Equipment | Model | Connection |
+|---|---|---|
+| Power supply | SPD3303X | PyVISA (`@py` backend) — auto-connects at startup |
+| DMM | XDM1041 | `/dev/ttyUSB0` — auto-connects at startup |
+| USB relay | 4-ch HID | Auto-discovered |
+| DAQ | USB-201 | 8-ch analog input, auto-discovered via uldaq |
+
+### Target power
+- **3.3 V on PS channel 1** — this is the board supply rail (`config/master.ini [Target] vdds = 3.3`)
+- Use `ps_board_power(on)` to toggle board power, or `ps_output(channel=1, on=True/False)`
+
+### Relay channel map
+| Channel | Label | Purpose |
+|---|---|---|
+| 1 | ARDUINO | Arduino connection |
+| 2 | — | Unused |
+| 3 | MICRO-USB | Micro-USB switch |
+| 4 | FTDI_IC | FTDI IC connection |
+
+### GDB
+Use `gdb_query(commands)` for live target inspection — no manual terminal needed. Always use `monitor halt` as the first command to stop the CPU before reading state. The script manages the J-Link GDB server lifecycle automatically.
+
+```python
+# Check where execution is
+gdb_query(["monitor halt", "where"])
+
+# Read a variable
+gdb_query(["monitor halt", "p rtc_seconds"])
+
+# Set breakpoint and wait for it
+gdb_query(["break some_function", "continue", "bt", "detach"])
+```
+
+ELF: `~/Documents/NCS/WWD-n/build/zephyr/zephyr.elf`
+
 ## Architecture
 
 ### Threading Model

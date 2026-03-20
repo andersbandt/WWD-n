@@ -1,0 +1,5 @@
+__enable_irq () at /home/anders/Documents/NCS/modules/hal/cmsis_6/CMSIS/Core/Include/cmsis_gcc.h:800
+800	  __ASM volatile ("cpsie i" : : : "memory");
+Expected an decimal digit (0-9)
+Resetting target
+[Inferior 1 (Remote target) detached]
