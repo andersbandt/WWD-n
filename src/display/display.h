@@ -16,11 +16,6 @@
 #include <stdint.h>
 
 
-// Display driver selection
-// Uncomment the line below to use ST7735S instead of ST7789
-#define USE_ST7735S
-
-
 extern int display_status;
 
 
@@ -34,28 +29,15 @@ typedef enum {
     FONT_HUGE = 32     // ter_u32b
 } font_size_t;
 
-// line definitions
-#ifdef USE_ST7735S
-    #define line1_Y 35
-    #define line2_Y 55
-    #define line3_Y 95
-    #define line4_Y 125
-#else
-    #define line1_Y 15
-    #define line2_Y 45
-    #define line3_Y 75
-    #define line4_Y 105
-#endif
+// ST7735S line Y positions
+#define line1_Y 35
+#define line2_Y 55
+#define line3_Y 95
+#define line4_Y 125
 
-
-/* Display driver selection */
-#ifdef USE_ST7735S
-    #include <st7735s.h>
-    #include <gfx.h>
-    #include <fonts.h>
-#else
-    #include <st7789.h>
-#endif
+#include <st7735s.h>
+#include <gfx.h>
+#include <fonts.h>
 
 
 /**

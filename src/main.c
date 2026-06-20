@@ -22,6 +22,7 @@
 /* My driver files */
 #include <hardware/led.h>
 #include <hardware/button.h>
+#include <power/power.h>
 #include <peripheral/interrupt.h>
 // #include <ble/ble.h>
 #include <peripheral/timer.h>
@@ -263,6 +264,7 @@ int main(void)
 
     // init clocking
     rtc_init();
+    power_init();
     // ble_init();
 
     // init GPIO

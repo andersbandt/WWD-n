@@ -119,8 +119,6 @@ void printToScreen(const char * text, const uint32_t posY, const uint32_t posX, 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void init_display() {
-#ifdef USE_ST7735S
-    /* ST7735S initialization */
     int rc = ST7735S_Init();
     if (rc != 0) {
         LOG_ERR("ST7735S_Init failed with code %d", rc);
@@ -129,37 +127,11 @@ void init_display() {
     }
     // setOrientation(R90);
 
-    // set initial background
     setColor(FORE_R, FORE_G, FORE_B);
     setbgColor(BACK_R, BACK_G, BACK_B);
     // fillScreen();
 
-    // set display status
     display_status = 1;
-#else
-    /* ST7789 initialization (existing code) */
-    int rc = ST7789_Init(ST77XX_ROTATE_270 | ST77XX_RGB);    if (rc != 0) {
-        LOG_ERR("ST7789_Init failed with code %d", rc);
-        display_status = 0;
-        return;
-    }
-
-    uint16_t i;
-    ST7789_ClearScreen(WHITE);
-    for (i=0; i<Screen.height; i=i+5) {
-        ST7789_DrawLine(0, Screen.width, 0, i, RED);
-    }
-    for (i=0; i<Screen.height; i=i+5) {
-        ST7789_DrawLine(0, Screen.width, i, 0, BLUE);
-    }
-    for (i=0; i<30; i++) {
-        ST7789_FastLineHorizontal(0, Screen.width, i, BLACK);
-    }
-    ST7789_SetPosition(75, 5);
-    ST7789_DrawString("ST7789V2 DRIVER", WHITE, X3);
-
-    display_status = 1;
-#endif
 }
 
 

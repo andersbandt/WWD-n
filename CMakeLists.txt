@@ -17,8 +17,10 @@ target_sources(app PRIVATE
     src/peripheral/interrupt.c
     src/peripheral/timer.c
     src/peripheral/rtc.c
+    src/peripheral/rv3028.c
     src/hardware/led.c
     src/hardware/button.c
+    src/power/power.c
 )
 
 add_subdirectory(src/display)
