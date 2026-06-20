@@ -1,0 +1,5 @@
+board:
+  name: nrf52833_ders
+  vendor: Flavo
+  socs:
+    - name: nrf52833

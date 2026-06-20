@@ -4,7 +4,6 @@ target_sources(app PRIVATE
     st7735s/st7735s_compat.c
     st7735s/gfx.c
     st7735s/fonts.c
-    st7789.c
     font.c
 )
 

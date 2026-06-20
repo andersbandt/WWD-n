@@ -63,7 +63,10 @@ static const struct gpio_dt_spec btn_int3 = GPIO_DT_SPEC_GET(DT_NODELABEL(button
 static const struct gpio_dt_spec btn_int4 = GPIO_DT_SPEC_GET(DT_NODELABEL(button4), gpios);
 
 static const struct gpio_dt_spec imu_int1 = GPIO_DT_SPEC_GET_BY_IDX(DT_NODELABEL(icm42670p), int_gpios, 0);
+#define IMU_HAS_INT2 (DT_PROP_LEN(DT_NODELABEL(icm42670p), int_gpios) > 1)
+#if IMU_HAS_INT2
 static const struct gpio_dt_spec imu_int2 = GPIO_DT_SPEC_GET_BY_IDX(DT_NODELABEL(icm42670p), int_gpios, 1);
+#endif
 
 static struct gpio_callback btn_int1_cb;
 static struct gpio_callback btn_int2_cb;
@@ -71,7 +74,9 @@ static struct gpio_callback btn_int3_cb;
 static struct gpio_callback btn_int4_cb;
 
 static struct gpio_callback imu_int1_cb;
+#if IMU_HAS_INT2
 static struct gpio_callback imu_int2_cb;
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -119,12 +124,14 @@ static void imu_int1_handler(const struct device *dev,
     k_sem_give(&imu_int1_sem);
 }
 
+#if IMU_HAS_INT2
 static void imu_int2_handler(const struct device *dev,
                              struct gpio_callback *cb,
                              uint32_t pins)
 {
     k_sem_give(&imu_int2_sem);
 }
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -196,18 +203,20 @@ int config_all_interrupts(void)
                                btn_int4_handler);
     if (ret) return ret;
 
-    /* IMU interrupts (rising edge, active high) */
+    /* IMU interrupts */
     ret = setup_gpio_interrupt(&imu_int1,
                                GPIO_INT_EDGE_RISING,
                                &imu_int1_cb,
                                imu_int1_handler);
     if (ret) return ret;
 
+#if IMU_HAS_INT2
     ret = setup_gpio_interrupt(&imu_int2,
                                GPIO_INT_EDGE_RISING,
                                &imu_int2_cb,
                                imu_int2_handler);
     if (ret) return ret;
+#endif
 
     return 0;
 }

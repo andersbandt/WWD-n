@@ -9,41 +9,32 @@ ongoing investigations, known hardware quirks, and design decisions for the IMU 
 
 ## Project Overview
 
-WWD-n is a wearable device firmware project built on the Zephyr RTOS targeting the nRF52832 microcontroller (96b_nitrogen board). The project implements a multi-threaded system with display, IMU, buttons, and various peripherals.
+WWD-n is a wearable device firmware project built on the Zephyr RTOS targeting the **nRF52833-QDAA** microcontroller (custom `nrf52833_ders` board). The project implements a multi-threaded system with display, IMU, buttons, NVS logging, and various peripherals.
+
+Board: `nrf52833_ders/nrf52833` — board files in `boards/wwd/wwd_n/boards/Flavo/nrf52833_ders/`
+BOARD_ROOT: `/home/anders/Documents/NCS/WWD-n` (passed via `-DBOARD_ROOT=` at configure time)
 
 ## Build System
 
 This project uses Zephyr's CMake-based build system with the Nordic nRF Connect SDK (NCS).
 
-### Building
+### Building (nRF52833 target)
+
+Claude can build directly:
 ```bash
-west build -b 96b_nitrogen/nrf52832
+export PATH="/home/anders/ncs/toolchains/b2ecd2435d/usr/local/bin:/home/anders/ncs/toolchains/b2ecd2435d/usr/bin:$PATH"
+export LD_LIBRARY_PATH="/home/anders/ncs/toolchains/b2ecd2435d/usr/local/lib:/home/anders/ncs/toolchains/b2ecd2435d/usr/lib:$LD_LIBRARY_PATH"
+export CMAKE_PREFIX_PATH=/home/anders/ncs/toolchains/b2ecd2435d/opt/zephyr-sdk
+export ZEPHYR_BASE=/home/anders/ncs/v3.1.1/zephyr
+# Configure (pristine):
+cmake -B build_n33 -DBOARD=nrf52833_ders/nrf52833 -DBOARD_ROOT=/home/anders/Documents/NCS/WWD-n -GNinja
+# Build:
+cmake --build build_n33
 ```
 
-### Flashing
-```bash
-west flash
-```
+The VS Code nRF Connect extension also works — set board to `nrf52833_ders/nrf52833` and board root to the repo root.
 
-### Clean Build
-```bash
-rm -rf build
-west build -b 96b_nitrogen/nrf52832
-```
-
-### Debug Build Script (Recommended)
-The project includes a debug build script that performs a pristine build with debug optimizations enabled:
-```bash
-cd debug
-./compile.sh
-```
-
-This script runs:
-```bash
-west build --build-dir /home/anders/Documents/NCS/WWD-n/build /home/anders/Documents/NCS/WWD-n --pristine --board 96b_nitrogen/nrf52832 --no-sysbuild -- -DCONF_FILE=prj.conf -DCONFIG_DEBUG_OPTIMIZATIONS=y
-```
-
-Use this script to check for compile errors and ensure a clean build from the debug directory.
+**Always do a pristine build** after any CMake, DTS, or board config changes.
 
 ### Debugging
 The project includes debug scripts in `debug/`:
@@ -228,16 +219,15 @@ UI updates use a dirty-flag optimization pattern - data structures track whether
 
 ## Device Tree Configuration
 
-Hardware configuration is in `boards/96b_nitrogen_nrf52832.overlay`:
-- SPI1 peripherals: MT29F NAND (@0), ICM42670P IMU (@1), ST7789 display (@2), ST7735S display (@3)
-- IMU interrupts on GPIO P0.9 (INT1) and P0.3 (INT2) — P0.9 is the NFC1 antenna pin on nRF52832 and requires `nfct-pins-as-gpios` in the `&uicr` device tree node (prj.conf alone is not sufficient):
-  ```
-  &uicr {
-      gpio-as-nreset;
-      nfct-pins-as-gpios;
-  };
-  ```
-- Display control pins configured per device
+Board DTS: `boards/wwd/wwd_n/boards/Flavo/nrf52833_ders/nrf52833_ders.dts`
+Pinctrl: `boards/wwd/wwd_n/boards/Flavo/nrf52833_ders/nrf52833_ders-pinctrl.dtsi`
+
+- **Console**: USB CDC ACM (`cdc_acm_uart0`) — no UART pins on nRF52833-QDAA
+- **SPI1**: MT29F NAND (@0, CS P0.20), ICM42670P IMU (@1, CS P0.10), ST7735S (@2, CS P0.28)
+- **I2C0**: MCP23008 GPIO expander @ 0x20 (SCL P0.30, SDA P1.09), RV-3028 RTC @ 0x52
+- **IMU INT1**: P0.09 only — INT2 is not wired on the nRF52833 hardware (code guards with `#if IMU_HAS_INT2`)
+- **RTC2**: enabled in DTS for 1-second software tick (`src/peripheral/rtc.c`)
+- **ADC**: AIN2 (P0.04) for battery voltage via 1:2 divider, enabled by MCP23008 GP4
 
 ## Configuration
 

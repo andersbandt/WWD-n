@@ -1,0 +1,10 @@
+identifier: nrf52833_ders/nrf52833
+name: Anders' WWD version of nRF52833
+vendor: Flavo
+type: mcu
+arch: arm
+ram: 128
+flash: 512
+toolchain:
+  - zephyr
+supported: []

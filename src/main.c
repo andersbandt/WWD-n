@@ -16,11 +16,14 @@
 /* Zephyr files */
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/usb/usb_device.h>
+#include <zephyr/drivers/uart.h>
 
 /* My driver files */
 #include <hardware/led.h>
 #include <hardware/button.h>
 #include <peripheral/interrupt.h>
+// #include <ble/ble.h>
 #include <peripheral/timer.h>
 #include <peripheral/clock.h>
 #include <peripheral/rtc.h>
@@ -245,12 +248,22 @@ void button_handler_thread_entry(void *p1, void *p2, void *p3) {
 
 int main(void)
 {
+    /* Wait for USB CDC ACM host to connect before logging anything.
+     * Comment out before shipping — blocks boot until a terminal opens. */
+    const struct device *usb_uart = DEVICE_DT_GET(DT_NODELABEL(cdc_acm_uart0));
+    uint32_t dtr = 0;
+    while (!dtr) {
+        uart_line_ctrl_get(usb_uart, UART_LINE_CTRL_DTR, &dtr);
+        k_sleep(K_MSEC(100));
+    }
+
     // run initialization functions
     led_init();
 	led_fast_blink(1, 10);
 
     // init clocking
     rtc_init();
+    // ble_init();
 
     // init GPIO
     init_buttons();
