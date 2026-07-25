@@ -149,6 +149,12 @@
 		reg = <0x52>;
 		backup-switch-mode = "direct";            /* coin cell on VBACKUP */
 		int-gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;   /* RTC_INT P0.05 */
+		/* RTC_CLKOUT is wired to XL1 (P0.00) — no crystal is populated on
+		 * this board, so this is the intended LF clock source. The driver
+		 * stores this in the RV-3028's EEPROM, so CLKOUT comes up from POR
+		 * without needing I2C first. Omitting this property drives CLKOUT
+		 * LOW, which would leave the SoC with no LF source at all. */
+		clkout-frequency = <32768>;
 		/* The RV-3028 does not respond on I2C this early after a cold
 		 * power-on, so the automatic POST_KERNEL init fails with -ENODEV
 		 * and Zephyr latches that failure permanently (do_device_init()

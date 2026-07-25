@@ -79,7 +79,9 @@ static int rtc_wait_ready(void)
 
 /* RV-3028-C7 register map (subset) */
 #define RV3028_REG_SECONDS 0x00
+#define RV3028_REG_CLKOUT  0x35
 #define RV3028_REG_ID      0x28
+
 
 /* Write straight to the CDC endpoint. printk() cannot be used here: with
  * CONFIG_LOG_PRINTK=y it is routed into the log subsystem, which during
@@ -100,6 +102,30 @@ static void cdc_printf(const char *fmt, ...)
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     cdc_write(buf);
+}
+
+/* Report what the SoC's LF clock actually settled on. Zephyr selects the source
+ * at PRE_KERNEL_2; if the external clock never appears it can fall back or hang,
+ * so read the hardware rather than trusting the Kconfig choice.
+ * LFCLKSTAT: bits[1:0] SRC (0=RC, 1=Xtal, 2=Synth), bit16 STATE (1=running). */
+#define NRF_CLOCK_LFCLKSTAT 0x40000418
+#define NRF_CLOCK_LFCLKSRC  0x40000518
+
+static void lfclk_report(void)
+{
+    uint32_t stat = *(volatile uint32_t *)NRF_CLOCK_LFCLKSTAT;
+    uint32_t src = *(volatile uint32_t *)NRF_CLOCK_LFCLKSRC;
+    const char *srcname;
+
+    switch (stat & 0x3) {
+    case 0:  srcname = "RC";    break;
+    case 1:  srcname = "Xtal";  break;
+    case 2:  srcname = "Synth"; break;
+    default: srcname = "?";     break;
+    }
+
+    cdc_printf("LFCLKSTAT=0x%08x src=%s running=%d  LFCLKSRC=0x%08x\r\n",
+               stat, srcname, (stat >> 16) & 1u, src);
 }
 
 /* Probe every address on i2c0. NOTE: the RV-3028 at 0x52 is currently the
@@ -162,6 +188,19 @@ static void rv3028_probe(void)
         return;
     }
     cdc_printf("ID reg 0x28 = 0x%02x\r\n", id);
+
+    /* CLKOUT config as actually programmed (EEPROM-backed): bit7 = CLKOE,
+     * bits2:0 = FD (0 = 32768 Hz, 7 = pin held LOW). */
+    {
+        uint8_t clkout;
+
+        if (i2c_reg_read_byte(i2c_dev, 0x52, RV3028_REG_CLKOUT, &clkout) == 0) {
+            cdc_printf("CLKOUT reg 0x35 = 0x%02x (CLKOE=%d, FD=%d)\r\n",
+                       clkout, (clkout & 0x80) ? 1 : 0, clkout & 0x07);
+        } else {
+            cdc_write("CLKOUT reg 0x35 read FAILED\r\n");
+        }
+    }
 
     ret = i2c_burst_read(i2c_dev, 0x52, RV3028_REG_SECONDS, regs, sizeof(regs));
     if (ret != 0) {
@@ -261,6 +300,7 @@ int main(void)
     }
 
     cdc_write("\r\n===== I2C / RV-3028-C7 probe =====\r\n");
+    lfclk_report();
     if (!device_is_ready(i2c_dev)) {
         cdc_write("i2c0 NOT ready — bus driver failed to init\r\n");
     } else {
