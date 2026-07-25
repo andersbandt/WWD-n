@@ -44,6 +44,39 @@ static const struct device *const i2c_dev =
 static const struct device *const rtc_dev =
     DEVICE_DT_GET(DT_NODELABEL(rv3028));
 
+#define RTC_SETTLE_TIMEOUT_MS  2000
+#define RV3028_REG_STATUS      0x0E
+#define RV3028_STATUS_EEBUSY   BIT(7)
+
+/* Block until the RV-3028 is genuinely ready to be bound, or the timeout
+ * expires. Two conditions, in order: the part ACKs its address at all, and its
+ * POR EEPROM->RAM refresh has finished (STATUS.EEBUSY clear).
+ *
+ * The second one is why the automatic POST_KERNEL bind fails on a cold boot:
+ * rv3028_init() -> rv3028_enter_eerd() allows EEBUSY only 100 ms before
+ * returning -ETIME, and init reports any error as -ENODEV. Zephyr then latches
+ * that failure for the whole boot (do_device_init() sets initialized=true even
+ * on error, so device_init() afterwards returns -EALREADY).
+ *
+ * Returns 0 when ready, -ETIMEDOUT otherwise. */
+static int rtc_wait_ready(void)
+{
+    int64_t t0 = k_uptime_get();
+    uint8_t status;
+    uint8_t dummy;
+
+    while ((k_uptime_get() - t0) < RTC_SETTLE_TIMEOUT_MS) {
+        if (i2c_read(i2c_dev, &dummy, 1, 0x52) == 0 &&
+            i2c_reg_read_byte(i2c_dev, 0x52, RV3028_REG_STATUS, &status) == 0 &&
+            !(status & RV3028_STATUS_EEBUSY)) {
+            return 0;
+        }
+        k_msleep(1);
+    }
+
+    return -ETIMEDOUT;
+}
+
 /* RV-3028-C7 register map (subset) */
 #define RV3028_REG_SECONDS 0x00
 #define RV3028_REG_ID      0x28
@@ -105,6 +138,23 @@ static void rv3028_probe(void)
     /* Zephyr driver binding — fails if the chip did not respond at init */
     cdc_printf("rv3028 device_is_ready: %s\r\n",
                device_is_ready(rtc_dev) ? "YES" : "NO");
+
+    /* BRING-UP DIAG: the driver's init errno, so a bind failure is not silent.
+     * init_res holds -errno from rv3028_init() (19 = ENODEV). */
+    cdc_printf("  state: initialized=%d init_res=%d\r\n",
+               rtc_dev->state->initialized, rtc_dev->state->init_res);
+
+    /* The node is marked zephyr,deferred-init, so bind it here — but only once
+     * the part is actually ready, never relying on incidental boot delay. This
+     * is a one-shot: a failed init is latched by the kernel and cannot be
+     * retried, so it is worth waiting for. */
+    if (!device_is_ready(rtc_dev)) {
+        int w = rtc_wait_ready();
+        int r = device_init(rtc_dev);
+
+        cdc_printf("  wait_ready: %d, device_init: %d -> ready: %s\r\n",
+                   w, r, device_is_ready(rtc_dev) ? "YES" : "NO");
+    }
 
     ret = i2c_reg_read_byte(i2c_dev, 0x52, RV3028_REG_ID, &id);
     if (ret != 0) {
@@ -188,9 +238,27 @@ int main(void)
 
     bool dc_level = false;
 
-    /* Give a host terminal a moment to attach before the one-shot probe
-     * output, otherwise it scrolls past before anyone is listening. */
-    k_msleep(3000);
+    /* Wait for a host terminal to attach (DTR) before the one-shot probe
+     * output, otherwise it scrolls past before anyone is listening. A fixed
+     * k_msleep() here used to race the host: connects landing just after it
+     * lost the whole probe block. Bounded so an unattended boot still runs.
+     *
+     * NB this also delays the deferred device_init() below, so it hands the
+     * RV-3028 a settle margin a shipped build would not have — see the
+     * "settle:" measurement for the number that actually matters. */
+    {
+        uint32_t dtr = 0;
+        int64_t t_dtr = k_uptime_get();
+
+        while (!dtr && (k_uptime_get() - t_dtr) < 3000) {
+            uart_line_ctrl_get(cdc_dev, UART_LINE_CTRL_DTR, &dtr);
+            k_msleep(50);
+        }
+        /* DTR asserts the instant the host opens the port, but the reader on
+         * the far side may not be consuming yet — 100 ms lost the first lines
+         * of the block. Give it a full second. */
+        k_msleep(1000);
+    }
 
     cdc_write("\r\n===== I2C / RV-3028-C7 probe =====\r\n");
     if (!device_is_ready(i2c_dev)) {

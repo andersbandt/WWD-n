@@ -149,6 +149,13 @@
 		reg = <0x52>;
 		backup-switch-mode = "direct";            /* coin cell on VBACKUP */
 		int-gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;   /* RTC_INT P0.05 */
+		/* The RV-3028 does not respond on I2C this early after a cold
+		 * power-on, so the automatic POST_KERNEL init fails with -ENODEV
+		 * and Zephyr latches that failure permanently (do_device_init()
+		 * sets initialized=true even on error, so device_init() then
+		 * returns -EALREADY). Defer the bind and let the application call
+		 * device_init() once the part is awake. */
+		zephyr,deferred-init;
 		status = "okay";
 	};
 };
