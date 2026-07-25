@@ -21,8 +21,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-ELF="$REPO_ROOT/build/zephyr/zephyr.elf"
-DEVICE=nRF52832_xxAA
+ELF="${ELF:-$REPO_ROOT/build_n33/zephyr/zephyr.elf}"
+DEVICE="${DEVICE:-nRF52833_xxAA}"
 IFACE=SWD
 SPEED=4000
 PORT=2331

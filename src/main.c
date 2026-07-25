@@ -1,377 +1,219 @@
 //*****************************************************************************
 //!
-//! @file led.h
+//! @file main.c
 //! @author Anders Bandt
 //! @brief Main code for WWD with Nordic
 //! @version 0.9
 //! @date December 2025
 //!
+//! BRING-UP MODE: everything is stripped out except a 1 Hz toggle of DISP_DC
+//! (P0.29), explicit USB CDC ACM bring-up, and a 1 Hz heartbeat string written
+//! to the CDC port so host-side serial logging can be exercised.
+//! Logs go over SEGGER RTT, not the USB console — the USB port is the thing
+//! under test. The full application main() is in git history (commit 0f89f1e).
+//!
 //*****************************************************************************
 
-/* standard C file */
+/* standard C */
+#include <stdarg.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 
 /* Zephyr files */
 #include <zephyr/kernel.h>
+#include <zephyr/device.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/i2c.h>
+#include <zephyr/drivers/rtc.h>
+#include <zephyr/drivers/uart.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/usb/usb_device.h>
-#include <zephyr/drivers/uart.h>
 
-/* My driver files */
-#include <hardware/led.h>
-#include <hardware/button.h>
-#include <power/power.h>
-#include <peripheral/interrupt.h>
-// #include <ble/ble.h>
-#include <peripheral/timer.h>
-#include <peripheral/clock.h>
-#include <peripheral/rtc.h>
-#include <display.h>
-#include <ui.h>
-#include <imu.h>
-#include <nvs.h>
+LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
+/* DISP_DC — P0.29, dc-gpios on the st7735s node */
+static const struct gpio_dt_spec disp_dc =
+    GPIO_DT_SPEC_GET(DT_NODELABEL(st7735s), dc_gpios);
 
-LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
+static const struct device *const cdc_dev =
+    DEVICE_DT_GET(DT_NODELABEL(cdc_acm_uart0));
 
+static const struct device *const i2c_dev =
+    DEVICE_DT_GET(DT_NODELABEL(i2c0));
 
-int cntr = 0;
-bool imu_status;
+static const struct device *const rtc_dev =
+    DEVICE_DT_GET(DT_NODELABEL(rv3028));
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//! -----------------------------------------------------------------------------------------------------------------------//
-//! GLOBAL VARIABLES ------------------------------------------------------------------------------------------------------//
-//! -----------------------------------------------------------------------------------------------------------------------//
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/* RV-3028-C7 register map (subset) */
+#define RV3028_REG_SECONDS 0x00
+#define RV3028_REG_ID      0x28
 
-extern int display_status;
-
-
-/* Thread stack sizes */
-// TODO: give more thought to these stack sizes
-        // size_t free_stack = 2000;
-        // k_thread_stack_space_get(&ui_refresh_thread, &free_stack);
-        // LOG_INF("ui_refresh  free: %d", free_stack);
-        // k_thread_stack_space_get(&button_handler_thread, &free_stack);
-        // LOG_INF("btn_handler free: %d", free_stack);
-
-#define CLOCK_UPDATE_STACK_SIZE    1024
-#define UI_REFRESH_STACK_SIZE      1024
-#define DISPLAY_TIMEOUT_STACK_SIZE 512
-#define BUTTON_HANDLER_STACK_SIZE  512
-#define IMU_STACK_SIZE             4096
-
-/* Thread priorities (lower number = higher priority) */
-#define CLOCK_UPDATE_PRIORITY    7
-#define UI_REFRESH_PRIORITY      7
-#define DISPLAY_TIMEOUT_PRIORITY 7
-#define BUTTON_HANDLER_PRIORITY  5  /* Highest user priority — buttons only */
-#define IMU_PRIORITY             6  /* FIFO drain, processing, NVS logging */
-
-/* Thread stacks */
-K_THREAD_STACK_DEFINE(clock_update_stack,    CLOCK_UPDATE_STACK_SIZE);
-K_THREAD_STACK_DEFINE(ui_refresh_stack,      UI_REFRESH_STACK_SIZE);
-K_THREAD_STACK_DEFINE(display_timeout_stack, DISPLAY_TIMEOUT_STACK_SIZE);
-K_THREAD_STACK_DEFINE(button_handler_stack,  BUTTON_HANDLER_STACK_SIZE);
-K_THREAD_STACK_DEFINE(imu_stack,             IMU_STACK_SIZE);
-
-/* Thread control blocks */
-struct k_thread clock_update_thread;
-struct k_thread ui_refresh_thread;
-struct k_thread display_timeout_thread;
-struct k_thread button_handler_thread;
-struct k_thread imu_thread;
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//! -----------------------------------------------------------------------------------------------------------------------//
-//! THREAD ENTRY FUNCTIONS ------------------------------------------------------------------------------------------------//
-//! -----------------------------------------------------------------------------------------------------------------------//
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-// TODO: what is this doing here?
-// void dump_task(void)
-// {
-//     if (dump.active) {
-//         dump_send_chunk(&dump);
-//     }
-// }
-
-
-/**
- * @brief Clock/IMU/BMS update thread
- *
- * Triggered by timer1
- */
-void clock_update_thread_entry(void *p1, void *p2, void *p3) {
-    while (1) {
-        /* Wait for timer1 semaphore */
-        k_sem_take(&timer1_sem, K_FOREVER);
-
-        // Update clock data (automatically marks dirty)
-        ui_clock_set_time(get_current_time());
-        // ui_clock_set_temp(imu_get_temp());
-
-        // TODO: Enable when BMS is ready
-        // ui_clock_set_battery(read_battery_percent());
-        // ui_clock_set_charging(read_charging_status());
-
-        // ui_clock_set_steps(step_count);
+/* Write straight to the CDC endpoint. printk() cannot be used here: with
+ * CONFIG_LOG_PRINTK=y it is routed into the log subsystem, which during
+ * bring-up only has the RTT backend, so it never reaches USB. */
+static void cdc_write(const char *s)
+{
+    while (*s != '\0') {
+        uart_poll_out(cdc_dev, *s++);
     }
 }
 
-/**
- * @brief UI refresh thread
- *
- * Triggered every 1 second by timer2
- */
-void ui_refresh_thread_entry(void *p1, void *p2, void *p3) {
-    while (1) {
-        /* Wait for timer2 semaphore */
-        k_sem_take(&timer2_sem, K_FOREVER);
+static void cdc_printf(const char *fmt, ...)
+{
+    char buf[160];
+    va_list ap;
 
-        /* Refresh UI if display is on */
-        if (display_status == 1) {
-            ui_refresh();
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    cdc_write(buf);
+}
+
+/* Probe every address on i2c0. NOTE: the RV-3028 at 0x52 is currently the
+ * only IC populated on this bus — the mcp23008@20 node in the DTS is not
+ * fitted on any board, so its absence from the scan is expected and there is
+ * no second device to use as a bus-health control. */
+static void i2c_bus_scan(void)
+{
+    uint8_t dummy;
+    int found = 0;
+
+    cdc_write("I2C scan on i2c0:\r\n");
+
+    for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
+        /* 1-byte read rather than a zero-length write — nRF TWIM does not
+         * handle zero-length transfers reliably. */
+        if (i2c_read(i2c_dev, &dummy, 1, addr) == 0) {
+            cdc_printf("  ACK 0x%02x%s\r\n", addr,
+                       addr == 0x20 ? "  (MCP23008)" :
+                       addr == 0x52 ? "  (RV-3028)"  : "");
+            found++;
         }
+    }
+
+    if (found == 0) {
+        cdc_write("  no device ACKed (0x52 expected)\r\n");
     }
 }
 
-/**
- * @brief Display timeout thread
- *
- * Triggered after 9 seconds by timer3 (one-shot)
- */
-void display_timeout_thread_entry(void *p1, void *p2, void *p3) {
-    while (1) {
-        /* Wait for timer3 semaphore */
-        k_sem_take(&timer3_sem, K_FOREVER);
+static void rv3028_probe(void)
+{
+    uint8_t regs[7];
+    uint8_t id;
+    int ret;
 
-        /* Turn off display */
-        // switch_display(0);
-        // display_state = 0;
-        // change_ui_mode(1);
+    /* Zephyr driver binding — fails if the chip did not respond at init */
+    cdc_printf("rv3028 device_is_ready: %s\r\n",
+               device_is_ready(rtc_dev) ? "YES" : "NO");
+
+    ret = i2c_reg_read_byte(i2c_dev, 0x52, RV3028_REG_ID, &id);
+    if (ret != 0) {
+        cdc_printf("ID read FAILED (%d) — no I2C comms with RV-3028\r\n", ret);
+        return;
+    }
+    cdc_printf("ID reg 0x28 = 0x%02x\r\n", id);
+
+    ret = i2c_burst_read(i2c_dev, 0x52, RV3028_REG_SECONDS, regs, sizeof(regs));
+    if (ret != 0) {
+        cdc_printf("time regs read FAILED (%d)\r\n", ret);
+        return;
+    }
+    cdc_printf("regs 0x00-0x06 (BCD): %02x %02x %02x %02x %02x %02x %02x\r\n",
+               regs[0], regs[1], regs[2], regs[3], regs[4], regs[5], regs[6]);
+}
+
+/* Read the seconds register (BCD -> binary). Returns -1 on I2C error. */
+static int rv3028_seconds(void)
+{
+    uint8_t s;
+
+    if (i2c_reg_read_byte(i2c_dev, 0x52, RV3028_REG_SECONDS, &s) != 0) {
+        return -1;
+    }
+    return ((s >> 4) & 0x07) * 10 + (s & 0x0f);
+}
+
+static const char *usb_status_str(enum usb_dc_status_code status)
+{
+    switch (status) {
+    case USB_DC_ERROR:        return "ERROR";
+    case USB_DC_RESET:        return "RESET";
+    case USB_DC_CONNECTED:    return "CONNECTED";
+    case USB_DC_CONFIGURED:   return "CONFIGURED";
+    case USB_DC_DISCONNECTED: return "DISCONNECTED";
+    case USB_DC_SUSPEND:      return "SUSPEND";
+    case USB_DC_RESUME:       return "RESUME";
+    case USB_DC_INTERFACE:    return "INTERFACE";
+    case USB_DC_SET_HALT:     return "SET_HALT";
+    case USB_DC_CLEAR_HALT:   return "CLEAR_HALT";
+    case USB_DC_SOF:          return "SOF";
+    case USB_DC_UNKNOWN:      return "UNKNOWN";
+    default:                  return "???";
     }
 }
 
-
-/**
- * @brief IMU thread
- *
- * Handles all IMU interrupt events at priority 6, keeping SPI-heavy work
- * (FIFO drain, NVS logging) out of the high-priority button handler.
- *
- * INT1 — WOM / APEX events
- * INT2 — FIFO watermark: drain FIFO → circular buffer → process → log NVS
- */
-void imu_thread_entry(void *p1, void *p2, void *p3) {
-    while (1) {
-        struct k_poll_event events[2] = {
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &imu_int1_sem),
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &imu_int2_sem),
-        };
-
-        k_poll(events, 2, K_FOREVER);
-
-        /* INT1 — WOM / APEX */
-        if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&imu_int1_sem, K_NO_WAIT);
-            LOG_DBG("IMU INT1 triggered");
-            led_fast_blink(2, 10);
-        }
-
-        /* INT2 — FIFO watermark */
-        if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&imu_int2_sem, K_NO_WAIT);
-            LOG_DBG("IMU INT2 triggered");
-            if (imu_status) {
-                get_fifo_data();
-                imu_process();
-            }
-        }
+static void usb_status_cb(enum usb_dc_status_code status, const uint8_t *param)
+{
+    /* SOF fires every 1 ms — far too noisy to log. */
+    if (status == USB_DC_SOF) {
+        return;
     }
+    LOG_INF("USB status: %s (%d)", usb_status_str(status), status);
 }
-
-
-/**
- * @brief Button handler thread
- *
- * Handles button press events only — no IMU work here.
- */
-void button_handler_thread_entry(void *p1, void *p2, void *p3) {
-    while (1) {
-        struct k_poll_event events[4] = {
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &button1_sem),
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &button2_sem),
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &button3_sem),
-            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE,
-                                     K_POLL_MODE_NOTIFY_ONLY,
-                                     &button4_sem),
-        };
-
-        k_poll(events, 4, K_FOREVER);
-
-        if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&button1_sem, K_NO_WAIT);
-            handle_ui_input();
-        }
-        if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&button2_sem, K_NO_WAIT);
-            handle_ui_input();
-        }
-        if (events[2].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&button3_sem, K_NO_WAIT);
-            handle_ui_input();
-        }
-        if (events[3].state == K_POLL_STATE_SEM_AVAILABLE) {
-            k_sem_take(&button4_sem, K_NO_WAIT);
-            handle_ui_input();
-        }
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//! -----------------------------------------------------------------------------------------------------------------------//
-//! MAIN FUNCTION ---------------------------------------------------------------------------------------------------------//
-//! -----------------------------------------------------------------------------------------------------------------------//
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 int main(void)
 {
-    /* Wait for USB CDC ACM host to connect before logging anything.
-     * Comment out before shipping — blocks boot until a terminal opens. */
-    const struct device *usb_uart = DEVICE_DT_GET(DT_NODELABEL(cdc_acm_uart0));
-    uint32_t dtr = 0;
-    while (!dtr) {
-        uart_line_ctrl_get(usb_uart, UART_LINE_CTRL_DTR, &dtr);
-        k_sleep(K_MSEC(100));
+    int ret;
+
+    LOG_INF("=== WWD-n bring-up: DISP_DC blink + USB CDC ===");
+
+    if (!device_is_ready(cdc_dev)) {
+        LOG_ERR("cdc_acm_uart0 device not ready");
+    } else {
+        LOG_INF("cdc_acm_uart0 ready");
     }
 
-    // run initialization functions
-    led_init();
-	led_fast_blink(1, 10);
-
-    // init clocking
-    rtc_init();
-    power_init();
-    // ble_init();
-
-    // init GPIO
-    init_buttons();
-    init_button_buffer();
-    config_all_interrupts();
-
-
-    /*
-    DISPLAY and UI config
-    */
-    // led_set(1, 1);
-    // init_display();
-    // led_set(1, 0);
-    // init_ui();
-    /*
-    END OF UI CONFIG
-    */
-
-
-    /*
-    IMU CONFIG BLOCK
-    */
-    k_msleep(200);
-    int ret = 0;
-    ret |= imu_init();
-    if (ret == 0) {
-        imu_status = true;
+    ret = usb_enable(usb_status_cb);
+    if (ret != 0) {
+        LOG_ERR("usb_enable() failed: %d", ret);
+    } else {
+        LOG_INF("usb_enable() ok");
     }
-    else {
-        imu_status = false;
-        led_set(3, 1); 
+
+    if (!gpio_is_ready_dt(&disp_dc)) {
+        LOG_ERR("DISP_DC gpio not ready");
+        return -1;
     }
-    /*
-    END OF IMU CONFIG BLOCK
-    */
+    gpio_pin_configure_dt(&disp_dc, GPIO_OUTPUT_INACTIVE);
 
+    bool dc_level = false;
 
-    /*
-    NVS CONFIG BLOCK
-    */
-    // NOTE: the init order of these might matter ... couldn't get IMU to init properly when it was after
-    k_msleep(200);
-	nvs_init();
-    led_set(2, 1);
-    nvs_dump();
-    /*
-    END OF NVS CONFIG BLOCK
-    */
+    /* Give a host terminal a moment to attach before the one-shot probe
+     * output, otherwise it scrolls past before anyone is listening. */
+    k_msleep(3000);
 
-
-    led_set(2, 0);
-
-    /*
-    CREATE THREADS
-    */
-    LOG_INF("Creating application threads...");
-
-    /* Create clock/IMU/BMS update thread */
-    k_thread_create(&clock_update_thread, clock_update_stack,
-                    K_THREAD_STACK_SIZEOF(clock_update_stack),
-                    clock_update_thread_entry,
-                    NULL, NULL, NULL,
-                    CLOCK_UPDATE_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(&clock_update_thread, "clock_update");
-
-    // /* Create UI refresh thread */
-    k_thread_create(&ui_refresh_thread, ui_refresh_stack,
-                    K_THREAD_STACK_SIZEOF(ui_refresh_stack),
-                    ui_refresh_thread_entry,
-                    NULL, NULL, NULL,
-                    UI_REFRESH_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(&ui_refresh_thread, "ui_refresh");
-
-    /* Create display timeout thread */
-    k_thread_create(&display_timeout_thread, display_timeout_stack,
-                    K_THREAD_STACK_SIZEOF(display_timeout_stack),
-                    display_timeout_thread_entry,
-                    NULL, NULL, NULL,
-                    DISPLAY_TIMEOUT_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(&display_timeout_thread, "display_timeout");
-
-    /* Create button handler thread */
-    k_thread_create(&button_handler_thread, button_handler_stack,
-                    K_THREAD_STACK_SIZEOF(button_handler_stack),
-                    button_handler_thread_entry,
-                    NULL, NULL, NULL,
-                    BUTTON_HANDLER_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(&button_handler_thread, "button_handler");
-
-    /* Create IMU thread */
-    k_thread_create(&imu_thread, imu_stack,
-                    K_THREAD_STACK_SIZEOF(imu_stack),
-                    imu_thread_entry,
-                    NULL, NULL, NULL,
-                    IMU_PRIORITY, 0, K_NO_WAIT);
-    k_thread_name_set(&imu_thread, "imu");
-
-
-    /* Main thread can now sleep - all work is done by worker threads */
-    LOG_INF("Starting WWD program!");
-    init_timer();
+    cdc_write("\r\n===== I2C / RV-3028-C7 probe =====\r\n");
+    if (!device_is_ready(i2c_dev)) {
+        cdc_write("i2c0 NOT ready — bus driver failed to init\r\n");
+    } else {
+        i2c_bus_scan();
+        rv3028_probe();
+    }
+    cdc_write("==================================\r\n");
 
     while (1) {
-        k_sleep(K_FOREVER);
+        int secs = rv3028_seconds();
+
+        dc_level = !dc_level;
+        gpio_pin_set_dt(&disp_dc, dc_level);
+
+        if (secs < 0) {
+            cdc_write("... heartbeat ...  rtc: I2C ERR\r\n");
+        } else {
+            cdc_printf("... heartbeat ...  rtc secs: %02d\r\n", secs);
+        }
+        k_msleep(1000);
     }
 
-	return 0;
+    return 0;
 }
-

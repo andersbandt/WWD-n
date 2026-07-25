@@ -1,5 +1,18 @@
-__enable_irq () at /home/anders/Documents/NCS/modules/hal/cmsis_6/CMSIS/Core/Include/cmsis_gcc.h:800
-800	  __ASM volatile ("cpsie i" : : : "memory");
+__enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
+951	  __ASM volatile ("cpsie i" : : : "memory");
 Expected an decimal digit (0-9)
-Resetting target
+Reading from address 0x50000778 (Data = 0x00000600)
+Reading from address 0x50000A24 (Data = 0x00000600)
+Writing 0x00000000 @ address 0x40003500
+Writing 0x00000601 @ address 0x50000778
+Writing 0x40000000 @ address 0x5000050C
+Reading from address 0x50000510 (Data = 0x00040000)
+Writing 0x40000000 @ address 0x50000508
+Reading from address 0x50000510 (Data = 0x40040000)
+Writing 0x00000601 @ address 0x50000A24
+Writing 0x00000200 @ address 0x5000080C
+Reading from address 0x50000810 (Data = 0x00000000)
+Writing 0x00000200 @ address 0x50000808
+Reading from address 0x50000810 (Data = 0x00000200)
 [Inferior 1 (Remote target) detached]
+The program is not being run.

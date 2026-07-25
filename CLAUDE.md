@@ -154,20 +154,21 @@ Main thread initialization order: LED → buttons → display → UI → interru
 src/
 ├── main.c                    # Main application entry, thread definitions
 ├── circular_buffer.[ch]      # Generic circular buffer implementation
-├── clock.[ch]               # Clock/time management
 ├── peripheral/              # Low-level peripheral drivers
-│   ├── interrupt.c          # GPIO interrupt configuration
-│   └── timer.c              # Timer setup and management
+│   ├── clock.[ch]          # Date/time arithmetic, get_current_time() wrapper
+│   ├── rtc.[ch]            # Counter-based soft-RTC (nRF RTC2, dev boards)
+│   ├── rv3028.[ch]         # RV-3028-C7 hardware RTC via Zephyr RTC API
+│   ├── interrupt.[ch]      # GPIO interrupt configuration
+│   └── timer.[ch]          # Timer setup and management
 ├── hardware/                # Hardware abstraction layer
 │   ├── led.[ch]            # LED control
 │   ├── button.[ch]         # Button handling with debouncing
 │   └── ic/imu/             # IMU driver (see below)
 ├── display/                 # Display drivers and graphics
-│   ├── display.[ch]        # Display abstraction layer
-│   ├── st7735s/            # ST7735S driver (default)
-│   ├── st7789.c            # ST7789 driver
-│   ├── gfx.c               # Graphics primitives
-│   └── fonts.c             # Font rendering
+│   ├── display.[ch]        # Display abstraction layer (ST7735S only)
+│   ├── st7735s/            # ST7735S driver — sole active display driver
+│   ├── font.[ch]           # Font rendering
+│   └── gfx/                # Graphics primitives
 ├── ui/                      # User interface logic
 │   ├── ui.[ch]             # UI state machine and mode management
 │   ├── ui_display.[ch]     # Display update functions
@@ -177,9 +178,11 @@ src/
 │   ├── mt29f_nand.[ch]     # NAND flash driver
 │   └── nvs.[ch]            # Non-volatile storage
 ├── comm/                    # Communication interfaces
-│   └── uart.[ch]           # UART driver
+│   └── uart.[ch]           # UART flash-dump utility
+├── ble/                     # Bluetooth LE (stub, inactive)
+│   └── ble.[ch]            # Advertising + connection stub; enable via prj.conf
 └── power/                   # Power management
-    └── power.[ch]          # Power control
+    └── power.[ch]          # Battery ADC, VBAT_DIV_EN, BOOST_SEL, charging stub
 ```
 
 ### IMU Driver Architecture
@@ -199,11 +202,9 @@ When using `USE_DERS_IMU`, the following files are compiled:
 - `inv_imu_transport.c` - SPI transport layer
 - `inv_time.c` - Timing utilities
 
-### Display Driver Selection
+### Display Driver
 
-Display driver is selected via `#define USE_ST7735S` in `src/display/display.h`:
-- **ST7735S** (default): 128x160 display
-- **ST7789**: Alternative display controller
+**ST7735S is the only display driver.** ST7789 files (`st7789.c`, `st7789.h`, `waveshare,st7789v2.yaml`) have been deleted. `display.c` calls `ST7735S_Init()` / `ST7735S_sleepOut()` / `ST7735S_sleepIn()` directly with no ifdefs. The `USE_ST7735S` macro has been removed from `display.h`.
 
 ### UI System
 
@@ -236,6 +237,8 @@ Key configuration in `prj.conf`:
 - `CONFIG_SENSOR=y` for IMU support
 - `CONFIG_DISPLAY=n` (display is manually driven, not using Zephyr display API)
 - Stack debugging enabled: `CONFIG_STACK_SENTINEL`, `CONFIG_THREAD_STACK_INFO`, `CONFIG_INIT_STACKS`
+
+**prj.conf comment rule**: Never remove or alter comments in `prj.conf` — commented-out lines are kept intentionally for future use. Preserve them verbatim, including lines like `# fucking memory debug`, `#CONFIG_LOG_BUFFER_SIZE=2048`, `# CONFIG_LOG_DEFAULT_LEVEL=4`, and `# this one is for printing thread stack space`.
 
 ### Logging Level Control
 
@@ -361,3 +364,5 @@ nvs_log_record()
 - NVS/NAND logging is implemented and functional (`NVS_LOG_IMU_SAMPLES=1` in nvs.h). `nvs_init()` is currently commented out in `main.c` due to the unresolved SPI bus contention issue with IMU init — NVS and IMU cannot both run on the same boot until that is resolved.
 - Display timeout thread code exists but is currently commented out in main.c
 - BMS (battery management) code is stubbed out but not implemented
+- `clock_set_time()` in UIFunctions.c — the "confirm time" UI action needs to be wired to call `clock_set_time(time_offset)` (and ultimately `rv3028_set_time()` once hardware is ready)
+- `get_current_time()` in `clock.c` currently calls `rtc_get_time()` (counter-based) — swap to `rv3028_get_time()` for production once RV-3028 hardware is verified
