@@ -7,6 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Read `src/hardware/ic/imu/imu_notes.md` at the beginning of every session — it tracks
 ongoing investigations, known hardware quirks, and design decisions for the IMU subsystem.
 
+If the session involves NVS/NAND, also read `src/memory/nvs_notes.md`. If it involves the
+USB host command protocol (dump/erase/rate-config, or anything in `src/comm/` or the
+companion `wwd_gui_api` repo), also read `src/comm/protocol_notes.md`.
+
 ## Project Overview
 
 WWD-n is a wearable device firmware project built on the Zephyr RTOS targeting the **nRF52833-QDAA** microcontroller (custom `nrf52833_ders` board). The project implements a multi-threaded system with display, IMU, buttons, NVS logging, and various peripherals.
@@ -178,7 +182,8 @@ src/
 │   ├── mt29f_nand.[ch]     # NAND flash driver
 │   └── nvs.[ch]            # Non-volatile storage
 ├── comm/                    # Communication interfaces
-│   └── uart.[ch]           # UART flash-dump utility
+│   ├── protocol.[ch]       # Binary host<->device command protocol (cdc_acm_uart1)
+│   └── rate_config.[ch]    # Runtime IMU ODR / temperature log interval
 ├── ble/                     # Bluetooth LE (stub, inactive)
 │   └── ble.[ch]            # Advertising + connection stub; enable via prj.conf
 └── power/                   # Power management
@@ -360,12 +365,36 @@ nvs_log_record()
 
 `nvs_dump()` reads all committed pages from offset 0 to `write_addr` and prints every record over `LOG_INF`. Only flushed data is visible — the in-memory page buffer is not included. Call it after `nvs_init()` during boot (before new records are written) to inspect a prior session's data.
 
+## USB Host Command Protocol
+
+`src/comm/protocol.c`/`.h` implement a binary host<->device command channel over
+a **second** USB CDC ACM interface (`cdc_acm_uart1`, defined alongside the
+existing console `cdc_acm_uart0` in `nrf52833_ders.dts`) — the console/log/shell
+stream and the binary protocol never share a wire. Read `src/comm/protocol_notes.md`
+before working on this; `protocol.h` is the canonical frame/command spec.
+
+Commands implemented: `CMD_PING`, `CMD_DUMP_START/DATA/DONE` (streams the whole
+committed NVS log back to the host with CRC32 verification), `CMD_ERASE` (chip
+erase), `CMD_GET_RATE`/`CMD_SET_RATE` (runtime IMU ODR + temperature log
+interval — see `src/comm/rate_config.c`).
+
+`mt29f_nand.c` and `nvs.c` are now called concurrently from two threads (the
+main pipeline loop and the protocol thread) and are protected by two mutexes
+(`mt29f_bus_mutex`, `nvs_state_mutex`) — go through the existing public API
+rather than touching NAND/NVS state directly, or new code won't be covered.
+
+The GUI-side client lives in a companion repo: `/home/anders/Documents/GitHub/wwd_gui_api`
+(`common/device_protocol.py`, `gui/guiTab_4_USB.py`, `common/dump_decoder.py`).
+It hand-mirrors this repo's `protocol.h` enums — there is no shared source of
+truth, so a protocol change here requires a matching edit there. That repo has
+its own `CLAUDE.md`.
+
 ## Known Issues
 
 - IMU INT1 (P0.9): Previously non-functional due to P0.9 being the NFC1 antenna pin — fixed by adding `nfct-pins-as-gpios` to `&uicr` in the device tree. Both INT1 and INT2 require push-pull configuration on the IMU side.
   - **This fix was lost in the port to `nrf52833_ders` and restored 2026-07-26.** P0.10 (NFC2) is the IMU's *chip select* on this board, so losing it broke the IMU entirely, not just the interrupt. On nRF52 the DTS property alone is a no-op — `system_nrf52.c` gates the UICR write on `CONFIG_NFCT_PINS_AS_GPIOS`, which is now set in `nrf52833_ders_defconfig`. Keep both. See `imu_notes.md`.
-- **IMU init fails when NVS runs first (SPI bus contention, UNRESOLVED)**: MT29F NAND (SPI Mode 3) and ICM-42670 IMU (SPI Mode 0) share SPI1. After `nvs_init()`, MISO reads as 0x00 for all IMU transactions — confirmed via GDB `WHO_AM_I` check. Root cause is NAND holding MISO after page cache reads. Multiple software fixes attempted (wait_until_ready in various places) did not resolve it. CS pins confirmed high during the infinite loop so it is not a CS assertion issue. Needs logic analyzer to see MISO state during first IMU transaction. See `imu_notes.md` for full investigation log.
-- NVS/NAND logging is implemented (`NVS_LOG_IMU_SAMPLES=1` in nvs.h) but **untested on the nRF52833 boards: the MT29F is not populated on SN2 or SN3.** The SPI bus contention with IMU init was diagnosed on the previous nRF52832 BETA board and should be re-tested from scratch rather than assumed — see `src/memory/nvs_notes.md`. In the real `main()` (commit `0f89f1e`) `nvs_init()` is active, ordered after `imu_init()`.
+- ~~IMU init fails when NVS runs first (SPI bus contention, UNRESOLVED)~~ — **does NOT reproduce on the nRF52833 boards.** That analysis was from the previous nRF52832 BETA board. Re-tested from scratch on SN3 (MT29F populated 2026-07-26): `WHO_AM_I` reads correctly after `nvs_init()` on every boot, including under continuous NAND write load and concurrent USB-protocol-driven flash dumps. See `imu_notes.md` and `src/memory/nvs_notes.md` for the re-test.
+- NVS/NAND logging is implemented (`NVS_LOG_IMU_SAMPLES=1` in nvs.h) and **extensively tested on SN3** (MT29F populated 2026-07-26): full pipeline (IMU FIFO + temperature + metadata rotation through both even and odd META blocks), a MT29F plane-select aliasing bug found and fixed (see `src/memory/nvs_notes.md`), and multi-MB flash dumps verified byte-for-byte over the USB host command protocol (see `src/comm/protocol_notes.md`). Still untested: SN2 (MT29F not populated there).
 - Display timeout thread code exists but is currently commented out in main.c
 - BMS (battery management) code is stubbed out but not implemented
 - `clock_set_time()` in UIFunctions.c — the "confirm time" UI action needs to be wired to call `clock_set_time(time_offset)` (and ultimately `rv3028_set_time()` once hardware is ready)

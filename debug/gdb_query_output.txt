@@ -1,11 +1,42 @@
 __enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
 951	  __ASM volatile ("cpsie i" : : : "memory");
 Expected an decimal digit (0-9)
-Breakpoint 1 at 0x1dfc: file /home/anders/Documents/NCS/WWD-n/src/main.c, line 100.
-
-Breakpoint 1, rv3028_probe () at /home/anders/Documents/NCS/WWD-n/src/main.c:100
-100	{
-$1 = {init_res = 0 '\000', initialized = true}
-$2 = 0x3eff4 "rv3028@52"
+#0  __enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
+#1  arch_cpu_idle () at /home/anders/ncs/v3.1.1/zephyr/arch/arm/core/cortex_m/cpu_idle.c:104
+#2  0x0003bdc4 in k_cpu_idle () at /home/anders/ncs/v3.1.1/zephyr/include/zephyr/kernel.h:6323
+#3  0x00025122 in idle (unused1=0x20005acc <_kernel>, unused2=0x0 <k_sem_give>, unused3=0x0 <k_sem_give>) at /home/anders/ncs/v3.1.1/zephyr/kernel/idle.c:75
+#4  0x0002fe32 in z_thread_entry (entry=0x250d5 <idle>, p1=0x20005acc <_kernel>, p2=0x0 <k_sem_give>, p3=0x0 <k_sem_give>) at /home/anders/ncs/v3.1.1/zephyr/lib/os/thread_entry.c:48
+#5  0xaaaaaaaa in ?? ()
+Backtrace stopped: previous frame identical to this frame (corrupt stack?)
+r0             0x20005acc          536894156
+r1             0x0                 0
+r2             0x0                 0
+r3             0x0                 0
+r4             0x0                 0
+r5             0x0                 0
+r6             0x0                 0
+r7             0x2000a5e8          536913384
+r8             0x0                 0
+r9             0x0                 0
+r10            0x0                 0
+r11            0x0                 0
+r12            0xaaaaaaaa          2863311530
+sp             0x2000a5e8          0x2000a5e8 <z_idle_stacks+296>
+lr             0x3bdc5             245189
+pc             0x329e4             0x329e4 <arch_cpu_idle+36>
+xpsr           0x41000000          1090519040
+fpscr          0x0                 0
+msp            0x2000ae80          0x2000ae80 <sys_work_q_stack>
+psp            0x2000a5e8          0x2000a5e8 <z_idle_stacks+296>
+primask        0x1                 1
+basepri        0x0                 0
+faultmask      0x0                 0
+control        0x2                 2
+apsr           0x40000000          1073741824
+epsr           0x1000000           16777216
+ipsr           0x0                 0
+iapsr          0x40000000          1073741824
+eapsr          0x41000000          1090519040
+iepsr          0x1000000           16777216
 [Inferior 1 (Remote target) detached]
 The program is not being run.

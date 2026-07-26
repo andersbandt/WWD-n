@@ -11,6 +11,7 @@
 #ifndef SRC_IC_IMU_IMU_H_
 #define SRC_IC_IMU_IMU_H_
 
+#include <stdint.h>
 
 /* My header files  */
 #include <circular_buffer.h>
@@ -57,6 +58,17 @@ int imu_init();
  * @return initialization status indicator
  */
 int imu_start();
+
+
+/**
+ * @brief runtime ODR change for both accel and gyro, at the FSR imu_start()
+ *        already configured them with (16 g / 2000 dps — not adjustable
+ *        here, see startAccel()/startGyro() in ICM_42670.c for FSR control).
+ *        Valid values: 25/50/100/200/400/800 Hz (ICM-42670 discrete steps).
+ *
+ * @return 0 on success, -EINVAL for an unsupported hz value
+ */
+int imu_set_odr(uint16_t odr_hz);
 
 
 /**

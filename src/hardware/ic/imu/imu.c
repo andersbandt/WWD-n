@@ -17,9 +17,10 @@
 
 /* Standard C99 stuff */
 #include <stdint.h>
+#include <errno.h>
     // below 2 are for printf only (I think)
     #include <stdio.h>
-    #include <stddef.h> 
+    #include <stddef.h>
 
 /* Zephyr files */
 #include <zephyr/kernel.h>
@@ -155,6 +156,34 @@ int imu_start() {
     rc |= startGyro(100, 2000);    // ODR=100 Hz, full-scale range=2000 dps
 
     return rc;
+}
+
+
+/*
+ * imu_set_odr: runtime ODR change for accel+gyro at the FSR imu_start() used.
+ * startAccel()/startGyro() just write config registers on an already-running
+ * sensor, so re-calling them at a new ODR is safe without a re-init.
+ */
+int imu_set_odr(uint16_t odr_hz) {
+    switch (odr_hz) {
+    case 25: case 50: case 100: case 200: case 400: case 800:
+        break;
+    default:
+        LOG_ERR("imu_set_odr: unsupported %u Hz (want 25/50/100/200/400/800)", odr_hz);
+        return -EINVAL;
+    }
+
+    int rc = 0;
+    rc |= startAccel(odr_hz, 16);
+    rc |= startGyro(odr_hz, 2000);
+
+    if (rc != 0) {
+        LOG_ERR("imu_set_odr(%u): failed: %d", odr_hz, rc);
+        return rc;
+    }
+
+    LOG_INF("imu_set_odr: accel+gyro now at %u Hz", odr_hz);
+    return 0;
 }
 
 

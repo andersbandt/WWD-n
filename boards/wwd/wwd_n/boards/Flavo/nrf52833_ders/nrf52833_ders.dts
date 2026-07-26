@@ -187,12 +187,21 @@
 	};
 };
 
-/* USB CDC console — D+/D- are hardware pins, no pinctrl needed */
+/* USB CDC console — D+/D- are hardware pins, no pinctrl needed.
+ * Two ACM instances on one composite USB device: uart0 stays the
+ * human-readable console/shell/log stream exactly as before; uart1 is a
+ * second, independent /dev/ttyACM* the host uses purely for the binary
+ * host<->device command protocol (src/comm/protocol.[ch]), so command
+ * framing never has to coexist with interleaved log text on the wire. */
 zephyr_udc0: &usbd {
 	compatible = "nordic,nrf-usbd";
 	status = "okay";
 
 	cdc_acm_uart0: cdc_acm_uart0 {
+		compatible = "zephyr,cdc-acm-uart";
+	};
+
+	cdc_acm_uart1: cdc_acm_uart1 {
 		compatible = "zephyr,cdc-acm-uart";
 	};
 };
