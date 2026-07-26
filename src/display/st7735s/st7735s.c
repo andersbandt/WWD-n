@@ -90,7 +90,11 @@ typedef enum {
     #define FRAMESIZE 1
     color565_t frame[FRAMESIZE] = {0};
 #elif defined (HVBUFFER)
-    color565_t hvframe[defWIDTH] = {0};
+    /* Holds both horizontal runs (indexed by x, up to defWIDTH-1) and
+     * vertical runs (indexed by y, up to defHEIGHT-1) — must cover
+     * whichever dimension is larger, not just width. */
+    #define HVFRAME_LEN ((defWIDTH > defHEIGHT) ? defWIDTH : defHEIGHT)
+    color565_t hvframe[HVFRAME_LEN] = {0};
     color565_t hvcolor1;
     typedef enum { HF, VF, ONE, NONE } hvtype_t;
     hvtype_t hvtype = NONE;

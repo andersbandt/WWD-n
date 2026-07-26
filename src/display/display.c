@@ -63,7 +63,7 @@ int display_status;
 /*
  * getFontPointer: returns pointer to font array based on font size enum
  */
-static uint8_t* getFontPointer(font_size_t fontSize)
+static const uint8_t* getFontPointer(font_size_t fontSize)
 {
     switch (fontSize) {
         case FONT_SMALL:    return ter_u12b;

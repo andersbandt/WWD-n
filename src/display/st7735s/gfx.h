@@ -11,7 +11,7 @@ void setbgPixel(uint16_t, uint16_t);
 void fillScreen(void);
 /* needs to be the last action when using BUFFER or HVBUFFER */
 void flushBuffer(void);
-void setFont(uint8_t *);
+void setFont(const uint8_t *);
 void drawText(uint16_t, uint16_t, const char *);
 void drawCircle(uint16_t, uint16_t, uint16_t);
 void filledCircle(uint16_t, uint16_t, uint16_t);

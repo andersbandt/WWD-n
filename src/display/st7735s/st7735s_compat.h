@@ -13,10 +13,10 @@
 // #define BUFFER
 
 /* BUFFER1: slowest, used for limited RAM */
-#define BUFFER1
+// #define BUFFER1
 
 /*HVBUFFER: takes advantage of writing adjacent same color pixels*/
-// #define HVBUFFER
+#define HVBUFFER
 
 #ifdef __cplusplus
 extern "C" {

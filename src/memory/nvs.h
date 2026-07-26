@@ -23,6 +23,16 @@
 // META block configuration
 #define META_BLOCK_COUNT    8
 
+// CONFIG block configuration — persists user-adjustable rate settings (IMU
+// ODR, temperature log interval) across power cycles. A separate small
+// region from META_BLOCK_COUNT above: that region is exclusively the log
+// write-offset metadata's rotation, keyed by struct log_state, and mixing a
+// differently-shaped record into the same pages would break its scan. Placed
+// immediately before the META blocks, shrinking the data region by
+// CONFIG_BLOCK_COUNT blocks.
+#define CONFIG_BLOCK_COUNT  2
+#define CONFIG_MAGIC        0xC0F16000
+
 // Set to 1 to enable logging of IMU FIFO samples to NVS, 0 to disable
 #define NVS_LOG_IMU_SAMPLES 1
 
@@ -34,6 +44,15 @@ struct log_state {
     uint64_t nand_offset;
     uint32_t crc;
 };
+
+
+struct device_config_state {
+    uint32_t magic;
+    uint32_t seq;
+    uint16_t imu_odr_hz;
+    uint16_t temp_interval_sec;
+    uint32_t crc;
+} __packed;
 
 
 enum record_type {
@@ -212,6 +231,23 @@ int nvs_flush_buffer(void);
  * In-memory page buffer content (not yet flushed) is not included.
  */
 void nvs_dump(void);
+
+
+/**
+ * @brief persists user-adjustable rate settings to the dedicated CONFIG region
+ * @return 0 on success, negative error code on failure (NVS not initialized, etc.)
+ */
+int nvs_config_save(uint16_t imu_odr_hz, uint16_t temp_interval_sec);
+
+
+/**
+ * @brief recovers rate settings written by nvs_config_save()
+ * @param[out]  imu_odr_hz          filled in on success
+ * @param[out]  temp_interval_sec   filled in on success
+ * @return      0 if a valid config was found, -ENOENT if the region is blank/invalid,
+ *              negative error code if NVS is not initialized
+ */
+int nvs_config_load(uint16_t *imu_odr_hz, uint16_t *temp_interval_sec);
 
 
 

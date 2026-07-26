@@ -33,6 +33,7 @@
 /* IMU bring-up */
 #include <imu.h>
 #include <ICM_42670.h>   /* getDataFromFifo(), getTempDataFromIMUReg() */
+#include <display.h>
 
 /* NVS bring-up */
 #include <nvs.h>
@@ -43,10 +44,6 @@
 #include "comm/rate_config.h"
 
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
-
-/* DISP_DC — P0.29, dc-gpios on the st7735s node */
-static const struct gpio_dt_spec disp_dc =
-    GPIO_DT_SPEC_GET(DT_NODELABEL(st7735s), dc_gpios);
 
 static const struct device *const cdc_dev =
     DEVICE_DT_GET(DT_NODELABEL(cdc_acm_uart0));
@@ -851,6 +848,37 @@ static void plane_alias_test(void)
                    : "FAIL -- aliasing still present");
 }
 
+/* First real display bring-up: init_display() drives the panel through
+ * SPI1@2 (CS P0.28) + DC (P0.29) + RESET (MCP23008 GP7). Run before
+ * nvs_phase() so a working/broken result here is judged before any NAND
+ * traffic hits the shared SPI1 bus — see imu_notes.md / nvs_notes.md on
+ * that shared-bus history. */
+static void display_phase(void)
+{
+    cdc_write("\r\n===== ST7735S display phase =====\r\n");
+
+    init_display();
+    cdc_printf("  init_display: %s\r\n", display_status ? "OK" : "FAILED");
+
+    if (display_status) {
+        clear_display();
+        printLine("WWD-n", 0, 10, FONT_LARGE);
+        printLine("display bring-up", 2, 10, FONT_SMALL);
+
+        cdc_write("  [backlight sweep] 0-100% in 5% steps, 3 s each\r\n");
+        for (int pct = 0; pct <= 100; pct += 5) {
+            char line[16];
+            snprintf(line, sizeof(line), "BL %3d%%", pct);
+            clearAndPrintLine(line, 4, 10, FONT_SMALL);
+            Backlight_Pct((uint8_t)pct);
+            cdc_printf("    backlight=%3d%%\r\n", pct);
+            k_msleep(3000);
+        }
+    }
+
+    cdc_write("==================================\r\n");
+}
+
 static void nvs_phase(void)
 {
     /* The first ~1 s after DTR reliably loses CDC bytes to the host reader
@@ -882,6 +910,14 @@ static void nvs_phase(void)
     }
 
     meta_block_inspect();
+
+    /* rate_config_init() (called earlier, before NVS was up) only set RAM
+     * defaults — recover whatever the user last set via CMD_SET_RATE now
+     * that the CONFIG region is reachable. */
+    bool rate_restored = rate_config_load_persisted();
+    cdc_printf("  rate config: %s (odr=%u Hz, temp_interval=%u s)\r\n",
+               rate_restored ? "restored from flash" : "using defaults",
+               rate_config_get_imu_odr_hz(), rate_config_get_temp_interval_sec());
 
 #if NVS_BRINGUP_STEP == NVS_STEP_BASELINE
     /* Nothing else: no records, no erase. Reboot repeatedly and compare the
@@ -984,7 +1020,7 @@ int main(void)
 {
     int ret;
 
-    LOG_INF("=== WWD-n bring-up: DISP_DC blink + USB CDC ===");
+    LOG_INF("=== WWD-n bring-up: display + USB CDC ===");
 
     if (!device_is_ready(cdc_dev)) {
         LOG_ERR("cdc_acm_uart0 device not ready");
@@ -1003,14 +1039,6 @@ int main(void)
      * console/log stream above (cdc_acm_uart1, see nrf52833_ders.dts). */
     rate_config_init();
     protocol_init();
-
-    if (!gpio_is_ready_dt(&disp_dc)) {
-        LOG_ERR("DISP_DC gpio not ready");
-        return -1;
-    }
-    gpio_pin_configure_dt(&disp_dc, GPIO_OUTPUT_INACTIVE);
-
-    bool dc_level = false;
 
     /* Wait for a host terminal to attach (DTR) before the one-shot probe
      * output, otherwise it scrolls past before anyone is listening. A fixed
@@ -1046,14 +1074,13 @@ int main(void)
 
     imu_probe();
 
+    display_phase();
+
     /* IMU first, NVS second — the 0f89f1e ordering. */
     nvs_phase();
 
     while (1) {
         int secs = rv3028_seconds();
-
-        dc_level = !dc_level;
-        gpio_pin_set_dt(&disp_dc, dc_level);
 
         if (secs < 0) {
             cdc_write("... heartbeat ...  rtc: I2C ERR");

@@ -307,22 +307,22 @@ typedef struct {
 } __attribute__((packed)) glyph_info_t;
 
 typedef struct {
-    glyph_info_t *gi;
-    uint8_t  *glyphs;
+    const glyph_info_t *gi;
+    const uint8_t  *glyphs;
 } __attribute__((packed)) font_t;
 
 font_t pfont;
 
-void setFont(uint8_t *f) {
+void setFont(const uint8_t *f) {
     uint8_t i;
 
-    pfont.gi = (glyph_info_t *)f;
+    pfont.gi = (const glyph_info_t *)f;
     for(i = 0; (uint8_t)pfont.gi->range[i].first != 0 || i == 0; i++);
-    pfont.glyphs = (uint8_t *)f + sizeof(glyph_info_t) +
+    pfont.glyphs = f + sizeof(glyph_info_t) +
         i*sizeof(ch_range_t) + sizeof(uint8_t);
 }
 
-uint8_t *_lookupGlyph(uint16_t glyph) {
+const uint8_t *_lookupGlyph(uint16_t glyph) {
 
     uint16_t glnr = 0;
 
@@ -341,7 +341,7 @@ uint8_t *_lookupGlyph(uint16_t glyph) {
 }
 
 void drawGlyph(uint16_t xx, uint16_t yy, uint16_t c) {
-    uint8_t *glyph = _lookupGlyph(c);
+    const uint8_t *glyph = _lookupGlyph(c);
 
     if (glyph == NULL)
         return;

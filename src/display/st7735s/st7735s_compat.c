@@ -17,6 +17,7 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/spi.h>
+#include <zephyr/drivers/pwm.h>
 
 
 /* My driver files */
@@ -35,6 +36,9 @@ static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
 static const struct gpio_dt_spec dc_dt = GPIO_DT_SPEC_GET(DISP0_NODE, dc_gpios);
 static const struct gpio_dt_spec rs_dt = GPIO_DT_SPEC_GET(DISP0_NODE, reset_gpios);
 
+/* Backlight: DISP_LED_PWM (P0.11) drives the gate of the LCD-power NMOS. */
+static const struct pwm_dt_spec bl_pwm = PWM_DT_SPEC_GET(DISP0_NODE);
+
 
 /* Backlight tracking */
 uint8_t backlight_pct = 100;
@@ -52,6 +56,9 @@ int SPI_Init_ST7735(void) {
     // set GPIO pins as inactive
     gpio_pin_configure_dt(&dc_dt, GPIO_OUTPUT_INACTIVE);
     gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
+
+    if (!pwm_is_ready_dt(&bl_pwm)) return -3;
+
     return 0;
 }
 
@@ -78,12 +85,7 @@ void Pin_DC_Low(void) {
 void Pin_BLK_Pct(uint8_t pct) {
     backlight_pct = pct;
 
-    /* Simple on/off control (no PWM for now) */
-    if (pct > 0) {
-        // gpio_pin_set_dt(&bl_dt, 1);
-    } else {
-        // gpio_pin_set_dt(&bl_dt, 0);
-    }
+    pwm_set_pulse_dt(&bl_pwm, (bl_pwm.period * pct) / 100);
 }
 
 /* SPI Communication */

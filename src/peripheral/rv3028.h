@@ -16,6 +16,15 @@
 void rv3028_init(void);
 Time rv3028_get_time(void);
 void rv3028_set_time(Time t);
+Date rv3028_get_date(void);
+void rv3028_set_date(Date d);
+
+/* Raw 32-bit UNIX seconds-since-epoch counter (regs 0x1B-0x1E), independent
+ * of the BCD seconds..year block above. Not synced automatically with it —
+ * for cheap timestamp/duration math, not display. */
+uint32_t rv3028_get_unix_time(void);
+void rv3028_set_unix_time(uint32_t t);
+
 void rv3028_print_time(void);
 
 #endif /* RV3028_H */

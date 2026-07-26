@@ -1,5 +1,6 @@
 /dts-v1/;
 #include <nordic/nrf52833_qdaa.dtsi>
+#include <dt-bindings/pwm/pwm.h>
 #include "nrf52833_ders-pinctrl.dtsi"
 
 / {
@@ -88,6 +89,15 @@
 	status = "okay";
 };
 
+/* PWM0: display backlight (DISP_LED_PWM, P0.11) drives the gate of the
+ * LCD-power NMOS. Full duty cycle = gate held high = 100% brightness. */
+&pwm0 {
+	status = "okay";
+	pinctrl-0 = <&pwm0_default>;
+	pinctrl-1 = <&pwm0_sleep>;
+	pinctrl-names = "default", "sleep";
+};
+
 /* SPI1: flash, IMU, display */
 &spi1 {
 	compatible = "nordic,nrf-spim";
@@ -127,6 +137,7 @@
 		spi-max-frequency = <8000000>;
 		dc-gpios    = <&gpio0    29 GPIO_ACTIVE_HIGH>;  /* DISP_DC P0.29 */
 		reset-gpios = <&mcp23008  7 GPIO_ACTIVE_LOW>;   /* DISP_RESET MCP23008 GP7 */
+		pwms        = <&pwm0 0 PWM_USEC(100) PWM_POLARITY_NORMAL>; /* DISP_LED_PWM P0.11, 10 kHz */
 		status = "okay";
 	};
 };

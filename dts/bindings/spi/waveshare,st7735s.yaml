@@ -11,6 +11,9 @@ properties:
   reset-gpios:
     type: phandle-array
     required: true
+  pwms:
+    type: phandle-array
+    description: Backlight NMOS gate drive (DISP_LED_PWM)
   # bl-gpios:
   #   type: phandle-array
   #   required: true

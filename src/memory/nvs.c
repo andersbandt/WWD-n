@@ -40,7 +40,9 @@ static const mt29f_cfg_t *cfg = NULL;
 
 // Calculated flash parameters (initialized in nvs_init)
 static uint32_t META_BLOCK_START = 0;
+static uint32_t CONFIG_BLOCK_START = 0;
 static uint64_t flash_size = 0;
+static uint32_t config_seq = 0;  // Current config sequence number
 
 // Page buffer for accumulating log records before writing to flash
 static uint8_t page_buffer[2176];  // Match cfg->bytes_per_page
@@ -79,6 +81,7 @@ void nvs_init()
     // Calculate flash parameters
     uint32_t total_blocks = cfg->blocks_per_die * cfg->num_dies;
     META_BLOCK_START = total_blocks - META_BLOCK_COUNT;
+    CONFIG_BLOCK_START = META_BLOCK_START - CONFIG_BLOCK_COUNT;
     flash_size = (uint64_t)cfg->num_dies * cfg->blocks_per_die * cfg->pages_per_block * cfg->bytes_per_page;
 
     // Initialize page buffer
@@ -369,6 +372,172 @@ int nvs_read_metadata(uint64_t *offset)
 
 
 /*
+ * nvs_config_write_impl: writes rate settings to the CONFIG region with
+ * wear leveling, same magic+seq+CRC32 pattern as nvs_write_metadata_impl()
+ * but rotated across its own CONFIG_BLOCK_COUNT blocks so it never collides
+ * with the log write-offset metadata.
+ */
+static int nvs_config_write_impl(uint16_t imu_odr_hz, uint16_t temp_interval_sec)
+{
+    struct device_config_state state;
+
+    state.magic = CONFIG_MAGIC;
+    state.seq = config_seq++;
+    state.imu_odr_hz = imu_odr_hz;
+    state.temp_interval_sec = temp_interval_sec;
+    state.crc = crc32_ieee((uint8_t*)&state, offsetof(struct device_config_state, crc));
+
+    uint32_t total_config_pages = (uint32_t)CONFIG_BLOCK_COUNT * cfg->pages_per_block;
+    uint32_t config_page_index  = state.seq % total_config_pages;
+    uint32_t block_offset       = config_page_index / cfg->pages_per_block;
+    uint32_t page_within_block  = config_page_index % cfg->pages_per_block;
+    uint32_t config_block       = CONFIG_BLOCK_START + block_offset;
+    off_t config_addr = (off_t)(config_block * cfg->pages_per_block + page_within_block)
+                         * cfg->bytes_per_page;
+
+    if (page_within_block == 0) {
+        off_t block_addr = (off_t)config_block * cfg->pages_per_block * cfg->bytes_per_page;
+        LOG_INF("Erasing config block %u before first write", config_block);
+        mt29f_block_erase(block_addr);
+    }
+
+    uint8_t *page_buf = k_malloc(cfg->bytes_per_page);
+    if (!page_buf) {
+        LOG_ERR("Failed to allocate page buffer for config write");
+        return -ENOMEM;
+    }
+
+    memset(page_buf, 0xFF, cfg->bytes_per_page);
+    memcpy(page_buf, &state, sizeof(state));
+
+    int ret = mt29f_write(config_addr, page_buf, cfg->bytes_per_page);
+    k_free(page_buf);
+
+    if (ret != 0) {
+        LOG_ERR("Failed to write config: %d", ret);
+        return ret;
+    }
+
+    LOG_INF("Config saved: odr=%u temp_interval=%u seq=%u block=%u page=%u",
+            imu_odr_hz, temp_interval_sec, state.seq, config_block, page_within_block);
+    return 0;
+}
+
+int nvs_config_save(uint16_t imu_odr_hz, uint16_t temp_interval_sec)
+{
+    if (cfg == NULL) {
+        return -ECANCELED;
+    }
+
+    k_mutex_lock(&nvs_state_mutex, K_FOREVER);
+    int ret = nvs_config_write_impl(imu_odr_hz, temp_interval_sec);
+    k_mutex_unlock(&nvs_state_mutex);
+    return ret;
+}
+
+
+/*
+ * nvs_config_read_impl: recovers the latest valid rate settings, same
+ * two-phase scan as nvs_read_metadata() but over CONFIG_BLOCK_COUNT blocks.
+ */
+static int nvs_config_read_impl(uint16_t *imu_odr_hz, uint16_t *temp_interval_sec)
+{
+    struct device_config_state state;
+    struct device_config_state best_state = {0};
+    bool found_valid = false;
+
+    uint8_t *page_buf = k_malloc(cfg->bytes_per_page);
+    if (!page_buf) {
+        LOG_ERR("Failed to allocate page buffer for config read");
+        return -ENOMEM;
+    }
+
+    int best_block_index = -1;
+    for (int i = 0; i < CONFIG_BLOCK_COUNT; i++) {
+        uint32_t config_block = CONFIG_BLOCK_START + i;
+        off_t config_addr = (off_t)config_block * cfg->pages_per_block * cfg->bytes_per_page;
+
+        if (mt29f_read(config_addr, page_buf, cfg->bytes_per_page) != 0) {
+            LOG_WRN("Failed to read config from block %u", config_block);
+            continue;
+        }
+
+        memcpy(&state, page_buf, sizeof(state));
+
+        if (state.magic != CONFIG_MAGIC) {
+            continue;
+        }
+
+        uint32_t calculated_crc = crc32_ieee((uint8_t*)&state, offsetof(struct device_config_state, crc));
+        if (calculated_crc != state.crc) {
+            LOG_WRN("Config block %u: CRC mismatch (calc=0x%08X, stored=0x%08X)",
+                    config_block, calculated_crc, state.crc);
+            continue;
+        }
+
+        if (!found_valid || state.seq > best_state.seq) {
+            best_state = state;
+            found_valid = true;
+            best_block_index = i;
+        }
+    }
+
+    if (found_valid) {
+        uint32_t config_block = CONFIG_BLOCK_START + best_block_index;
+        for (int p = 1; p < cfg->pages_per_block; p++) {
+            off_t config_addr = (off_t)(config_block * cfg->pages_per_block + p)
+                                 * cfg->bytes_per_page;
+
+            if (mt29f_read(config_addr, page_buf, cfg->bytes_per_page) != 0) {
+                break;
+            }
+
+            memcpy(&state, page_buf, sizeof(state));
+
+            if (state.magic != CONFIG_MAGIC) {
+                break;  // Unwritten page, stop
+            }
+
+            uint32_t calculated_crc = crc32_ieee((uint8_t*)&state, offsetof(struct device_config_state, crc));
+            if (calculated_crc != state.crc) {
+                break;
+            }
+
+            best_state = state;
+        }
+    }
+
+    k_free(page_buf);
+
+    if (!found_valid) {
+        LOG_INF("No valid config found on flash");
+        config_seq = 0;
+        return -ENOENT;
+    }
+
+    *imu_odr_hz = best_state.imu_odr_hz;
+    *temp_interval_sec = best_state.temp_interval_sec;
+    config_seq = best_state.seq + 1;
+
+    LOG_INF("Recovered config: odr=%u temp_interval=%u seq=%u",
+            *imu_odr_hz, *temp_interval_sec, best_state.seq);
+    return 0;
+}
+
+int nvs_config_load(uint16_t *imu_odr_hz, uint16_t *temp_interval_sec)
+{
+    if (cfg == NULL) {
+        return -ECANCELED;
+    }
+
+    k_mutex_lock(&nvs_state_mutex, K_FOREVER);
+    int ret = nvs_config_read_impl(imu_odr_hz, temp_interval_sec);
+    k_mutex_unlock(&nvs_state_mutex);
+    return ret;
+}
+
+
+/*
  * nvs_calc_offset: calculates the NVS address offset using metadata
  */
 bool nvs_calc_offset() {
@@ -615,8 +784,8 @@ static int nvs_log_record_impl(enum record_type type, const void *payload, uint1
         return -EINVAL;
     }
 
-    // Calculate data region end (exclude META blocks)
-    uint64_t data_region_end = (uint64_t)META_BLOCK_START * cfg->pages_per_block * cfg->bytes_per_page;
+    // Calculate data region end (exclude CONFIG and META blocks)
+    uint64_t data_region_end = (uint64_t)CONFIG_BLOCK_START * cfg->pages_per_block * cfg->bytes_per_page;
 
     // Check if write would exceed data region (accounting for current page)
     uint64_t next_page_addr = write_addr + cfg->bytes_per_page;
