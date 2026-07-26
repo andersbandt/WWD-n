@@ -14,6 +14,7 @@
 
 // header files
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <sys/types.h>
 #include <mt29f_nand.h>
@@ -58,6 +59,22 @@ struct log_entry_hdr {
 
 
 /* ---- Per-record payload structs ---- */
+
+/* TIME_ANCHOR: wall-clock sync point. raw_ticks is the full 32-bit kernel tick
+ * count at capture — hdr.dt_ticks is only 16 bits and saturates, so decoders
+ * must reconstruct time from the nearest anchor's raw_ticks, not by summing
+ * deltas across anchor boundaries. time_valid=0 means the RTC was never set
+ * (no backup battery / dummy time) and the wall-clock fields are placeholders. */
+struct record_time_anchor {
+    uint32_t raw_ticks;  /* sys_clock_tick_get() at capture, filled by nvs_log_time_anchor() */
+    uint16_t year;
+    uint8_t  month;      /* 1-12 */
+    uint8_t  day;        /* 1-31 */
+    uint8_t  hours;
+    uint8_t  minutes;
+    uint8_t  seconds;
+    uint8_t  time_valid; /* 0 = dummy/unset RTC, 1 = real wall clock */
+} __packed;
 
 /* RECORD_IMU_FIFO: one raw FIFO sample from the ICM-42670 */
 struct record_imu_fifo {
@@ -156,8 +173,31 @@ int nvs_read(off_t addr, void * buffer, size_t len);
  * @brief logs a record to NVS
  * @param[in]   entry   pointer to log entry structure
  * @param[in]   type    type of record being logged
+ *
+ * dt_ticks is taken as 32-bit and saturated to 0xFFFF in the on-flash header —
+ * get_dt_ticks() returns uint32_t and silently truncating it wrapped every 2 s
+ * at 32768 ticks/s. A stored value of 0xFFFF therefore means "at least this".
  */
-int nvs_log_record(enum record_type type, const void *payload, uint16_t length, uint16_t dt_ticks);
+int nvs_log_record(enum record_type type, const void *payload, uint16_t length, uint32_t dt_ticks);
+
+
+/**
+ * @brief logs a TIME_ANCHOR record. Caller fills the wall-clock fields and
+ * time_valid; raw_ticks is overwritten with the current kernel tick count.
+ */
+int nvs_log_time_anchor(struct record_time_anchor anchor);
+
+
+/**
+ * @brief getter for the current metadata sequence number (next seq to be written)
+ */
+uint32_t nvs_get_metadata_seq(void);
+
+
+/**
+ * @brief true if nvs_init() completed and the write offset is valid
+ */
+bool nvs_ready(void);
 
 
 /**

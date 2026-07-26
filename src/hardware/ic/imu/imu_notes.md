@@ -78,7 +78,13 @@ interrupt rate equals the drain rate.
 **low** byte and 0x3e the high byte. Reading it the documented way yields an impossible
 16384 for a 2 KB FIFO.
 
-## [ONGOING] IMU Init Fails When NVS Is Enabled
+## [STALE — does NOT reproduce on nRF52833] IMU Init Fails When NVS Is Enabled
+
+**2026-07-26 (SN3, MT29F populated):** WHO_AM_I = 0x67 after `nvs_init()` on every
+boot, including under continuous NAND write load. This section and the "SPI Bus
+Contention" section below describe the old nRF52832 BETA board only. See
+`src/memory/nvs_notes.md` for the SN3 session results — including the block-aliasing
+bug that likely explains what was really happening back then.
 
 `inv_imu_init()` returns `INV_ERROR_UNEXPECTED` (-12) when `nvs_init()` runs before `imu_init()`.
 The -12 is set in `inv_imu_device_reset()` when `INT_STATUS` does not read back

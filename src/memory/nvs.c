@@ -27,7 +27,7 @@
 #include "../peripheral/clock.h"
 
 
-LOG_MODULE_REGISTER(nvs, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(nvs, CONFIG_LOG_DEFAULT_LEVEL);
 
 
 bool addr_status = false;
@@ -46,6 +46,16 @@ static uint64_t flash_size = 0;
 static uint8_t page_buffer[2176];  // Match cfg->bytes_per_page
 static uint16_t page_buffer_offset = 0;  // Current position in page buffer
 
+/* Guards write_addr / page_buffer / page_buffer_offset / metadata_seq.
+ * The pipeline (main.c heartbeat thread) calls nvs_log_record() every
+ * second; src/comm/protocol.c's CMD_ERASE handler calls nvs_erase_chip() on
+ * a separate thread on host request. Without this, an erase mid-flight can
+ * reset write_addr under the pipeline thread's feet. mt29f_nand.c has its
+ * own mutex for the SPI bus itself — this one is for the state layer above
+ * it. Recursive-safe (k_mutex tracks lock count per owning thread), so the
+ * internal nvs_log_record() -> nvs_flush_page_buffer() -> nvs_write_metadata()
+ * nesting is fine. */
+K_MUTEX_DEFINE(nvs_state_mutex);
 
 static int nvs_flush_page_buffer(void);
 
@@ -111,7 +121,10 @@ void nvs_close() {
  * nvs_flush_buffer: public wrapper to flush page buffer
  */
 int nvs_flush_buffer(void) {
-    return nvs_flush_page_buffer();
+    k_mutex_lock(&nvs_state_mutex, K_FOREVER);
+    int ret = nvs_flush_page_buffer();
+    k_mutex_unlock(&nvs_state_mutex);
+    return ret;
 }
 
 
@@ -120,6 +133,8 @@ int nvs_flush_buffer(void) {
  */
 void nvs_erase_chip() {
     LOG_INF("Erasing flash REGION... like the whole thing...\n");
+
+    k_mutex_lock(&nvs_state_mutex, K_FOREVER);
 
     mt29f_chip_erase();
 
@@ -130,6 +145,8 @@ void nvs_erase_chip() {
     page_buffer_offset = 0;
     write_addr = 0;
     metadata_seq = 0;
+
+    k_mutex_unlock(&nvs_state_mutex);
 
     LOG_INF("Flash erased, offset reset to 0");
 }
@@ -174,15 +191,15 @@ int nvs_write_auto_offset_new(void * data, size_t len) {
  * nvs_read: performs a read on an NVS memory instance
  */
 int nvs_read(off_t addr, void * buffer, size_t len) {
-    mt29f_read(addr, buffer, len);
-    return len;
+    int rc = mt29f_read(addr, buffer, len);
+    return (rc != 0) ? rc : (int)len;
 }
 
 
 /*
  * nvs_write_metadata: writes metadata to META blocks with wear leveling
  */
-int nvs_write_metadata(uint64_t offset)
+static int nvs_write_metadata_impl(uint64_t offset)
 {
     struct log_state state;
 
@@ -244,6 +261,14 @@ int nvs_write_metadata(uint64_t offset)
     }
 
     return 0;
+}
+
+int nvs_write_metadata(uint64_t offset)
+{
+    k_mutex_lock(&nvs_state_mutex, K_FOREVER);
+    int ret = nvs_write_metadata_impl(offset);
+    k_mutex_unlock(&nvs_state_mutex);
+    return ret;
 }
 
 
@@ -383,6 +408,35 @@ int nvs_get_addr_offset() {
 
 
 /*
+ * nvs_get_metadata_seq: getter for the metadata sequence number.
+ * This is the *next* seq to be written; the highest seq on flash is one less.
+ */
+uint32_t nvs_get_metadata_seq(void) {
+    return metadata_seq;
+}
+
+
+/*
+ * nvs_ready: true if nvs_init() completed and the write offset is valid
+ */
+bool nvs_ready(void) {
+    return addr_status;
+}
+
+
+/*
+ * nvs_log_time_anchor: logs a TIME_ANCHOR record. The caller supplies the
+ * wall-clock fields (dummy is fine while the RTC is unset — mark time_valid=0);
+ * raw_ticks is stamped here so anchor and dt_ticks share one timebase.
+ */
+int nvs_log_time_anchor(struct record_time_anchor anchor)
+{
+    anchor.raw_ticks = (uint32_t)sys_clock_tick_get();
+    return nvs_log_record(TIME_ANCHOR, &anchor, sizeof(anchor), get_dt_ticks());
+}
+
+
+/*
  * nvs_dump: reads all committed records from flash (offset 0 to write_addr)
  * and prints them over LOG. Only flushed data is visible — in-memory page
  * buffer content is not included.
@@ -465,9 +519,20 @@ void nvs_dump(void)
                             record_count, hdr.dt_ticks, p.mode, p.voltage_mv);
                     break;
                 }
-                case TIME_ANCHOR:
-                    LOG_INF("[%u] TIME_ANCHOR  dt=%u  len=%u", record_count, hdr.dt_ticks, hdr.length);
+                case TIME_ANCHOR: {
+                    struct record_time_anchor a;
+                    if (hdr.length == sizeof(a)) {
+                        memcpy(&a, payload, sizeof(a));
+                        LOG_INF("[%u] TIME_ANCHOR  dt=%u  ticks=%u  %04u-%02u-%02u %02u:%02u:%02u %s",
+                                record_count, hdr.dt_ticks, a.raw_ticks,
+                                a.year, a.month, a.day, a.hours, a.minutes, a.seconds,
+                                a.time_valid ? "(valid)" : "(RTC UNSET)");
+                    } else {
+                        LOG_INF("[%u] TIME_ANCHOR  dt=%u  len=%u (unknown layout)",
+                                record_count, hdr.dt_ticks, hdr.length);
+                    }
                     break;
+                }
                 case RESET_MARKER:
                     LOG_INF("[%u] RESET_MARKER  dt=%u", record_count, hdr.dt_ticks);
                     break;
@@ -530,7 +595,7 @@ int nvs_flush_page_buffer(void)
 /*
  * nvs_log_record: logs a record to NVS with error checking and boundary validation
  */
-int nvs_log_record(enum record_type type, const void *payload, uint16_t length, uint16_t dt_ticks)
+static int nvs_log_record_impl(enum record_type type, const void *payload, uint16_t length, uint32_t dt_ticks)
 {
     int ret;
     size_t total_size = sizeof(struct log_entry_hdr) + length;
@@ -570,11 +635,13 @@ int nvs_log_record(enum record_type type, const void *payload, uint16_t length, 
         }
     }
 
-    // Build header
+    // Build header. dt_ticks saturates: the header field is 16-bit and
+    // get_dt_ticks() is 32-bit — 0xFFFF on flash means "at least this many".
+    // Absolute time comes from TIME_ANCHOR raw_ticks, not from summing deltas.
     struct log_entry_hdr hdr;
     hdr.record_type = type;
     hdr.length = length;
-    hdr.dt_ticks = dt_ticks;
+    hdr.dt_ticks = (dt_ticks > UINT16_MAX) ? UINT16_MAX : (uint16_t)dt_ticks;
 
     // Copy header and payload into page buffer
     memcpy(&page_buffer[page_buffer_offset], &hdr, sizeof(hdr));
@@ -602,7 +669,13 @@ int nvs_log_record(enum record_type type, const void *payload, uint16_t length, 
     return 0;
 }
 
-
+int nvs_log_record(enum record_type type, const void *payload, uint16_t length, uint32_t dt_ticks)
+{
+    k_mutex_lock(&nvs_state_mutex, K_FOREVER);
+    int ret = nvs_log_record_impl(type, payload, length, dt_ticks);
+    k_mutex_unlock(&nvs_state_mutex);
+    return ret;
+}
 
 
 

@@ -32,7 +32,7 @@
 
 
 
-LOG_MODULE_REGISTER(mt29f_nand, LOG_LEVEL_INF);
+LOG_MODULE_REGISTER(mt29f_nand, CONFIG_LOG_DEFAULT_LEVEL);
 
 
 
@@ -45,6 +45,15 @@ LOG_MODULE_REGISTER(mt29f_nand, LOG_LEVEL_INF);
 #define SPI_OP SPI_OP_MODE_MASTER | SPI_MODE_CPOL | SPI_MODE_CPHA | SPI_WORD_SET(8) | SPI_LINES_SINGLE
 
 static struct spi_dt_spec spi_dev = SPI_DT_SPEC_GET(SPI_DEV, SPI_OP, 0);
+
+/* Guards every public entry point below. The driver's internal state (spi_dev
+ * transactions, die/plane select, wait-until-ready polling) assumes a single
+ * caller mid-sequence; without this, the NVS pipeline thread (main.c heartbeat)
+ * and any other caller on a separate thread (e.g. src/comm/protocol.c's flash
+ * dump) can interleave transactions on the shared SPI1 bus and corrupt state
+ * or wedge the driver. Recursive-safe (k_mutex tracks lock count per owning
+ * thread), so nested calls from the same thread are fine. */
+K_MUTEX_DEFINE(mt29f_bus_mutex);
 
 typedef struct mt29f_row_addr {
   uint8_t   die_num;
@@ -296,6 +305,16 @@ static void spi_nand_block_erase(const mt29f_row_addr_t addr)
   }
 
   spi_nand_wait_until_ready();
+
+  // E_FAIL is only valid after OIP clears; a silent erase failure would be
+  // indistinguishable from a logic bug in the metadata scan.
+  {
+    uint8_t status = 0;
+    if (spi_nand_get_feature(REG_STATUS, &status) == 0 &&
+        (status & STATUS_BIT_ERASE_FAIL_MASK)) {
+      LOG_ERR("Block %d erase FAILED (E_FAIL set, status=0x%02x)", addr.blk_num, status);
+    }
+  }
 }
 
 static int spi_nand_page_load(const uint32_t row_addr) {
@@ -381,8 +400,12 @@ static int spi_nand_page_read(const off_t offset, uint8_t *dest, const size_t le
 
   spi_nand_wait_until_ready();
 
+  // Column address must carry the plane-select bit (CA12 = block LSB) or
+  // this reads the wrong plane's cache register on odd blocks.
+  const mt29f_col_addr_t col_addr = (row_addr.blk_num & 0x1) << COLUMN_PLANE_SELECT_POS;
+
   // This only reads 1 whole page at a time
-  rc = spi_nand_page_cache_read(0, dest, inst.bytes_per_page);
+  rc = spi_nand_page_cache_read(col_addr, dest, inst.bytes_per_page);
   if (rc != 0) {
     LOG_ERR("Page Cache Read Failed: %d", rc);
     return rc;
@@ -455,8 +478,12 @@ static int spi_nand_page_write(const off_t offset, const uint8_t *data, const si
   spi_nand_die_select(row_addr.die_num);
   spi_nand_write_enable();
 
+  // Column address must carry the plane-select bit (CA12 = block LSB) or
+  // this loads the wrong plane's cache register on odd blocks.
+  const mt29f_col_addr_t col_addr = (row_addr.blk_num & 0x1) << COLUMN_PLANE_SELECT_POS;
+
   // This only writes 1 whole page at a time
-  rc = spi_nand_program_load(0, data, inst.bytes_per_page);
+  rc = spi_nand_program_load(col_addr, data, inst.bytes_per_page);
   if (rc != 0) {
     LOG_ERR("Page Program Load Failed: %d", rc);
     return rc;
@@ -475,6 +502,19 @@ static int spi_nand_page_write(const off_t offset, const uint8_t *data, const si
   }
 
   spi_nand_wait_until_ready();
+
+  // P_FAIL is only valid after OIP clears. Without this check a failed program
+  // returns 0 and the corruption only surfaces at the next metadata scan.
+  {
+    uint8_t status = 0;
+
+    rc = spi_nand_get_feature(REG_STATUS, &status);
+    if (rc == 0 && (status & STATUS_BIT_PROGRAM_FAIL_MASK)) {
+      LOG_ERR("Page program FAILED at offset %ld (P_FAIL set, status=0x%02x)",
+              (long)offset, status);
+      return -EIO;
+    }
+  }
 
   return rc;
 }
@@ -553,7 +593,11 @@ int mt29f_read(const off_t offset, uint8_t *data, const size_t len)
     return -EINVAL;
   }
 
-  return spi_nand_page_read(offset, data, len);
+  k_mutex_lock(&mt29f_bus_mutex, K_FOREVER);
+  int rc = spi_nand_page_read(offset, data, len);
+  k_mutex_unlock(&mt29f_bus_mutex);
+
+  return rc;
 }
 
 int mt29f_write(const off_t offset, const uint8_t *data, const size_t len)
@@ -568,13 +612,20 @@ int mt29f_write(const off_t offset, const uint8_t *data, const size_t len)
     return -EINVAL;
   }
 
-  return spi_nand_page_write(offset, data, len);
+  k_mutex_lock(&mt29f_bus_mutex, K_FOREVER);
+  int rc = spi_nand_page_write(offset, data, len);
+  k_mutex_unlock(&mt29f_bus_mutex);
+
+  return rc;
 }
 
 void mt29f_block_erase(off_t offset)
 {
   mt29f_row_addr_t addr = spi_nand_offset_to_row_addr(offset);
+
+  k_mutex_lock(&mt29f_bus_mutex, K_FOREVER);
   spi_nand_block_erase(addr);
+  k_mutex_unlock(&mt29f_bus_mutex);
 }
 
 void mt29f_chip_erase(void)
@@ -582,6 +633,8 @@ void mt29f_chip_erase(void)
   LOG_INF("Erasing NAND chip...");
 
   int total_blocks = inst.num_dies * inst.blocks_per_die;
+
+  k_mutex_lock(&mt29f_bus_mutex, K_FOREVER);
   for (int i = 0; i < inst.num_dies; i++) {
     for (int j = 0; j < inst.blocks_per_die; j++) {
       int block_num = i * inst.blocks_per_die + j;
@@ -592,10 +645,14 @@ void mt29f_chip_erase(void)
       spi_nand_block_erase(addr);
     }
   }
+  k_mutex_unlock(&mt29f_bus_mutex);
+
   LOG_INF("Erase complete: %d blocks erased", total_blocks);
 }
 
 
 void mt29f_chip_reset(void) {
+  k_mutex_lock(&mt29f_bus_mutex, K_FOREVER);
   spi_nand_reset();
+  k_mutex_unlock(&mt29f_bus_mutex);
 }

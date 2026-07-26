@@ -38,6 +38,11 @@
 #define BLOCK_POS  6UL
 #define PAGE_POS   0UL
 
+// MT29F2G01 is two-plane; cache reads/program loads must carry the plane
+// select bit (CA12) in the column address, equal to the target block's LSB,
+// or they alias onto the other plane's cache register.
+#define COLUMN_PLANE_SELECT_POS  12UL
+
 #define FEATURE_RX_LEN      0x03
 #define FEATURE_DATA_INDEX  0x02
                                                    
