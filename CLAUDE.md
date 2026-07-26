@@ -285,6 +285,9 @@ LOG_INF("thread_name free: %d", free_stack);
 
 ## NVS (Non-Volatile Storage) Implementation
 
+**Read `src/memory/nvs_notes.md` before any NVS/NAND work** — it tracks the open metadata
+bug, the shared-SPI1 question, and the fact that the MT29F is **not populated on SN2/SN3**.
+
 ### Flash Layout
 
 The NAND flash is divided into two regions:
@@ -362,7 +365,7 @@ nvs_log_record()
 - IMU INT1 (P0.9): Previously non-functional due to P0.9 being the NFC1 antenna pin — fixed by adding `nfct-pins-as-gpios` to `&uicr` in the device tree. Both INT1 and INT2 require push-pull configuration on the IMU side.
   - **This fix was lost in the port to `nrf52833_ders` and restored 2026-07-26.** P0.10 (NFC2) is the IMU's *chip select* on this board, so losing it broke the IMU entirely, not just the interrupt. On nRF52 the DTS property alone is a no-op — `system_nrf52.c` gates the UICR write on `CONFIG_NFCT_PINS_AS_GPIOS`, which is now set in `nrf52833_ders_defconfig`. Keep both. See `imu_notes.md`.
 - **IMU init fails when NVS runs first (SPI bus contention, UNRESOLVED)**: MT29F NAND (SPI Mode 3) and ICM-42670 IMU (SPI Mode 0) share SPI1. After `nvs_init()`, MISO reads as 0x00 for all IMU transactions — confirmed via GDB `WHO_AM_I` check. Root cause is NAND holding MISO after page cache reads. Multiple software fixes attempted (wait_until_ready in various places) did not resolve it. CS pins confirmed high during the infinite loop so it is not a CS assertion issue. Needs logic analyzer to see MISO state during first IMU transaction. See `imu_notes.md` for full investigation log.
-- NVS/NAND logging is implemented and functional (`NVS_LOG_IMU_SAMPLES=1` in nvs.h). `nvs_init()` is currently commented out in `main.c` due to the unresolved SPI bus contention issue with IMU init — NVS and IMU cannot both run on the same boot until that is resolved.
+- NVS/NAND logging is implemented (`NVS_LOG_IMU_SAMPLES=1` in nvs.h) but **untested on the nRF52833 boards: the MT29F is not populated on SN2 or SN3.** The SPI bus contention with IMU init was diagnosed on the previous nRF52832 BETA board and should be re-tested from scratch rather than assumed — see `src/memory/nvs_notes.md`. In the real `main()` (commit `0f89f1e`) `nvs_init()` is active, ordered after `imu_init()`.
 - Display timeout thread code exists but is currently commented out in main.c
 - BMS (battery management) code is stubbed out but not implemented
 - `clock_set_time()` in UIFunctions.c — the "confirm time" UI action needs to be wired to call `clock_set_time(time_offset)` (and ultimately `rv3028_set_time()` once hardware is ready)
