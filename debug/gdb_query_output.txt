@@ -1,18 +1,11 @@
 __enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
 951	  __ASM volatile ("cpsie i" : : : "memory");
 Expected an decimal digit (0-9)
-Reading from address 0x50000778 (Data = 0x00000600)
-Reading from address 0x50000A24 (Data = 0x00000600)
-Writing 0x00000000 @ address 0x40003500
-Writing 0x00000601 @ address 0x50000778
-Writing 0x40000000 @ address 0x5000050C
-Reading from address 0x50000510 (Data = 0x00040000)
-Writing 0x40000000 @ address 0x50000508
-Reading from address 0x50000510 (Data = 0x40040000)
-Writing 0x00000601 @ address 0x50000A24
-Writing 0x00000200 @ address 0x5000080C
-Reading from address 0x50000810 (Data = 0x00000000)
-Writing 0x00000200 @ address 0x50000808
-Reading from address 0x50000810 (Data = 0x00000200)
+Breakpoint 1 at 0x1dfc: file /home/anders/Documents/NCS/WWD-n/src/main.c, line 100.
+
+Breakpoint 1, rv3028_probe () at /home/anders/Documents/NCS/WWD-n/src/main.c:100
+100	{
+$1 = {init_res = 0 '\000', initialized = true}
+$2 = 0x3eff4 "rv3028@52"
 [Inferior 1 (Remote target) detached]
 The program is not being run.

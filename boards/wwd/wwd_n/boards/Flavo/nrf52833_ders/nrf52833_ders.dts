@@ -63,6 +63,12 @@
 /* nRESET on P0.18 */
 &uicr {
 	gpio-as-nreset;
+
+	/* P0.09 and P0.10 are the NFC antenna pins (NFC1/NFC2) and come up in NFC
+	 * mode, not as GPIOs. Both are used by the IMU here — P0.10 is its SPI chip
+	 * select and P0.09 is INT1 — so without this the IMU is unreachable: CS
+	 * reads stuck low and never frames a transaction. */
+	nfct-pins-as-gpios;
 };
 
 /* RTC2: 1-second tick source (RTC0 reserved for BLE, RTC1 is kernel timer) */

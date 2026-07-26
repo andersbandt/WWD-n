@@ -6,3 +6,12 @@ CONFIG_SERIAL=n
 # 32kHz crystal present on board (P0.00/P0.01)
 CONFIG_CLOCK_CONTROL_NRF_K32SRC_XTAL=y
 CONFIG_CLOCK_CONTROL_NRF_K32SRC_RC=n
+
+# P0.09/P0.10 are the NFC antenna pins and default to NFC mode, where they are
+# unusable as GPIOs. This board wires both to the IMU (P0.10 = SPI CS,
+# P0.09 = INT1), so they must be GPIOs or the IMU cannot be selected at all.
+# The `nfct-pins-as-gpios` property on &uicr in the .dts is the modern spelling,
+# but on nRF52 it is not yet acted on — system_nrf52.c still gates the UICR
+# write on this (deprecated) Kconfig symbol, so it is what actually takes effect.
+# Written to UICR once on first boot, then persists until a UICR erase.
+CONFIG_NFCT_PINS_AS_GPIOS=y

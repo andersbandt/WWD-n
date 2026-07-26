@@ -327,7 +327,36 @@ int enableFifoInterrupt(uint8_t fifo_watermark) {
     rc |= inv_imu_read_reg(&icm_driver, FIFO_CONFIG5_MREG1, 1, &data);
     data &= (uint8_t)~FIFO_CONFIG5_WM_GT_TH_EN;
     rc |= inv_imu_write_reg(&icm_driver, FIFO_CONFIG5_MREG1, 1, &data);
-    
+
+    /* Route the FIFO watermark condition to the INT1 pin.
+     *
+     * Without this the watermark only ever sets a bit in INT_STATUS — the
+     * physical pin never moves, so no MCU interrupt can fire. The old board
+     * carried FIFO_THS on INT2, but INT2 is not wired on the nRF52833 hardware
+     * (P0.09/INT1 is the only interrupt line), so it has to go to INT1 here. */
+    {
+        inv_imu_interrupt_parameter_t it = { 0 };  /* all sources off... */
+
+        it.INV_FIFO_THS = INV_IMU_ENABLE;          /* ...except the watermark */
+        rc |= inv_imu_set_config_int1(&icm_driver, &it);
+    }
+
+    /* Electrical config for INT1. Push-pull is required (the pin is not pulled
+     * on this board), and the polarity must match the DTS, which declares
+     * int-gpios as GPIO_ACTIVE_LOW. Pulsed rather than latched so each watermark
+     * crossing produces one clean edge instead of a level held until INT_STATUS
+     * is read. */
+    rc |= inv_imu_read_reg(&icm_driver, INT_CONFIG, 1, &data);
+    data &= (uint8_t)~(INT_CONFIG_INT1_MODE_MASK |
+                       INT_CONFIG_INT1_DRIVE_CIRCUIT_MASK |
+                       INT_CONFIG_INT1_POLARITY_MASK);
+    data |= (uint8_t)INT_CONFIG_INT1_MODE_PULSED;
+    data |= (uint8_t)INT_CONFIG_INT1_DRIVE_CIRCUIT_PP;
+    data |= (uint8_t)INT_CONFIG_INT1_POLARITY_LOW;
+    rc |= inv_imu_write_reg(&icm_driver, INT_CONFIG, 1, &data);
+    LOG_INF("INT1 configured for FIFO_THS: INT_CONFIG = 0x%02x", data);
+
+
     // do some Ders verification
     LOG_DBG("Printing out some critical IMU FIFO registers ...");
     int reg_data = readIMUReg(INTF_CONFIG0);

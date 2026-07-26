@@ -1,5 +1,83 @@
 # IMU Notes
 
+## [RESOLVED 2026-07-26] IMU bring-up on nRF52833 (SN2): NFC pins killed the chip select
+
+**Result: working.** `imu_init()` returns 0 and live accel data streams
+(z ≈ 2112 at ±16 g FSR = 1.03 g flat, x/y ≈ 0). The driver code needed no changes —
+it was already correct, as expected from the nRF52832 BETA board.
+
+### Root cause
+P0.09 and P0.10 are the nRF52833's **NFC antenna pins (NFC1/NFC2)** and boot in NFC
+mode, not as GPIOs. This board wires both to the IMU: **P0.10 is the SPI chip select**
+and P0.09 is INT1. With NFC mode active the CS pin could not be driven — it read stuck
+low even against the internal pull-up — so the IMU was never selectable. `WHO_AM_I`
+returned 0xff on every attempt.
+
+`CLAUDE.md` records this fix being applied once before (for INT1), but it was lost when
+the board was ported to `nrf52833_ders`. Restored in two places:
+
+- `nrf52833_ders.dts`: `nfct-pins-as-gpios;` on `&uicr`
+- `nrf52833_ders_defconfig`: `CONFIG_NFCT_PINS_AS_GPIOS=y`
+
+Both are needed. The DTS property is the modern spelling but **on nRF52 it is not yet
+acted on** — `dts/bindings/arm/nordic,nrf-uicr.yaml` accepts it, yet only
+`soc/nordic/nrf54h/soc.c` reads it. For nRF52, `system_nrf52.c` still gates the
+`UICR->NFCPINS` write on the (deprecated) Kconfig symbol. Setting only the DTS property
+builds cleanly and silently does nothing. Written to UICR once on first boot; persists
+until a UICR erase.
+
+After the fix, `WHO_AM_I` = 0x67 and P0.10 reads free/healthy.
+
+### Diagnostic that found it
+A GPIO pull test on the SPI1 pins: configure each as input with the internal pull-up,
+read, then with pull-down, read. A healthy free pin gives pu=1/pd=0. P0.10 gave
+pu=0/pd=0 while SCK/MOSI/MISO were all healthy — an unmissable pointer to that one pin.
+
+### Methodology warning — this test is destructive
+That same pin test **rewrites `PIN_CNF`, handing SCK/MOSI/MISO to the GPIO block. SPIM
+cannot drive them afterwards and every later SPI transaction returns garbage.**
+
+Running it *before* `imu_init()` produced a long trail of false leads: `imu_init()`
+failing -1/-12, reads degrading mid-sequence, and an apparent "any register write kills
+the part" effect (a write of the value a register already held looked fatal). All of it
+was the clobbered bus, not the IMU. Moving the pin test to after all SPI work made
+`imu_init()` pass first try. **Only ever call it once SPI work is finished.**
+
+### Ruled out along the way
+- SPI clock speed — identical failure at 8 MHz and 1 MHz
+- MT29F bus contention — **the NAND is not populated on this board**, so the IMU is the
+  only possible driver of MISO and none of the shared-bus analysis below applies here
+- Wrong 3-wire/4-wire mode select — `DEVICE_CONFIG` reads 0x04 (4-wire, mode 0/3) at
+  power-up, exactly what `configure_serial_interface()` writes
+- Stale MREG bank latch via `BLK_SEL_R`
+
+### FIFO watermark interrupt on INT1 — working
+`enableFifoInterrupt()` configured the FIFO and wrote the watermark, but **never routed
+the watermark condition to a physical pin**, so it only ever set a bit in `INT_STATUS`
+and no MCU interrupt could fire. `inv_imu_set_config_int1()` existed in the driver but
+had no callers. The old board carried FIFO_THS on INT2; **INT2 is not wired on this
+hardware**, so it has to go to INT1 (P0.09) here.
+
+Added to `enableFifoInterrupt()`:
+- `inv_imu_set_config_int1()` with only `INV_FIFO_THS` enabled → sets `INT_SOURCE0` bit 2
+- `INT_CONFIG`: push-pull (no pull on this net), **active low** to match the DTS
+  `int-gpios` `GPIO_ACTIVE_LOW`, and pulsed rather than latched so each crossing gives
+  one clean edge instead of a level held until `INT_STATUS` is read
+
+Verified: edge count tracks the FIFO drain rate — ~1/sec when draining once per second,
+exactly 10/sec when draining at 10 Hz. That rate-tracking is what proves the edges are
+watermark-driven rather than an artefact of the polling loop's own SPI traffic. Steady
+state sits at 11-12 packets against `IMU_FIFO_WM` = 10.
+
+**Re-arming:** `FIFO_CONFIG5.WM_GT_TH_EN` is cleared, so the watermark fires only on
+`count == threshold` *exactly*. An undrained FIFO sails past the threshold and never
+fires again — the FIFO must be drained for the interrupt to re-arm. That is why the
+interrupt rate equals the drain rate.
+
+**FIFO count byte order:** 0x3d (named `FIFO_COUNTH` in the regmap) empirically holds the
+**low** byte and 0x3e the high byte. Reading it the documented way yields an impossible
+16384 for a 2 KB FIFO.
+
 ## [ONGOING] IMU Init Fails When NVS Is Enabled
 
 `inv_imu_init()` returns `INV_ERROR_UNEXPECTED` (-12) when `nvs_init()` runs before `imu_init()`.
