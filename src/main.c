@@ -864,16 +864,6 @@ static void display_phase(void)
         clear_display();
         printLine("WWD-n", 0, 10, FONT_LARGE);
         printLine("display bring-up", 2, 10, FONT_SMALL);
-
-        cdc_write("  [backlight sweep] 0-100% in 5% steps, 3 s each\r\n");
-        for (int pct = 0; pct <= 100; pct += 5) {
-            char line[16];
-            snprintf(line, sizeof(line), "BL %3d%%", pct);
-            clearAndPrintLine(line, 4, 10, FONT_SMALL);
-            Backlight_Pct((uint8_t)pct);
-            cdc_printf("    backlight=%3d%%\r\n", pct);
-            k_msleep(3000);
-        }
     }
 
     cdc_write("==================================\r\n");
