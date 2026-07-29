@@ -103,6 +103,15 @@ void power_save_enable(bool enable)
     gpio_pin_set_dt(&boost_sel_gpio, enable ? 1 : 0);
 }
 
+void power_debug_hold_vbat_div(bool on)
+{
+    /* Profiling/debug only: battery_voltage_mv() pulses VBAT_DIV_EN for ~1ms
+     * per real read, which isn't representative of "what does the divider's
+     * own static draw look like held on continuously" — this bypasses the
+     * pulse for that measurement. Not for normal runtime use. */
+    gpio_pin_set_dt(&vbat_div_en, on ? 1 : 0);
+}
+
 bool battery_charging(void)
 {
     /* This board's BMS is a simple/discrete charge-management circuit, not an

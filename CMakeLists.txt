@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.20.0)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(WWDn)
 
+# Power-profiling harness (src/power_profile/power_profile_main.c) in place
+# of the real app's src/main.c — see debug/power_profile/README.md.
+# Build with: cmake ... -DPOWER_PROFILE_BUILD=ON
+option(POWER_PROFILE_BUILD "Build the power-profiling harness instead of the real app" OFF)
 
 # Include all headers under src
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -9,9 +13,14 @@ zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 # Collect all .c files recursively
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
+if(POWER_PROFILE_BUILD)
+    target_sources(app PRIVATE src/power_profile/power_profile_main.c)
+else()
+    target_sources(app PRIVATE src/main.c)
+endif()
+
 # Compile all of them
 target_sources(app PRIVATE
-    src/main.c
     src/circular_buffer.c
     src/peripheral/clock.c
     src/peripheral/interrupt.c

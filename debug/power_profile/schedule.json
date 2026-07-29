@@ -1,0 +1,132 @@
+{
+  "dwell_s": 8.0,
+  "settle_margin_s": 1.0,
+  "states": [
+    {
+      "index": 0,
+      "name": "floor_dcdc_on",
+      "start_s": 0.0,
+      "end_s": 8.0
+    },
+    {
+      "index": 1,
+      "name": "floor_dcdc_off",
+      "start_s": 8.0,
+      "end_s": 16.0
+    },
+    {
+      "index": 2,
+      "name": "dcdc_on_restore",
+      "start_s": 16.0,
+      "end_s": 24.0
+    },
+    {
+      "index": 3,
+      "name": "display_bl_0",
+      "start_s": 24.0,
+      "end_s": 32.0
+    },
+    {
+      "index": 4,
+      "name": "display_bl_25",
+      "start_s": 32.0,
+      "end_s": 40.0
+    },
+    {
+      "index": 5,
+      "name": "display_bl_50",
+      "start_s": 40.0,
+      "end_s": 48.0
+    },
+    {
+      "index": 6,
+      "name": "display_bl_75",
+      "start_s": 48.0,
+      "end_s": 56.0
+    },
+    {
+      "index": 7,
+      "name": "display_bl_100",
+      "start_s": 56.0,
+      "end_s": 64.0
+    },
+    {
+      "index": 8,
+      "name": "display_off",
+      "start_s": 64.0,
+      "end_s": 72.0
+    },
+    {
+      "index": 9,
+      "name": "batt_div_off",
+      "start_s": 72.0,
+      "end_s": 80.0
+    },
+    {
+      "index": 10,
+      "name": "batt_div_on",
+      "start_s": 80.0,
+      "end_s": 88.0
+    },
+    {
+      "index": 11,
+      "name": "batt_div_off_end",
+      "start_s": 88.0,
+      "end_s": 96.0
+    },
+    {
+      "index": 12,
+      "name": "imu_odr_25",
+      "start_s": 96.0,
+      "end_s": 104.0
+    },
+    {
+      "index": 13,
+      "name": "imu_odr_50",
+      "start_s": 104.0,
+      "end_s": 112.0
+    },
+    {
+      "index": 14,
+      "name": "imu_odr_100",
+      "start_s": 112.0,
+      "end_s": 120.0
+    },
+    {
+      "index": 15,
+      "name": "imu_odr_200",
+      "start_s": 120.0,
+      "end_s": 128.0
+    },
+    {
+      "index": 16,
+      "name": "imu_odr_400",
+      "start_s": 128.0,
+      "end_s": 136.0
+    },
+    {
+      "index": 17,
+      "name": "imu_odr_800",
+      "start_s": 136.0,
+      "end_s": 144.0
+    },
+    {
+      "index": 18,
+      "name": "nvs_idle",
+      "start_s": 144.0,
+      "end_s": 152.0
+    },
+    {
+      "index": 19,
+      "name": "nvs_writing",
+      "start_s": 152.0,
+      "end_s": 160.0
+    },
+    {
+      "index": 20,
+      "name": "combo_realistic",
+      "start_s": 160.0,
+      "end_s": 168.0
+    }
+  ]
+}

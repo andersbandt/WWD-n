@@ -38,6 +38,13 @@ uint8_t battery_percent(int mv);
 void power_save_enable(bool enable);
 
 /*
+ * Profiling/debug only: hold VBAT_DIV_EN on/off continuously, bypassing
+ * battery_voltage_mv()'s normal brief-pulse behavior. Used to measure the
+ * divider's own static current draw in isolation. Not for normal runtime use.
+ */
+void power_debug_hold_vbat_div(bool on);
+
+/*
  * Returns true if the battery is currently charging.
  * This board's BMS is a simple/discrete charge-management circuit (no I2C,
  * not a BQ25120A) — stubbed false unless/until there's a charge-status GPIO
