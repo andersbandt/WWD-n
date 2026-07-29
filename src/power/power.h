@@ -33,13 +33,15 @@ uint8_t battery_percent(int mv);
 
 /*
  * Control the TPS63900 buck-boost converter mode via BOOST_SEL (MCP23008 GP6).
- * true = boost mode enabled; false = normal buck mode.
+ * true = power-save mode (lower VCC output voltage); false = normal (higher) output.
  */
-void boost_enable(bool on);
+void power_save_enable(bool enable);
 
 /*
  * Returns true if the battery is currently charging.
- * TODO: implement via BQ25120A Zephyr I2C driver (TI-SDK driver is incompatible).
+ * This board's BMS is a simple/discrete charge-management circuit (no I2C,
+ * not a BQ25120A) — stubbed false unless/until there's a charge-status GPIO
+ * worth wiring.
  */
 bool battery_charging(void);
 

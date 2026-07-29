@@ -9,8 +9,11 @@
 // Hardware:
 //   VBAT_DIV_GPIO  = MCP23008 GP4  — enables 10k/10k voltage divider FET (active HIGH)
 //   AIN2 (P0.04)   = divider output (VBAT / 2)
-//   BOOST_SEL      = MCP23008 GP6  — TPS63900 mode select (active HIGH = boost)
-//   BQ25120A       = I2C charger  (TODO: needs Zephyr port before charging status works)
+//   BOOST_SEL      = MCP23008 GP6  — TPS63900 mode select
+//                    (active HIGH = LOWER VCC output voltage, i.e. power-save mode;
+//                    LOW = normal/higher output. Previously documented backwards.)
+//   BMS            = simple/discrete charge-management circuit, no I2C — this board
+//                    does not have a BQ25120A
 //*****************************************************************************
 
 #include <zephyr/kernel.h>
@@ -95,13 +98,15 @@ uint8_t battery_percent(int mv)
     return (uint8_t)((mv - 3000) * 100 / (4200 - 3000));
 }
 
-void boost_enable(bool on)
+void power_save_enable(bool enable)
 {
-    gpio_pin_set_dt(&boost_sel_gpio, on ? 1 : 0);
+    gpio_pin_set_dt(&boost_sel_gpio, enable ? 1 : 0);
 }
 
 bool battery_charging(void)
 {
-    /* TODO: port BQ25120A driver to Zephyr I2C API, then read CHG_N status bit */
+    /* This board's BMS is a simple/discrete charge-management circuit, not an
+     * I2C part — there is no register to read charging status from. Stubbed
+     * false until/unless there's a charge-status GPIO worth wiring. */
     return false;
 }
