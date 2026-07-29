@@ -246,29 +246,57 @@ void ui_refresh() {
 }
 
 
+/* Physical button layout (SW1-4, clockwise from top-left) — see button.h:
+ *   BUTTON_1_MASK = SW1 = top-left     = UP
+ *   BUTTON_2_MASK = SW2 = top-right    = open/unassigned
+ *   BUTTON_3_MASK = SW3 = bottom-right = SELECT
+ *   BUTTON_4_MASK = SW4 = bottom-left  = DOWN
+ * SW3+SW4 (the bottom row) together always return to the clock face,
+ * regardless of UI mode. */
 void handle_ui_input() {
     uint8_t button_status = button_poll();
 
+    if (button_status == 0) {
+        return;  /* nothing pressed */
+    }
+
+    /* Any button press wakes a sleeping display first; that press just
+     * wakes it and is not also treated as navigation (so waking up doesn't,
+     * say, also jump a menu position or fire SELECT). Display timeout/sleep
+     * itself isn't implemented yet (display_timeout_thread is disabled —
+     * see main.c), so display_is_awake() is always true today; this is
+     * scaffolding for when that lands. */
+    if (!display_is_awake()) {
+        switch_display(true);
+        return;
+    }
+
+    /* Bottom row together = always home, regardless of mode. */
+    if ((button_status & (BUTTON_3_MASK | BUTTON_4_MASK)) ==
+        (BUTTON_3_MASK | BUTTON_4_MASK)) {
+        change_ui_mode(UI_MODE_CLOCK);
+        return;
+    }
 
     // Handle menu-specific input
     if (ui_mode == UI_MODE_MENU) {
-        // parse `button_status` into a format needed for UI menu API
-        if (button_status == 1) {
+        if (button_status == BUTTON_1_MASK) {        // SW1 top-left: UP
             updateMenuScreen(-1);
         }
-        else if (button_status == 2) {
+        else if (button_status == BUTTON_4_MASK) {   // SW4 bottom-left: DOWN
             updateMenuScreen(1);
         }
-        else if (button_status == 4) {
+        else if (button_status == BUTTON_3_MASK) {   // SW3 bottom-right: SELECT
             updateMenuScreen(2);
         }
-        else if (button_status == 8) {
-            updateMenuScreen(2);
+        else if (button_status == BUTTON_2_MASK) {   // SW2 top-right: open/unassigned
+            // TODO: no action defined yet for this button
         }
         return;
     }
     else if (ui_mode == UI_MODE_CLOCK) {
-        if (button_status == 1 || button_status == 2)
+        // Any single button from the clock face opens the menu (the bottom-
+        // row home combo above already returned before reaching here).
         change_ui_mode(UI_MODE_MENU);
     }
 

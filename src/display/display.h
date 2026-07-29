@@ -153,6 +153,11 @@ void changeContrast(const uint8_t contrast);
 
 void switch_display(const bool on);
 
+/**
+ * @brief Returns true if the display is currently awake (sleep-out/active).
+ */
+bool display_is_awake(void);
+
 
 
 #endif /* SRC_HARDWARE_DISPLAY_H_ */

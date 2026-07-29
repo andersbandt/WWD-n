@@ -350,6 +350,18 @@ void changeContrast(const uint8_t contrast)
 }
 
 
+/* Tracks runtime on/off state (distinct from display_status, which is
+ * "did init_display() succeed"). Starts true — the panel is left in
+ * sleep-out/active state after init_display(). Used by handle_ui_input()
+ * (ui.c) so any button press wakes a sleeping display before button events
+ * are otherwise acted on. */
+static bool display_awake = true;
+
+bool display_is_awake(void)
+{
+    return display_awake;
+}
+
 void switch_display(const bool on)
 {
     if (on) {
@@ -358,6 +370,7 @@ void switch_display(const bool on)
     else {
         ST7735S_sleepIn();
     }
+    display_awake = on;
 }
 
 

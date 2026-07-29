@@ -14,11 +14,18 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// Button bit masks for the button state byte
-#define BUTTON_1_MASK   0x01
-#define BUTTON_2_MASK   0x02
-#define BUTTON_3_MASK   0x04
-#define BUTTON_4_MASK   0x08
+/* Button bit masks for the button state byte. Physical layout (schematic
+ * SW1-4, numbered clockwise from top-left) maps 1:1 to button1-4 in the DTS:
+ *   SW1 = button1 = top-left     = UP
+ *   SW2 = button2 = top-right    = open/unassigned (see UIFunctions.c)
+ *   SW3 = button3 = bottom-right = SELECT
+ *   SW4 = button4 = bottom-left  = DOWN
+ * SW3+SW4 together (the bottom row) always returns to UI_MODE_CLOCK — see
+ * handle_ui_input() in ui.c. */
+#define BUTTON_1_MASK   0x01  /* SW1, top-left,     UP */
+#define BUTTON_2_MASK   0x02  /* SW2, top-right,    open/unassigned */
+#define BUTTON_3_MASK   0x04  /* SW3, bottom-right, SELECT */
+#define BUTTON_4_MASK   0x08  /* SW4, bottom-left,  DOWN */
 
 // External semaphore references (defined in interrupt.c)
 extern struct k_sem button1_sem;
