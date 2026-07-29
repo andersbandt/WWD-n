@@ -65,6 +65,14 @@ void display_out_bms(int charging, int battery_percent);
  */
 void display_out_time(Time time, time_invert_field_t invertField);
 
+/**
+ * display_clock_time_reset: force the next display_out_time() call to do a
+ * full "HH:MM:SS" redraw (incl. colons) instead of a partial field update.
+ * Call whenever the screen may have been cleared without display_out_time()'s
+ * knowledge — e.g. switching back into UI_MODE_CLOCK.
+ */
+void display_clock_time_reset(void);
+
 
 /**
  * display_out_pedometer: displays pedometer step count
@@ -75,7 +83,7 @@ void display_out_pedometer(int steps);
 /**
  * display_out_temp: displays temperature reading
  */
-void display_out_temp(int16_t temp);
+void display_out_temp(float temp);
 
 /**
  * @brief displays a certain measurement

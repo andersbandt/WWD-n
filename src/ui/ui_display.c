@@ -70,14 +70,72 @@ void display_out_bms(int charging, int battery_percent) {
 #define CLOCK_TEMP_Y      4
 #define CLOCK_STEPS_Y_MARGIN 20  /* from bottom of screen */
 
+/* Pixel Y equivalent of calculateLineY(CLOCK_TIME_LINE, CLOCK_TIME_FONT) in
+ * display.c (10 + 1*(28 + 28*3/10) = 46) — needed here because
+ * printFieldRightAligned() takes a raw pixel Y, not a line number. */
+#define CLOCK_TIME_Y       46
+#define CLOCK_TIME_CHAR_W  (CLOCK_TIME_FONT / 2)   /* matches printFieldRightAligned's charWidth approximation */
+#define CLOCK_TIME_FIELD_W (2 * CLOCK_TIME_CHAR_W) /* width of one 2-digit field: HH, MM, or SS */
+/* Right edge of each field in drawText's fixed left-to-right layout starting
+ * at CLOCK_TIME_X ("HH" then ":" then "MM" then ":" then "SS", each glyph —
+ * including the colons — advancing by CLOCK_TIME_CHAR_W). */
+#define CLOCK_HH_RIGHT (CLOCK_TIME_X + 2*CLOCK_TIME_CHAR_W)
+#define CLOCK_MM_RIGHT (CLOCK_TIME_X + 5*CLOCK_TIME_CHAR_W)
+#define CLOCK_SS_RIGHT (CLOCK_TIME_X + 8*CLOCK_TIME_CHAR_W)
+
+/* File-scope (not function-local) so display_clock_time_reset() can force a
+ * full redraw — needed whenever the screen was cleared out from under us
+ * (e.g. returning to UI_MODE_CLOCK from the menu), see that function. */
+static bool clock_time_initialized = false;
+static int8_t clock_prev_h = -1, clock_prev_m = -1, clock_prev_s = -1;
+
+/* Force the next display_out_time() call to do a full "HH:MM:SS" redraw
+ * (including the colons) instead of a partial field update. Call this
+ * whenever the screen may have been cleared without display_out_time()'s
+ * knowledge (mode switches back to UI_MODE_CLOCK, including the first). */
+void display_clock_time_reset(void)
+{
+    clock_time_initialized = false;
+}
+
 void display_out_time(Time time, time_invert_field_t invertField) {
     char time_str[15];
     sprintf(time_str, "%02d:%02d:%02d", time.hours, time.minutes, time.seconds);
 
     if (invertField == TIME_INVERT_NONE) {
-        // Main clock face: big, upper-middle, centered. Fixed-width format
-        // (always "HH:MM:SS"), so clearAndPrintLine()'s ghosting risk doesn't apply.
-        clearAndPrintLine(time_str, CLOCK_TIME_LINE, CLOCK_TIME_X, CLOCK_TIME_FONT);
+        /* Partial redraw: redrawing the full "HH:MM:SS" string every second
+         * (even though usually only the seconds digits change) pushed ~4x
+         * more pixels over SPI than necessary — flushBuffer() only sends the
+         * dirty bounding box, so this panel visibly "wipes" left-to-right on
+         * every full-string redraw. Only touch the 2-digit field(s) that
+         * actually changed; colons are drawn once and never touched again
+         * since they never change. */
+        char field[8];  /* generous headroom for "%02d" of an int8_t; silences -Wformat-overflow */
+
+        if (!clock_time_initialized) {
+            clearAndPrintLine(time_str, CLOCK_TIME_LINE, CLOCK_TIME_X, CLOCK_TIME_FONT);
+            clock_time_initialized = true;
+            clock_prev_h = time.hours;
+            clock_prev_m = time.minutes;
+            clock_prev_s = time.seconds;
+            return;
+        }
+
+        if (time.hours != clock_prev_h) {
+            sprintf(field, "%02d", time.hours);
+            printFieldRightAligned(field, CLOCK_TIME_Y, CLOCK_HH_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
+            clock_prev_h = time.hours;
+        }
+        if (time.minutes != clock_prev_m) {
+            sprintf(field, "%02d", time.minutes);
+            printFieldRightAligned(field, CLOCK_TIME_Y, CLOCK_MM_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
+            clock_prev_m = time.minutes;
+        }
+        if (time.seconds != clock_prev_s) {
+            sprintf(field, "%02d", time.seconds);
+            printFieldRightAligned(field, CLOCK_TIME_Y, CLOCK_SS_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
+            clock_prev_s = time.seconds;
+        }
         return;
     }
 
@@ -119,9 +177,11 @@ void display_out_pedometer(int steps) {
 }
 
 
-void display_out_temp(int16_t temp) {
-    char text[8];
-    sprintf(text, "%dC", temp);
+void display_out_temp(float temp) {
+    char text[10];
+    /* imu_get_temp() (imu.c) converts the raw Celsius register value to
+     * Fahrenheit before returning it — label accordingly, was mislabeled "C". */
+    sprintf(text, "%.1fF", (double)temp);
     printFieldRightAligned(text, CLOCK_TEMP_Y, WIDTH - 2,
                             CLOCK_BADGE_WIDTH, CLOCK_BADGE_FONT);
 }

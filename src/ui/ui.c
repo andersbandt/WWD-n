@@ -109,7 +109,7 @@ void ui_clock_set_time(Time time)
 /**
  * @brief Set IMU temperature and mark dirty
  */
-void ui_clock_set_temp(int16_t temp)
+void ui_clock_set_temp(float temp)
 {
     clock_data.imu_temp = temp;
     ui_clock_mark_dirty(UI_CLOCK_DIRTY_TEMP);
@@ -143,6 +143,17 @@ void ui_clock_set_steps(uint32_t steps)
 }
 
 
+/* "WWD-n" title, top-left — permanent part of the clock face layout (not
+ * just the boot splash from display_phase() in main.c). Sits at line 0
+ * (y=2..~22, FONT_LARGE) which doesn't overlap the temp badge (top-right,
+ * x>=82) or the time display (starts at y=CLOCK_TIME_Y=46), so it's safe to
+ * redraw any time the screen gets cleared. */
+static void draw_clock_title(void)
+{
+    printLine("WWD-n", 0, 10, FONT_LARGE);
+}
+
+
 /**
  * initUI: initializes the user interface
  */
@@ -155,9 +166,17 @@ void init_ui()
         return;
     }
 
-    ui_mode = UI_MODE_CLOCK;
+    /* Wipe the display_phase() splash screen ("WWD-n" / "display bring-up",
+     * main.c) before the clock face draws over it — otherwise whatever the
+     * splash didn't happen to overwrite (e.g. its background fill) is left
+     * as a visible remnant around the clock digits. */
+    clear_display();
+    draw_clock_title();
 
-    
+    ui_mode = UI_MODE_CLOCK;
+    display_clock_time_reset();  /* force a full HH:MM:SS redraw first time */
+
+
     // TODO: I can somehow make my UI testing easier now by just altering this UI_mode ... I started some testing thing that probably is old now
     // NOTE: I don't think it's currently working though because clicking buttons throws me into the menu ... might have to set ui_mode too?
     // ui_mode = UI_MODE_MENU;
@@ -276,6 +295,9 @@ void change_ui_mode(ui_mode_t new_mode) {
     if (ui_mode == UI_MODE_CLOCK) {
         initMenu();
         clear_display();
+        draw_clock_title();
+        display_clock_time_reset();  /* screen was just cleared — full redraw next time */
+        ui_clock_mark_dirty(UI_CLOCK_DIRTY_ALL);  /* force temp/step badges to redraw too */
         ui_refresh();
     }
     else if (ui_mode == UI_MODE_MENU) {

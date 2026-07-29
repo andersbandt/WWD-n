@@ -215,16 +215,26 @@ int config_all_interrupts(void)
         LOG_WRN("one or more button interrupts unavailable (MCP23008 not populated?) — continuing");
     }
 
-    /* IMU interrupts — real hardware, failure here is fatal */
+    /* IMU interrupts — real hardware, failure here is fatal.
+     *
+     * GPIO_INT_EDGE_TO_ACTIVE, not EDGE_RISING: INT1 is active-low
+     * (GPIO_ACTIVE_LOW in the DTS) and pulsed by enableFifoInterrupt() —
+     * EDGE_TO_ACTIVE respects the ACTIVE_LOW flag and fires on the falling
+     * (assertion) edge, which is what imu_bringup.c's imu_probe() diagnostic
+     * verified against the real FIFO drain rate (see imu_notes.md). This was
+     * mistakenly EDGE_RISING here — a literal rising-edge trigger, which is
+     * the pulse's *trailing* edge given ACTIVE_LOW, not the verified config —
+     * and since GPIO interrupt-edge is one hardware setting per pin, whichever
+     * of imu_bringup.c's or this setup ran last silently won. */
     ret = setup_gpio_interrupt(&imu_int1,
-                               GPIO_INT_EDGE_RISING,
+                               GPIO_INT_EDGE_TO_ACTIVE,
                                &imu_int1_cb,
                                imu_int1_handler);
     if (ret) return ret;
 
 #if IMU_HAS_INT2
     ret = setup_gpio_interrupt(&imu_int2,
-                               GPIO_INT_EDGE_RISING,
+                               GPIO_INT_EDGE_TO_ACTIVE,
                                &imu_int2_cb,
                                imu_int2_handler);
     if (ret) return ret;

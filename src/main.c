@@ -93,7 +93,13 @@ static void display_phase(void)
 #define SENSOR_UPDATE_STACK_SIZE  2048
 #define UI_REFRESH_STACK_SIZE     2048
 #define DISPLAY_TIMEOUT_STACK_SIZE 512
-#define BUTTON_HANDLER_STACK_SIZE  1024  /* also drains the IMU FIFO, see below */
+/* 2048 rather than 1024, same reasoning as SENSOR_UPDATE/UI_REFRESH above:
+ * this thread's FIFO-watermark path does SPI reads (get_fifo_data()) then
+ * imu_process() -> nvs_log_record() (NAND writes through mt29f_bus_mutex/
+ * nvs_state_mutex), several frames deep under NO_OPTIMIZATIONS — don't
+ * assume the old 1024B, sized for a mostly-idle button poller, still holds
+ * now that this thread is also the sole IMU FIFO drain path. */
+#define BUTTON_HANDLER_STACK_SIZE  2048  /* also drains the IMU FIFO, see below */
 
 #define SENSOR_UPDATE_PRIORITY   7
 #define UI_REFRESH_PRIORITY      7
@@ -335,22 +341,25 @@ int main(void)
                     UI_REFRESH_PRIORITY, 0, K_NO_WAIT);
     k_thread_name_set(&ui_refresh_thread, "ui_refresh");
 
-    /* display_timeout_thread and button_handler_thread stay disabled — see
-     * the comments above their entry functions. Neither is required for the
-     * clock/temp/step-count display path: temp and step count are direct
-     * IMU register reads (not FIFO-dependent), and buttons live on the
-     * MCP23008 expander, not populated on this board. */
+    /* display_timeout_thread stays disabled — see the comment above its
+     * entry function (undersized-stack crash, feature not implemented yet). */
     // k_thread_create(&display_timeout_thread, display_timeout_stack,
     //                 K_THREAD_STACK_SIZEOF(display_timeout_stack),
     //                 display_timeout_thread_entry, NULL, NULL, NULL,
     //                 DISPLAY_TIMEOUT_PRIORITY, 0, K_NO_WAIT);
     // k_thread_name_set(&display_timeout_thread, "display_timeout");
 
-    // k_thread_create(&button_handler_thread, button_handler_stack,
-    //                 K_THREAD_STACK_SIZEOF(button_handler_stack),
-    //                 button_handler_thread_entry, NULL, NULL, NULL,
-    //                 BUTTON_HANDLER_PRIORITY, 0, K_NO_WAIT);
-    // k_thread_name_set(&button_handler_thread, "button_handler");
+    /* Re-enabled 2026-07-29: this is the only thread that drains the IMU
+     * FIFO (get_fifo_data() + imu_process()) into NVS via the INT1 watermark
+     * interrupt — without it, NVS_LOG_IMU_SAMPLES logging silently does
+     * nothing despite being enabled. Button polling comes along for the
+     * ride (harmless no-op — MCP23008 not populated on this board), but the
+     * FIFO drain is the reason this needs to run. */
+    k_thread_create(&button_handler_thread, button_handler_stack,
+                    K_THREAD_STACK_SIZEOF(button_handler_stack),
+                    button_handler_thread_entry, NULL, NULL, NULL,
+                    BUTTON_HANDLER_PRIORITY, 0, K_NO_WAIT);
+    k_thread_name_set(&button_handler_thread, "button_handler");
 
     LOG_INF("Starting WWD program!");
     init_timer();

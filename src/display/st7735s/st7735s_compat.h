@@ -3,9 +3,12 @@
 
 #include <inttypes.h>
 
-/* this may differ from the default 80x160 */
+/* Physical panel is 128x160, not 180 — anything drawn near row 160-179 with
+ * the old value fell off the visible glass entirely (confirmed on hardware:
+ * the step-count badge at HEIGHT-20 was invisible because the screen
+ * physically ends before that row). */
 #define defWIDTH   128
-#define defHEIGHT  180
+#define defHEIGHT  160
 #define defXSTART  0
 #define defYSTART  0
 

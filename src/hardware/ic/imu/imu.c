@@ -256,16 +256,18 @@ inv_imu_sensor_event_t imu_deque() {
 /*
  * imu_get_temp: function to return temperature from IMU
  */
-int16_t imu_get_temp() {
+float imu_get_temp() {
     #ifdef USE_DERS_IMU
         int16_t imu_temp = getTempDataFromIMUReg();
     #else
         int16_t imu_temp = 100;
     #endif
-    
-    /* float temp_celsius = ((float)imu_temp / 128.0f) + 25.0f; */
-    /* int16_t imu_c = (imu_temp / 128) + 25; */
-    int16_t imu_f = ((imu_temp / 128) + 25) * 1.8 + 32;
+
+    /* Was truncating to int16_t twice (once via integer /128, once via the
+     * int16_t return) — threw away all decimal precision. Float division
+     * throughout keeps it. */
+    float temp_celsius = ((float)imu_temp / 128.0f) + 25.0f;
+    float imu_f = temp_celsius * 1.8f + 32.0f;
 
     return imu_f;
 }

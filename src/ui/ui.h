@@ -49,7 +49,7 @@ typedef enum {
  */
 typedef struct {
     Time time;
-    int16_t imu_temp;
+    float imu_temp;
     int charging_status;
     int bat_percent;
     uint32_t step_count;
@@ -119,7 +119,7 @@ void ui_clock_set_time(Time time);
  * @brief Set IMU temperature and mark dirty
  * @param temp Temperature value
  */
-void ui_clock_set_temp(int16_t temp);
+void ui_clock_set_temp(float temp);
 
 /**
  * @brief Set battery percentage and mark dirty

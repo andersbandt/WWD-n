@@ -98,7 +98,7 @@ void imu_reg_poll();
 /**
  * @brief function for just getting temperature data from IMU
  */
-int16_t imu_get_temp();
+float imu_get_temp();
 
 
 /**
