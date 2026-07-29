@@ -85,6 +85,23 @@ void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t
 
 
 /**
+ * @brief Right-aligns text within a fixed-size box, always clearing the whole box first
+ *
+ * Unlike clearAndPrintLine(), the cleared region never depends on the current text's
+ * length — safe for small corner badges (e.g. temp, step count) whose digit count
+ * changes over time.
+ *
+ * @param text: pointer to char for the string. String should terminate in \0
+ * @param posY: pixel Y position (top of the text)
+ * @param fieldRight: pixel X of the box's right edge
+ * @param fieldWidth: box width in pixels — must comfortably fit the longest expected text
+ * @param fontSize: font size to use
+ */
+void printFieldRightAligned(const char * text, const uint32_t posY, const uint32_t fieldRight,
+                             const uint32_t fieldWidth, font_size_t fontSize);
+
+
+/**
  * @brief Prints text to a line without drawing background (transparent mode)
  *
  * @param text: pointer to char for the string. String should terminate in \0

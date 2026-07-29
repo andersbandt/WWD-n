@@ -145,10 +145,10 @@ ELF: `~/Documents/NCS/WWD-n/build/zephyr/zephyr.elf`
 ### Threading Model
 The application uses Zephyr's cooperative multithreading with semaphore-based synchronization:
 
-- **clock_update_thread** (Priority 7): Updates clock, IMU temp, and step count every 9s (triggered by timer1_sem)
-- **ui_refresh_thread** (Priority 7): Refreshes display every 1s when display is active (triggered by timer2_sem)
-- **display_timeout_thread** (Priority 7): Handles display timeout after 9s (triggered by timer3_sem)
-- **button_handler_thread** (Priority 5, highest): Handles button presses and IMU interrupts using k_poll on multiple semaphores
+- **sensor_update_thread** (Priority 7): Updates IMU temp and step count every 9s (triggered by timer1_sem)
+- **ui_refresh_thread** (Priority 7): Updates wall-clock time and refreshes display every 1s when display is active (triggered by timer2_sem)
+- **display_timeout_thread** (Priority 7): Handles display timeout after 9s (triggered by timer3_sem) — currently **disabled** (not created in main.c): its 512B stack overflowed and caused reboots, see Known Issues
+- **button_handler_thread** (Priority 5, highest): Handles button presses and IMU interrupts using k_poll on multiple semaphores — currently **disabled** (not created in main.c); not required for the clock/temp/step-count display path since temp and step count are direct IMU register reads, not FIFO-dependent, and buttons live on the MCP23008 expander which isn't populated on this board yet
 
 Main thread initialization order: LED → buttons → display → UI → interrupts → timers → sleep forever
 
@@ -158,16 +158,19 @@ Main thread initialization order: LED → buttons → display → UI → interru
 src/
 ├── main.c                    # Main application entry, thread definitions
 ├── circular_buffer.[ch]      # Generic circular buffer implementation
+├── util/                    # Small shared helpers
+│   └── cdc_debug.[ch]      # cdc_write()/cdc_printf() — raw console CDC ACM writes for bring-up diagnostics
 ├── peripheral/              # Low-level peripheral drivers
 │   ├── clock.[ch]          # Date/time arithmetic, get_current_time() wrapper
 │   ├── rtc.[ch]            # Counter-based soft-RTC (nRF RTC2, dev boards)
 │   ├── rv3028.[ch]         # RV-3028-C7 hardware RTC via Zephyr RTC API
+│   ├── rv3028_bringup.[ch] # RV-3028/I2C bring-up diagnostics (probe, register dump, LFCLK report)
 │   ├── interrupt.[ch]      # GPIO interrupt configuration
 │   └── timer.[ch]          # Timer setup and management
 ├── hardware/                # Hardware abstraction layer
 │   ├── led.[ch]            # LED control
 │   ├── button.[ch]         # Button handling with debouncing
-│   └── ic/imu/             # IMU driver (see below)
+│   └── ic/imu/             # IMU driver (see below); imu_bringup.[ch] holds raw-SPI bring-up diagnostics (imu_probe(), pin/register tests)
 ├── display/                 # Display drivers and graphics
 │   ├── display.[ch]        # Display abstraction layer (ST7735S only)
 │   ├── st7735s/            # ST7735S driver — sole active display driver
@@ -180,7 +183,8 @@ src/
 │   └── UIFunctions.c       # Individual UI function implementations
 ├── memory/                  # Storage drivers
 │   ├── mt29f_nand.[ch]     # NAND flash driver
-│   └── nvs.[ch]            # Non-volatile storage
+│   ├── nvs.[ch]            # Non-volatile storage
+│   └── nvs_bringup.[ch]    # NVS/MT29F bring-up phase + pipeline tick (moved out of main.c)
 ├── comm/                    # Communication interfaces
 │   ├── protocol.[ch]       # Binary host<->device command protocol (cdc_acm_uart1)
 │   └── rate_config.[ch]    # Runtime IMU ODR / temperature log interval

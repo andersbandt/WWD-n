@@ -62,8 +62,8 @@ K_TIMER_DEFINE(timer3, timer3_callback, NULL);
 
 
 /* Semaphores for thread synchronization */
-K_SEM_DEFINE(timer1_sem, 0, 1);  /* Clock update semaphore */
-K_SEM_DEFINE(timer2_sem, 0, 1);  /* UI refresh semaphore */
+K_SEM_DEFINE(timer1_sem, 0, 1);  /* Sensor (IMU temp/step-count) update semaphore */
+K_SEM_DEFINE(timer2_sem, 0, 1);  /* UI refresh semaphore (also drives wall-clock update) */
 K_SEM_DEFINE(timer3_sem, 0, 1);  /* Display timeout semaphore */
 
 
@@ -99,16 +99,16 @@ int timer_start(int timer_num) {
         k_timer_start(&timer0, duration, period);
         break;
     case 1:
-        /* Timer 1: Clock update */
-        duration = K_MSEC(750);
-        period = K_MSEC(750);
+        /* Timer 1: Sensor (IMU temp/step-count) update */
+        duration = K_SECONDS(9);
+        period = K_SECONDS(9);
         k_timer_start(&timer1, duration, period);
         break;
-        
+
     case 2:
-        /* Timer 2: UI refresh */
-        duration = K_MSEC(750);
-        period = K_MSEC(750);
+        /* Timer 2: UI refresh (also drives wall-clock update) */
+        duration = K_SECONDS(1);
+        period = K_SECONDS(1);
         k_timer_start(&timer2, duration, period);
         break;
 

@@ -54,11 +54,35 @@ void display_out_bms(int charging, int battery_percent) {
 }
 
 
+/* Clock face layout: big centered time up top, small corner badges for
+ * temp (top-right) and step count (bottom-right). Badges use
+ * printFieldRightAligned() rather than printLine()/clearAndPrintLine()
+ * because their digit count changes over time (e.g. temp 100 -> 9) —
+ * clearAndPrintLine() only clears from the text's own left edge to the
+ * screen's right edge, so a shrinking value leaves stale digits behind.
+ * printFieldRightAligned() always clears the same fixed-size box first. */
+#define CLOCK_TIME_LINE  1
+#define CLOCK_TIME_X     8
+#define CLOCK_TIME_FONT  FONT_XXLARGE
+
+#define CLOCK_BADGE_FONT  FONT_SMALL
+#define CLOCK_BADGE_WIDTH 44
+#define CLOCK_TEMP_Y      4
+#define CLOCK_STEPS_Y_MARGIN 20  /* from bottom of screen */
+
 void display_out_time(Time time, time_invert_field_t invertField) {
     char time_str[15];
     sprintf(time_str, "%02d:%02d:%02d", time.hours, time.minutes, time.seconds);
 
-    // Determine which characters to invert based on the field
+    if (invertField == TIME_INVERT_NONE) {
+        // Main clock face: big, upper-middle, centered. Fixed-width format
+        // (always "HH:MM:SS"), so clearAndPrintLine()'s ghosting risk doesn't apply.
+        clearAndPrintLine(time_str, CLOCK_TIME_LINE, CLOCK_TIME_X, CLOCK_TIME_FONT);
+        return;
+    }
+
+    // Time-setting UI function screen (system_prompt_for_time_UI_FUNC) — unrelated
+    // layout, unchanged.
     // Time format: "HH:MM:SS"
     //   Hours:   indices 0-1
     //   Minutes: indices 3-4
@@ -79,31 +103,27 @@ void display_out_time(Time time, time_invert_field_t invertField) {
             invertStart = 6;
             invertEnd = 7;
             break;
-        case TIME_INVERT_NONE:
         default:
-            // No inversion
             break;
     }
 
-    if (invertStart >= 0 && invertEnd >= 0) {
-        printLineWithInversion(time_str, 2, 20, FONT_SMALL, invertStart, invertEnd);
-    } else {
-        printLine(time_str, 2, 20, FONT_SMALL);
-    }
+    printLineWithInversion(time_str, 2, 20, FONT_SMALL, invertStart, invertEnd);
 }
 
 
 void display_out_pedometer(int steps) {
     char text[15];
-    sprintf(text, "Steps: %d", steps);
-    printLine(text, 3, 30, FONT_LARGE);
+    sprintf(text, "%d", steps);
+    printFieldRightAligned(text, HEIGHT - CLOCK_STEPS_Y_MARGIN, WIDTH - 2,
+                            CLOCK_BADGE_WIDTH, CLOCK_BADGE_FONT);
 }
 
 
 void display_out_temp(int16_t temp) {
-    char text[14];
-    sprintf(text, "Temp: %d", temp);
-    printLine(text, 3, 30, FONT_LARGE);
+    char text[8];
+    sprintf(text, "%dC", temp);
+    printFieldRightAligned(text, CLOCK_TEMP_Y, WIDTH - 2,
+                            CLOCK_BADGE_WIDTH, CLOCK_BADGE_FONT);
 }
 
 

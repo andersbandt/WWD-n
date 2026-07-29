@@ -138,31 +138,29 @@ void system_change_display_contrast_UI_FUNC() {
     // set up variables and print to screen
     uint8_t btn_poll;
     bool status = true;
-    uint8_t contrast = 50;
-    int new_contrast;
+    uint8_t brightness = 100;
+    int new_brightness = 0;
 
     // add delay to prevent user from automatically exiting upon function entry
-    display_out_measurement("Contrast", contrast);
+    display_out_measurement("Brightness", brightness);
 
     while (status) {
         k_usleep(10000);
         btn_poll = get_button_event();
-        
+
         // decrement
         if (btn_poll == 1) {
-            contrast--;
-            new_contrast = 1;
-            if (contrast < 0) {
-                contrast = 0;
+            if (brightness >= 5) {
+                brightness -= 5;
             }
+            new_brightness = 1;
         }
         // increment
         else if (btn_poll == 2) {
-            contrast++;
-            new_contrast = 1;
-            if (contrast > 0xFF) {
-                contrast = 0xFF;
+            if (brightness <= 95) {
+                brightness += 5;
             }
+            new_brightness = 1;
         }
         // exit (both buttons)
         else if (btn_poll == 0) {
@@ -170,14 +168,14 @@ void system_change_display_contrast_UI_FUNC() {
         }
 
 
-        // adjust contrast level
-        if (new_contrast) {
-            display_out_measurement("Contrast", contrast);
-            changeContrast(contrast);
-            new_contrast = 0;
+        // adjust backlight brightness
+        if (new_brightness) {
+            display_out_measurement("Brightness", brightness);
+            Backlight_Pct(brightness);
+            new_brightness = 0;
         }
     }
-    
+
     return;
 }
 

@@ -27,6 +27,7 @@
 /* my driver files */
 #include <peripheral/clock.h>
 #include <peripheral/rtc.h>
+#include <peripheral/rv3028.h>
 
 
 LOG_MODULE_REGISTER(clock, LOG_LEVEL_INF);
@@ -221,9 +222,14 @@ Time get_sys_time() {
 
 /*
  * get_current_time: returns RTC time
+ *
+ * RV-3028 hardware RTC, verified alive on this board this session (I2C ACK,
+ * ID=0x44, CLKOUT sane) — see rv3028_probe()/rv3028_init() in main.c. Was
+ * rtc_get_time() (counter-based soft-RTC, dev-board fallback); CLAUDE.md's
+ * "swap to rv3028_get_time() for production" is now done.
  */
 Time get_current_time() {
-    return rtc_get_time();
+    return rv3028_get_time();
 }
 
 /*

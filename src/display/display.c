@@ -190,6 +190,38 @@ void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t
 
 
 /*
+ * printFieldRightAligned: right-aligns text within a FIXED-size box (posY, fieldRight,
+ * fieldWidth all caller-chosen and constant across calls) and always clears that whole
+ * box before drawing. Unlike clearAndPrintLine() (which clears from the current text's
+ * left edge to the screen's right edge), this is safe for corner badges whose content
+ * changes width call to call — e.g. "100" -> "9" — since the clear region never depends
+ * on the current text's length, only on the fixed box geometry.
+ */
+void printFieldRightAligned(const char * text, const uint32_t posY, const uint32_t fieldRight,
+                             const uint32_t fieldWidth, font_size_t fontSize)
+{
+    if (text == 0) {
+        return;
+    }
+
+    uint32_t fontHeight = (uint32_t)fontSize;
+    uint32_t charWidth = fontSize / 2;  // approximation, matches printLineWithInversion's convention
+    uint32_t textWidth = strlen(text) * charWidth;
+    uint32_t fieldLeft = fieldRight - fieldWidth;
+    uint32_t textX = (textWidth < fieldWidth) ? (fieldRight - textWidth) : fieldLeft;
+
+    setColor(BACK_R, BACK_G, BACK_B);
+    filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
+
+    setColor(FORE_R, FORE_G, FORE_B);
+    setFont(getFontPointer(fontSize));
+    drawText(textX, posY, text);
+
+    flushBuffer();
+}
+
+
+/*
  * printLineTransparent: prints text to a line without drawing background pixels
  */
 void printLineTransparent(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize)

@@ -173,37 +173,49 @@ static int setup_gpio_interrupt(const struct gpio_dt_spec *spec,
 
 /*
  *  config_all_interrupts: configures all the interrupts for the program
+ *
+ *  Button setup failures are logged but non-fatal: buttons live on the
+ *  MCP23008 GPIO expander, which is not populated on every board (see
+ *  imu_notes.md / CLAUDE.md). A missing expander must not prevent the IMU
+ *  interrupt (real hardware, INT1 only on this board) from being configured
+ *  — button setup used to `return` immediately on failure, which meant an
+ *  absent MCP23008 silently skipped IMU interrupt setup too.
  */
 int config_all_interrupts(void)
 {
     int ret;
+    int button_ret = 0;
 
-    /* Buttons */
+    /* Buttons — non-fatal, see comment above */
     ret = setup_gpio_interrupt(&btn_int1,
                                GPIO_INT_EDGE_TO_ACTIVE,
                                &btn_int1_cb,
                                btn_int1_handler);
-    if (ret) return ret;
+    if (ret) { LOG_WRN("button1 interrupt setup failed (%d)", ret); button_ret = ret; }
 
     ret = setup_gpio_interrupt(&btn_int2,
                                GPIO_INT_EDGE_TO_ACTIVE,
                                &btn_int2_cb,
                                btn_int2_handler);
-    if (ret) return ret;
+    if (ret) { LOG_WRN("button2 interrupt setup failed (%d)", ret); button_ret = ret; }
 
     ret = setup_gpio_interrupt(&btn_int3,
                                GPIO_INT_EDGE_TO_ACTIVE,
                                &btn_int3_cb,
                                btn_int3_handler);
-    if (ret) return ret;
+    if (ret) { LOG_WRN("button3 interrupt setup failed (%d)", ret); button_ret = ret; }
 
     ret = setup_gpio_interrupt(&btn_int4,
                                GPIO_INT_EDGE_TO_ACTIVE,
                                &btn_int4_cb,
                                btn_int4_handler);
-    if (ret) return ret;
+    if (ret) { LOG_WRN("button4 interrupt setup failed (%d)", ret); button_ret = ret; }
 
-    /* IMU interrupts */
+    if (button_ret) {
+        LOG_WRN("one or more button interrupts unavailable (MCP23008 not populated?) — continuing");
+    }
+
+    /* IMU interrupts — real hardware, failure here is fatal */
     ret = setup_gpio_interrupt(&imu_int1,
                                GPIO_INT_EDGE_RISING,
                                &imu_int1_cb,

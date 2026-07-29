@@ -10,7 +10,7 @@ zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
 # Compile all of them
-target_sources(app PRIVATE 
+target_sources(app PRIVATE
     src/main.c
     src/circular_buffer.c
     src/peripheral/clock.c
@@ -18,9 +18,11 @@ target_sources(app PRIVATE
     src/peripheral/timer.c
     src/peripheral/rtc.c
     src/peripheral/rv3028.c
+    src/peripheral/rv3028_bringup.c
     src/hardware/led.c
     src/hardware/button.c
     src/power/power.c
+    src/util/cdc_debug.c
 )
 
 add_subdirectory(src/display)
