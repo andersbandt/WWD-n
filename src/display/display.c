@@ -35,13 +35,22 @@
 LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 
 
-#define FORE_R 10
-#define FORE_G 10
-#define FORE_B 10
+/* Darcula palette, raw RGB565 fields (r:5 g:6 b:5) — see color-hex.com/color-palette/93326 */
+#define BACK_R 5    // background   #2B2B2B
+#define BACK_G 10
+#define BACK_B 5
 
-#define BACK_R 120
-#define BACK_G 60
-#define BACK_B 20
+#define FORE_R 21   // primary text #A9B7C6
+#define FORE_G 45
+#define FORE_B 24
+
+#define ACCENT_R 25 // accent (selection/highlight) #CC7832
+#define ACCENT_G 30
+#define ACCENT_B 6
+
+#define DIM_R 11    // dim/secondary text #5C6773
+#define DIM_G 25
+#define DIM_B 14
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -257,14 +266,14 @@ void printToScreenInverted(const char * text, const uint32_t lineNum, const uint
 
     // set colors INVERTED
     setColor(BACK_R, BACK_G, BACK_B);
-    setbgColor(FORE_B, FORE_G, FORE_B);
+    setbgColor(FORE_R, FORE_G, FORE_B);
 
     // draw text after calculating Y position
     uint32_t posY = calculateLineY(lineNum, fontSize);
     printToScreen(text, posY, posX, fontSize);
 
     // set colors back to normal
-    setColor(FORE_B, FORE_G, FORE_B);
+    setColor(FORE_R, FORE_G, FORE_B);
     setbgColor(BACK_R, BACK_G, BACK_B);
 
 

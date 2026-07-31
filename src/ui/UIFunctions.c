@@ -27,6 +27,7 @@
 #include <hardware/button.h>
 #include <imu.h>
 #include <peripheral/clock.h>
+#include <memory/nvs.h>
 
 /* UI and display */
 #include <display.h>
@@ -40,6 +41,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Time time_offset;
+Date date_offset;
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -72,8 +74,16 @@ void reset_uifunc_params() {
 /*
  * prompt_for_time: UI function to walk the user through prompting for time
  */
+/*
+ * system_prompt_for_time_UI_FUNC: walks HOURS -> MINUTES -> SECONDS -> DAY ->
+ * MONTH -> YEAR, then commits the date (set_date() + ui_clock_set_date()) and
+ * exits. NOTE: the time fields (time_offset) are edited here same as always
+ * but were never wired to an actual clock-commit call — see clock_set_time()
+ * TODO in clock.h / CLAUDE.md Known Issues. Only fixing the date half here.
+ */
 void system_prompt_for_time_UI_FUNC() {
     if (first_ui_time) {
+        date_offset = current_date; // seed from the real date, not zeroed
         clearAndPrintLine("HOURS", 0, 12, FONT_LARGE);
         display_out_time(time_offset, TIME_INVERT_HOURS);
         button_buffer_clear();
@@ -94,6 +104,15 @@ void system_prompt_for_time_UI_FUNC() {
         else if (position == 2) { // increment SECONDS
             time_offset.seconds = increment_second(time_offset.seconds, DIR_UP);
         }
+        else if (position == 3) { // increment DAY
+            date_offset.day = increment_day(date_offset.day, date_offset.month, date_offset.year, DIR_UP);
+        }
+        else if (position == 4) { // increment MONTH
+            date_offset.month = increment_month(date_offset.month, DIR_UP);
+        }
+        else if (position == 5) { // increment YEAR
+            date_offset.year = increment_year(date_offset.year, DIR_UP);
+        }
     }
     // DECREMENT (button 2)
     if (btn_poll == 2) {
@@ -106,18 +125,42 @@ void system_prompt_for_time_UI_FUNC() {
         else if (position == 2) { // increment SECONDS
             time_offset.seconds = increment_second(time_offset.seconds, DIR_DOWN);
         }
+        else if (position == 3) { // decrement DAY
+            date_offset.day = increment_day(date_offset.day, date_offset.month, date_offset.year, DIR_DOWN);
+        }
+        else if (position == 4) { // decrement MONTH
+            date_offset.month = increment_month(date_offset.month, DIR_DOWN);
+        }
+        else if (position == 5) { // decrement YEAR
+            date_offset.year = increment_year(date_offset.year, DIR_DOWN);
+        }
     }
 
     // update display if we changed offset digit value
     if (btn_poll == 1 || btn_poll == 2) {
-        display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS); 
+        if (position <= 2) {
+            display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS);
+        }
+        else if (position == 3) {
+            display_out_measurement("DAY", date_offset.day);
+        }
+        else if (position == 4) {
+            display_out_measurement("MONTH", date_offset.month);
+        }
+        else if (position == 5) {
+            display_out_measurement("YEAR", date_offset.year);
+        }
     }
-        
+
     // ADVANCE (button 3 or 4)
     if (btn_poll == 8) {
         position++;
-        display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS);
         button_buffer_clear();
+
+        if (position <= 2) {
+            display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS);
+        }
+
         if (position == 1) {
             clearAndPrintLine("MINUTES", 0, 12, FONT_LARGE);
         }
@@ -125,6 +168,17 @@ void system_prompt_for_time_UI_FUNC() {
             clearAndPrintLine("SECONDS", 0, 12, FONT_LARGE);
         }
         else if (position == 3) {
+            display_out_measurement("DAY", date_offset.day);
+        }
+        else if (position == 4) {
+            display_out_measurement("MONTH", date_offset.month);
+        }
+        else if (position == 5) {
+            display_out_measurement("YEAR", date_offset.year);
+        }
+        else if (position == 6) {
+            set_date(date_offset);
+            ui_clock_set_date(date_offset);
             ui_mode = UI_MODE_CLOCK;
         }
     }
@@ -200,6 +254,67 @@ void imuRead_UI_FUNC(void) {
 void imutempRead_UI_FUNC() {
     int16_t imu_temp = imu_get_temp();
     display_out_measurement("IMU temp", imu_temp);
+    return;
+}
+
+
+void pedometer_UI_FUNC(void) {
+    display_out_measurement("Steps", (int)step_count);
+    return;
+}
+
+
+/////////////////////////////////////////////////////
+////////// MENU 2 - DATA /////////////////////////////
+/////////////////////////////////////////////////////
+
+void data_stats_UI_FUNC(void) {
+    if (!nvs_ready()) {
+        display_out_measurement("NVS", -1);
+        return;
+    }
+
+    display_out_data_stats(nvs_get_addr_offset(), nvs_get_metadata_seq());
+    return;
+}
+
+
+/////////////////////////////////////////////////////
+////////// MENU 3 - TIMER ////////////////////////////
+/////////////////////////////////////////////////////
+
+// stopwatch state - deliberately NOT touched by reset_uifunc_params() so
+// elapsed time survives leaving/re-entering the screen; only SW4 clears it
+static bool stopwatch_running = false;
+static int64_t stopwatch_start_uptime;
+static uint32_t stopwatch_elapsed_ms = 0;
+
+void stopwatch_UI_FUNC(void) {
+    uint8_t btn_poll = get_button_event();
+
+    // START/PAUSE (button 1)
+    if (btn_poll == BUTTON_1_MASK) {
+        if (stopwatch_running) {
+            stopwatch_elapsed_ms += (uint32_t)(k_uptime_get() - stopwatch_start_uptime);
+            stopwatch_running = false;
+        }
+        else {
+            stopwatch_start_uptime = k_uptime_get();
+            stopwatch_running = true;
+        }
+    }
+    // RESET (button 4)
+    else if (btn_poll == BUTTON_4_MASK) {
+        stopwatch_running = false;
+        stopwatch_elapsed_ms = 0;
+    }
+
+    uint32_t elapsed = stopwatch_elapsed_ms;
+    if (stopwatch_running) {
+        elapsed += (uint32_t)(k_uptime_get() - stopwatch_start_uptime);
+    }
+
+    display_out_stopwatch(elapsed, stopwatch_running);
     return;
 }
 

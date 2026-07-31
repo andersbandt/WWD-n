@@ -323,9 +323,16 @@ int enableFifoInterrupt(uint8_t fifo_watermark) {
     rc |= inv_imu_configure_fifo(&icm_driver, INV_IMU_FIFO_ENABLED);
     rc |= inv_imu_write_reg(&icm_driver, FIFO_CONFIG2, 1, &fifo_watermark);
 
-    // Set fifo_wm_int_w generating condition : fifo_wm_int_w generated when counter == threshold
+    /* 2026-07-31: was counter == threshold (WM_GT_TH_EN cleared) — fragile,
+     * since if FIFO_COUNT ever skips past exactly fifo_watermark between
+     * checks the condition is never met again until it wraps. Confirmed live
+     * on hardware: imu_init() succeeds, INT1 is armed, but INT_STATUS's
+     * FIFO_THS bit never latched and the GPIO edge-interrupt counter stayed
+     * at 0 after 8+ seconds at 100Hz — the exact-match condition was
+     * (plausibly) never being hit. Switched to >= threshold, which is also
+     * what the datasheet's own FIFO_CONFIG5 description favors. */
     rc |= inv_imu_read_reg(&icm_driver, FIFO_CONFIG5_MREG1, 1, &data);
-    data &= (uint8_t)~FIFO_CONFIG5_WM_GT_TH_EN;
+    data |= (uint8_t)FIFO_CONFIG5_WM_GT_TH_EN;
     rc |= inv_imu_write_reg(&icm_driver, FIFO_CONFIG5_MREG1, 1, &data);
 
     /* Route the FIFO watermark condition to the INT1 pin.
@@ -389,15 +396,18 @@ int startApex() {
     int rc = 0;
     inv_imu_apex_parameters_t apex_inputs;
 
-    /* Enable accel in LP mode */
-    rc |= inv_imu_enable_accel_low_power_mode(&icm_driver);
+    /* Deliberately NOT forcing accel into LP mode or overwriting its ODR here
+     * (this used to hardcode both to 50Hz/low-power, silently undoing
+     * whatever startAccel() configured — see imu_notes.md). The only real
+     * APEX/DMP constraint is accel_ODR >= DMP_ODR (datasheet + inv_imu_apex.h),
+     * so leave accel running at whatever startAccel() set (100Hz, low-noise
+     * mode, for FIFO data quality) and only configure the DMP's own rate. */
 
     /* Disable APEX like features before enabling them */
     rc |= inv_imu_apex_disable_pedometer(&icm_driver);
     rc |= inv_imu_apex_disable_tilt(&icm_driver);
     rc |= inv_imu_disable_wom(&icm_driver);
 
-    rc |= inv_imu_set_accel_frequency(&icm_driver, ACCEL_CONFIG0_ODR_50_HZ);
     rc |= inv_imu_apex_set_frequency(&icm_driver, APEX_CONFIG1_DMP_ODR_50Hz);
 
     /* Set APEX parameters */

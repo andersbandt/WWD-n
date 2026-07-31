@@ -121,6 +121,19 @@ void returnSubMenu();
 void commenceUIAction(int absolute_position, int sub_menu_position);
 
 
+/**
+ * @brief Force-exits any running sub menu function and clears menu state.
+ *
+ * run_sub_menu otherwise latches true forever once any sub menu action is
+ * selected (nothing ever clears it) which blocks change_ui_mode(UI_MODE_CLOCK)
+ * via get_running_state() — call this before returning home (e.g. the
+ * SW3+SW4 "always home" combo) so the escape hatch actually works.
+ *
+ * @returns None (void)
+ */
+void ui_menu_force_exit(void);
+
+
 
 
 #endif /* SRC_UI_UI_MENU_H_ */

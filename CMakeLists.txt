@@ -7,6 +7,10 @@ project(WWDn)
 # Build with: cmake ... -DPOWER_PROFILE_BUILD=ON
 option(POWER_PROFILE_BUILD "Build the power-profiling harness instead of the real app" OFF)
 
+# UI function test harness (test/test_uifunctions.c) in place of the real
+# app's src/main.c — see test/README.md. Build with: cmake ... -DBUILD_UI_TESTS=ON
+option(BUILD_UI_TESTS "Build the UI function test harness instead of the real app" OFF)
+
 # Include all headers under src
 zephyr_include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 
@@ -15,6 +19,8 @@ file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
 if(POWER_PROFILE_BUILD)
     target_sources(app PRIVATE src/power_profile/power_profile_main.c)
+elseif(BUILD_UI_TESTS)
+    target_sources(app PRIVATE test/test_uifunctions.c)
 else()
     target_sources(app PRIVATE src/main.c)
 endif()

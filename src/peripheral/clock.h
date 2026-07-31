@@ -127,6 +127,18 @@ Date get_date(void);
  */
 void clock_advance_date(void);
 
+/**
+ * @brief Returns a 3-letter abbreviation ("SUN".."SAT") for the day of week
+ *        of the given date. Same Sakamoto's-algorithm as rv3028.c's
+ *        (file-local) day_of_week() — kept separate since that one feeds the
+ *        RTC's raw weekday register, this one is purely for display.
+ */
+const char *get_day_of_week_str(Date d);
+
+uint8_t increment_month(uint8_t month, direction_t dir);
+uint8_t increment_day(uint8_t day, uint8_t month, uint16_t year, direction_t dir);
+uint16_t increment_year(uint16_t year, direction_t dir);
+
 
 #endif
 

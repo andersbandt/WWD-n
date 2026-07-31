@@ -221,6 +221,18 @@ zephyr_udc0: &usbd {
 
 	cdc_acm_uart1: cdc_acm_uart1 {
 		compatible = "zephyr,cdc-acm-uart";
+		/* Without this, cdc_acm_poll_out() (subsys/usb/device/class/cdc_acm.c)
+		 * silently DISCARDS bytes once its 1024-byte TX ring buffer
+		 * (CONFIG_USB_CDC_ACM_RINGBUF_SIZE) fills faster than the USB
+		 * workqueue drains it — no error, no log after the first
+		 * LOG_WRN_ONCE. DUMP_DATA frames are ~2188 B, over double that
+		 * buffer, so this is exactly what caused intermittent CRC
+		 * mismatches on the host (device logs showed correct, fast
+		 * transmission every time; the bytes were dropped downstream of
+		 * our own code, invisibly). With this set, poll_out() blocks and
+		 * retries every 1ms instead of dropping — see protocol_notes.md.
+		 */
+		hw-flow-control;
 	};
 };
 

@@ -22,6 +22,7 @@
 #include "protocol.h"
 #include "rate_config.h"
 #include <nvs.h>
+#include "main.h"
 
 LOG_MODULE_REGISTER(protocol, CONFIG_LOG_DEFAULT_LEVEL);
 
@@ -34,6 +35,14 @@ static const struct device *cmd_uart;
 
 RING_BUF_DECLARE(rx_rb, RX_RINGBUF_SIZE);
 static K_SEM_DEFINE(rx_sem, 0, 1);
+
+/* TX handoff state for the ISR-driven fill below — protected implicitly by
+ * only ever being touched from cmd_uart_tx() (protocol thread, one DUMP/frame
+ * at a time) and the UART ISR, never concurrently from two threads. */
+static const uint8_t *tx_data;
+static size_t tx_len;
+static size_t tx_sent;
+static K_SEM_DEFINE(tx_done_sem, 0, 1);
 
 static void uart_isr(const struct device *dev, void *user_data)
 {
@@ -57,6 +66,20 @@ static void uart_isr(const struct device *dev, void *user_data)
             k_sem_give(&rx_sem);
         }
     }
+
+    if (uart_irq_tx_ready(dev)) {
+        if (tx_sent < tx_len) {
+            int n = uart_fifo_fill(dev, tx_data + tx_sent, (int)(tx_len - tx_sent));
+
+            if (n > 0) {
+                tx_sent += (size_t)n;
+            }
+        }
+        if (tx_sent >= tx_len) {
+            uart_irq_tx_disable(dev);
+            k_sem_give(&tx_done_sem);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -77,27 +100,39 @@ static uint32_t frame_crc(uint8_t cmd, uint16_t len, const uint8_t *payload)
     return crc;
 }
 
-/* uart_fifo_fill() (cdc_acm's TX ring buffer, drained asynchronously by the
- * USB stack's own workqueue) was tried here first for throughput, but produced
- * reproducible payload corruption on multi-KB dump frames — the device's own
- * per-frame CRC (computed and sent immediately after the data, before any
- * corruption could occur) was internally consistent across repeated dumps of
- * the same static flash content, while the bytes actually received by the
- * host differed run to run. That points at the ring-buffer producer/consumer
- * path, not at frame_crc() or the data itself. uart_poll_out() one byte at a
- * time doesn't have that problem (proven correct all session, incl. every
- * PING/ACK exchange) — the only downside was starving the USB stack on a
- * large payload if never yielded, fixed below by yielding periodically. */
+/* 2026-07-30, first retry: called uart_fifo_fill() once per chunk and
+ * assumed it queued everything. It doesn't — cdc_acm_fifo_fill()
+ * (subsys/usb/device/class/cdc_acm.c) is a non-blocking, partial-accept
+ * call: it does exactly one `ring_buf_put()` into the 1024-byte TX ring
+ * buffer and returns however many bytes actually fit — the caller is
+ * required to loop on the return value. Not doing that silently truncated
+ * every payload at the same ring-buffer-full offset, every time.
+ *
+ * 2026-07-30, second retry: looped on the return value from thread context.
+ * Still corrupted large (multi-KB) frames, deterministically, while tiny
+ * ACKs were always fine. Root cause: uart_fifo_fill()'s own doc comment
+ * (zephyr/include/zephyr/drivers/uart.h) says it's only valid to call from
+ * an ISR, after uart_irq_tx_ready() — "result of calling this function not
+ * from an ISR is undefined (hardware-dependent)". Calling it directly from
+ * the protocol thread was exactly that undefined case.
+ *
+ * Fixed here: proper interrupt-driven TX. cmd_uart_tx() just hands off a
+ * pointer/length to tx_data/tx_len, enables the TX IRQ, and blocks on
+ * tx_done_sem; uart_isr() (above) does the actual uart_fifo_fill() calls
+ * from ISR context on each uart_irq_tx_ready(), exactly per the documented
+ * pattern, and gives the semaphore once everything's queued. */
 static void cmd_uart_tx(const void *data, size_t len)
 {
-    const uint8_t *p = data;
-
-    for (size_t i = 0; i < len; i++) {
-        uart_poll_out(cmd_uart, p[i]);
-        if ((i & 0x3F) == 0x3F) {
-            k_yield();
-        }
+    if (len == 0) {
+        return;
     }
+
+    tx_data = data;
+    tx_len = len;
+    tx_sent = 0;
+
+    uart_irq_tx_enable(cmd_uart);
+    k_sem_take(&tx_done_sem, K_FOREVER);
 }
 
 static void send_frame(enum protocol_cmd cmd, const uint8_t *payload, uint16_t len)
@@ -143,6 +178,16 @@ static void handle_dump_start(void)
         return;
     }
 
+    // Suspend every other application thread for the duration of the dump —
+    // otherwise the pipeline keeps appending and shifting write_addr out from
+    // under the `total` captured below, and (even with writes made no-ops)
+    // the IMU FIFO drain / display refresh still cost real SPI-bus/CPU time
+    // at equal-or-higher priority than this thread, enough to starve the
+    // byte-by-byte UART TX loop below. See protocol_notes.md and the comment
+    // on app_pause_background_threads() (main.c) for why it's safe against
+    // the mutex-held-while-suspended deadlock that risks.
+    app_pause_background_threads();
+
     // Include whatever is still sitting in the in-memory page buffer so the
     // dump isn't missing the tail of the log (see nvs_notes.md).
     nvs_flush_buffer();
@@ -178,6 +223,7 @@ static void handle_dump_start(void)
         if (rc < 0) {
             LOG_ERR("protocol: nvs_read failed at addr %u: %d", addr, rc);
             send_err(CMD_DUMP_START, ERR_NVS_READ_FAIL);
+            app_resume_background_threads();
             return;
         }
 
@@ -201,6 +247,8 @@ static void handle_dump_start(void)
     memcpy(done_payload + 4, &crc_be, 4);
     send_frame(CMD_DUMP_DONE, done_payload, sizeof(done_payload));
 
+    app_resume_background_threads();
+
     LOG_INF("protocol: dump complete, %u bytes, crc32=0x%08x", total, dump_crc);
 }
 
@@ -211,9 +259,15 @@ static void handle_erase(void)
         return;
     }
 
+    // Same rationale as handle_dump_start(): don't let the pipeline write
+    // during/immediately after a chip erase and stomp the just-reset state.
+    app_pause_background_threads();
+
     LOG_INF("protocol: erasing chip (host request)...");
     nvs_erase_chip();
     LOG_INF("protocol: erase complete");
+
+    app_resume_background_threads();
 
     send_ack(CMD_ERASE);
 }

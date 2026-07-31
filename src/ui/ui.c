@@ -18,6 +18,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <unistd.h>
 
 /* Zephyr files */
@@ -142,15 +143,26 @@ void ui_clock_set_steps(uint32_t steps)
     ui_clock_mark_dirty(UI_CLOCK_DIRTY_STEPS);
 }
 
+/**
+ * @brief Set calendar date and mark dirty
+ */
+void ui_clock_set_date(Date date)
+{
+    clock_data.date = date;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_DATE);
+}
 
-/* "WWD-n" title, top-left — permanent part of the clock face layout (not
- * just the boot splash from display_phase() in main.c). Sits at line 0
+
+/* Weekday + day-of-month header, top-left — replaces the old static "WWD-n"
+ * title text (that slot is otherwise idle screen space). Sits at line 0
  * (y=2..~22, FONT_LARGE) which doesn't overlap the temp badge (top-right,
  * x>=82) or the time display (starts at y=CLOCK_TIME_Y=46), so it's safe to
  * redraw any time the screen gets cleared. */
 static void draw_clock_title(void)
 {
-    printLine("WWD-n", 0, 10, FONT_LARGE);
+    char header[12];
+    snprintf(header, sizeof(header), "%s %u", get_day_of_week_str(clock_data.date), clock_data.date.day);
+    printLine(header, 0, 10, FONT_LARGE);
 }
 
 
@@ -210,6 +222,11 @@ void ui_refresh() {
                 display_out_pedometer(clock_data.step_count);
                 ui_clock_clear_dirty(UI_CLOCK_DIRTY_STEPS);
             }
+
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_DATE)) {
+                draw_clock_title();
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_DATE);
+            }
             break;
 
         case UI_MODE_MENU:
@@ -236,6 +253,18 @@ void ui_refresh() {
 
         case UI_MODE_IMU_TEMP:
             imutempRead_UI_FUNC();
+            break;
+
+        case UI_MODE_IMU_PEDOMETER:
+            pedometer_UI_FUNC();
+            break;
+
+        case UI_MODE_DATA_STATS:
+            data_stats_UI_FUNC();
+            break;
+
+        case UI_MODE_STOPWATCH:
+            stopwatch_UI_FUNC();
             break;
 
         default:
@@ -271,9 +300,12 @@ void handle_ui_input() {
         return;
     }
 
-    /* Bottom row together = always home, regardless of mode. */
+    /* Bottom row together = always home, regardless of mode. Clear any
+     * latched sub-menu running state first or change_ui_mode() will refuse
+     * the transition (see ui_menu_force_exit()). */
     if ((button_status & (BUTTON_3_MASK | BUTTON_4_MASK)) ==
         (BUTTON_3_MASK | BUTTON_4_MASK)) {
+        ui_menu_force_exit();
         change_ui_mode(UI_MODE_CLOCK);
         return;
     }

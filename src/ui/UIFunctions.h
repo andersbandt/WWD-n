@@ -58,6 +58,31 @@ void imuRead_UI_FUNC(void);
 void imutempRead_UI_FUNC(void);
 
 
+/**
+ * @brief UI function to display the current step count
+ */
+void pedometer_UI_FUNC(void);
+
+
+/////////////////////////////////////////////////////
+////////// MENU 2 - DATA ////////////////////////////
+/////////////////////////////////////////////////////
+
+/**
+ * @brief UI function to display NVS log stats (write offset, meta seq)
+ */
+void data_stats_UI_FUNC(void);
+
+
+/////////////////////////////////////////////////////
+////////// MENU 3 - TIMER ///////////////////////////
+/////////////////////////////////////////////////////
+
+/**
+ * @brief UI function for a start/pause/reset stopwatch.
+ * SW1 (BUTTON_1_MASK) toggles start/pause, SW4 (BUTTON_4_MASK) resets to 0.
+ */
+void stopwatch_UI_FUNC(void);
 
 
 #endif /* SRC_UI_UIFUNCTIONS_H_ */

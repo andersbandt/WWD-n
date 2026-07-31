@@ -204,6 +204,33 @@ void display_out_measurement(char * text, int value)
 }
 
 
+void display_out_data_stats(int write_offset, uint32_t meta_seq)
+{
+    char offset_str[16];
+    char seq_str[16];
+    sprintf(offset_str, "Off:%d", write_offset);
+    sprintf(seq_str, "Seq:%u", meta_seq);
+
+    clear_display();
+    printLine(offset_str, 2, 12, FONT_LARGE);
+    printLine(seq_str, 3, 12, FONT_LARGE);
+}
+
+
+void display_out_stopwatch(uint32_t elapsed_ms, bool running)
+{
+    char time_str[16];
+    uint32_t total_sec = elapsed_ms / 1000;
+    uint32_t mm = total_sec / 60;
+    uint32_t ss = total_sec % 60;
+    sprintf(time_str, "%02u:%02u", mm, ss);
+
+    clear_display();
+    printLine(running ? "RUNNING" : "PAUSED", 2, 12, FONT_LARGE);
+    printLine(time_str, 3, 12, FONT_LARGE);
+}
+
+
 void display_out_statistics(const int16_t *data, size_t num_data)
 {
     char text[30];

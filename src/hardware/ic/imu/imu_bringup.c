@@ -447,10 +447,36 @@ void imu_probe(void)
      * takes them away from SPIM — running it beforehand corrupted every
      * transaction that followed and invalidated earlier measurements here. */
     {
-        int rc = imu_init();
+        /* 2026-07-30: imu_init() fails intermittently across boots (~50%
+         * observed via repeated resets), independent of APEX (reproduced
+         * with IMU_APEX_ENABLED=0 too) — a real race somewhere in
+         * init_icm()/imu_start()/imu_fifo_interrupt(), not yet root-caused.
+         * Retrying a few times masks it well enough for unattended runs
+         * (every failure seen in testing succeeded on the very next
+         * attempt) without pretending it's fixed. imu_init() re-mallocs
+         * imu_data_buffer every call, so free the previous one before each
+         * retry or it leaks. */
+        #define IMU_INIT_MAX_ATTEMPTS 4
+        int rc = -1;
 
-        cdc_printf("  imu_init() -> %d (%s)\r\n", rc,
-                   rc == 0 ? "OK" : "FAILED");
+        for (int attempt = 1; attempt <= IMU_INIT_MAX_ATTEMPTS; attempt++) {
+            if (attempt > 1 && imu_data_buffer != NULL) {
+                circular_buffer_delete(imu_data_buffer);
+                imu_data_buffer = NULL;
+            }
+
+            rc = imu_init();
+            cdc_printf("  imu_init() attempt %d/%d -> %d (%s)\r\n",
+                       attempt, IMU_INIT_MAX_ATTEMPTS, rc,
+                       rc == 0 ? "OK" : "FAILED");
+
+            if (rc == 0) {
+                break;
+            }
+
+            k_msleep(50);
+        }
+
         imu_alive = (rc == 0);
 
         if (imu_alive) {

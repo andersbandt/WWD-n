@@ -2,19 +2,46 @@
 
 ## ODR (Output Data Rate)
 
-The accel ODR is set in two places during init, and the order matters:
+**FIXED 2026-07-30** (was: `startApex()` silently overwrote accel to 50Hz/LP
+mode regardless of what `startAccel()` set — see git history for the old
+version of this section if needed).
 
-1. `imu_start()` → `startAccel(100, ...)` → sets accel ODR to 100Hz
-2. `imu_apex()` → `startApex()` → **overwrites** accel ODR to 50Hz, DMP also set to 50Hz
+The accel ODR is set in `imu_start()` → `startAccel(100, ...)` (`imu.c:153`)
+and is **no longer touched by `startApex()`** — it used to force accel into
+low-power mode and reset it to `ACCEL_CONFIG0_ODR_50_HZ`, clobbering
+whatever `startAccel()` configured. `startApex()` now only sets the DMP's
+own rate (`APEX_CONFIG1_DMP_ODR_50Hz`) and leaves accel running at 100Hz in
+low-noise mode.
 
-**Final accel ODR = 50Hz**, regardless of what `startAccel` sets.
+**Final accel ODR = 100Hz** (both accel and gyro, per `imu_start()`), DMP/APEX
+internal rate = 50Hz. The only real constraint (datasheet + `inv_imu_apex.h`)
+is `accel_ODR >= DMP_ODR`, which 100 ≥ 50 satisfies — APEX doesn't need to
+run at the same rate as the FIFO output, and 50Hz is disproportionately good enough for pedometer/tilt/WOM without over-driving the DMP.
 
-The FIFO captures whatever the accel/gyro produces, so FIFO data rate = accel ODR.
+The FIFO captures whatever the accel/gyro produces, so FIFO data rate = accel
+ODR = 100Hz.
 
 ### Trade-offs
-- APEX (pedometer, tilt, WOM) works well at 50Hz and benefits from lower ODR for power savings
-- For high-rate data streaming to NAND flash, higher ODR (100–200Hz) is desirable
-- Currently left at 50Hz. To change, modify `ACCEL_CONFIG0_ODR_50_HZ` in `startApex()` in `ICM_42670.c`
+- Accel now stays in **low-noise mode** the whole time (not the LP/duty-cycled
+  mode `startApex()` used to force) — better data fidelity for logged FIFO
+  samples, at the cost of the power savings LP mode would have given APEX.
+  Revisit if a future power budget needs it back — the tradeoff was decided in
+  favor of data quality for 100Hz NVS logging, not evaluated against battery life.
+- If DMP_ODR ever needs to change, `APEX_CONFIG1_DMP_ODR_t` supports 25/50/100/400Hz
+  (`inv_imu_defs.h`) — just keep it ≤ whatever `startAccel()`'s ODR is.
+
+### Interrupt / NVS logging note (2026-07-30)
+INT1 (P0.09, the only wired IMU interrupt pin on this board — INT2 doesn't
+exist here, see "Interrupt Routing" below) carries the FIFO watermark only;
+WOM is enabled in the `WOM_CONFIG` register by `startApex()` but is **not**
+routed to a physical pin, so it can't wake the MCU via GPIO interrupt today.
+At 100Hz the chip-side FIFO mirror (4KB, ~258 packets) only holds ~2.6s of
+data, and `nvs_log_record()`/the IMU drain thread are fully paused for the
+whole ~90s of a USB flash DUMP (`app_pause_background_threads()`) — so IMU
+motion data logged to NVS is expected to have gaps during/around a dump.
+Accepted tradeoff (Anders, 2026-07-30): dumps are periodic and ~2Gib of NVS
+is available, so losing the in-flight FIFO window during an active dump is
+fine — no buffering/backpressure work was done to avoid it.
 
 ---
 

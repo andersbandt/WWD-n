@@ -37,6 +37,12 @@ uint32_t raw_ms = 0;
 static int ticks_overflow = 0;
 static uint32_t prev_ticks = 0;
 
+/* Separate baseline for get_dt_ticks() — prev_ticks above is driven by
+ * get_raw_ticks()/get_ms(), which the IMU driver (inv_time.c) calls
+ * constantly for its own timing, so it can't double as "since last NVS
+ * record" without getting stomped between log calls. */
+static uint32_t prev_log_ticks = 0;
+
 static uint32_t tick_offset = 0;
 
 Date current_date = {.day = 1, .month = 1, .year = 2026};
@@ -144,6 +150,47 @@ void clock_advance_date(void)
             current_date.year, current_date.month, current_date.day);
 }
 
+const char *get_day_of_week_str(Date d)
+{
+    static const char *const day_names[7] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+    static const int t[] = {0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4};
+    uint16_t year = d.year;
+
+    if (d.month < 3) {
+        year -= 1;
+    }
+    int wday = (year + year / 4 - year / 100 + year / 400 + t[d.month - 1] + d.day) % 7;
+    return day_names[wday];
+}
+
+uint8_t increment_month(uint8_t month, direction_t dir)
+{
+    if (dir) {
+        return (month >= 12) ? 1 : month + 1;
+    } else {
+        return (month <= 1) ? 12 : month - 1;
+    }
+}
+
+uint8_t increment_day(uint8_t day, uint8_t month, uint16_t year, direction_t dir)
+{
+    uint8_t dim = days_in_month(month, year);
+    if (dir) {
+        return (day >= dim) ? 1 : day + 1;
+    } else {
+        return (day <= 1) ? dim : day - 1;
+    }
+}
+
+uint16_t increment_year(uint16_t year, direction_t dir)
+{
+    if (dir) {
+        return year + 1;
+    } else {
+        return (year > 2000) ? year - 1 : year;
+    }
+}
+
 
 /* ---- Time ---- */
 
@@ -174,10 +221,16 @@ uint32_t get_raw_ticks() {
 }
 
 
-// TODO: really think about when this will get run and when `get_raw_ticks` will get run
+/* Delta ticks since the last call to this function — used to stamp NVS log
+ * records (see nvs.h / nvs_log_record()). Deliberately independent of
+ * get_raw_ticks()'s prev_ticks, which the IMU driver's get_ms() calls churn
+ * on every SPI transaction; sharing that baseline made every log record's
+ * dt_ticks reflect time-since-last-IMU-poll instead of time-since-last-record. */
 uint32_t get_dt_ticks() {
     uint32_t ticks = sys_clock_tick_get();
-    return ticks - prev_ticks;
+    uint32_t dt = ticks - prev_log_ticks;
+    prev_log_ticks = ticks;
+    return dt;
 }
 
 

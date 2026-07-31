@@ -47,6 +47,8 @@
 
 #include <util/cdc_debug.h>
 
+#include "main.h"
+
 LOG_MODULE_REGISTER(main, CONFIG_LOG_DEFAULT_LEVEL);
 
 static const struct device *const cdc_dev =
@@ -116,13 +118,56 @@ static struct k_thread ui_refresh_thread;
 static struct k_thread display_timeout_thread;
 static struct k_thread button_handler_thread;
 
+/* Flash-maintenance pause handshake (DUMP/ERASE — src/comm/protocol.c via
+ * app_pause_background_threads()). All three of sensor_update_thread,
+ * ui_refresh_thread, and button_handler_thread touch the shared SPI1 bus
+ * (NAND @0, IMU @1, display @2 all sit on one controller instance, so
+ * Zephyr's spi_context lock is shared across them) — k_thread_suspend()ing
+ * one of them mid-spi_transceive() would hold that lock forever and
+ * deadlock the protocol thread's own NAND reads. Instead each thread is
+ * given an extra wake source (bg_pause_wake_sem) and checks bg_pause_active
+ * immediately on waking, before touching SPI: if set, it acks via
+ * bg_quiesced_sem and blocks on bg_resume_sem — so a thread only ever parks
+ * at its own wake boundary, never mid-transaction. */
+static atomic_t bg_pause_active = ATOMIC_INIT(0);
+K_SEM_DEFINE(bg_pause_wake_sem, 0, 3);
+K_SEM_DEFINE(bg_quiesced_sem, 0, 3);
+K_SEM_DEFINE(bg_resume_sem, 0, 3);
+
+/* Called right after waking, before any SPI/NVS work. Returns true if this
+ * iteration was consumed by parking (caller should skip its normal body and
+ * loop back to waiting) rather than real work. */
+static bool bg_park_if_paused(void)
+{
+    if (!atomic_get(&bg_pause_active)) {
+        return false;
+    }
+    k_sem_give(&bg_quiesced_sem);
+    k_sem_take(&bg_resume_sem, K_FOREVER);
+    return true;
+}
+
 /* IMU temp/step-count update — every 9 s, triggered by timer1_sem. Wall-clock
  * time updates every UI refresh instead (1 s cadence, see ui_refresh_thread_entry)
  * since a 9 s-stale clock reads as broken to anyone glancing at the screen. */
 static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
 {
     while (1) {
-        k_sem_take(&timer1_sem, K_FOREVER);
+        struct k_poll_event events[2] = {
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &timer1_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &bg_pause_wake_sem),
+        };
+        k_poll(events, 2, K_FOREVER);
+
+        if (bg_park_if_paused()) {
+            continue;
+        }
+
+        if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&timer1_sem, K_NO_WAIT);
+        } else {
+            continue;
+        }
 
         if (imu_alive) {
             ui_clock_set_temp(imu_get_temp());
@@ -141,9 +186,24 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
 static void ui_refresh_thread_entry(void *p1, void *p2, void *p3)
 {
     while (1) {
-        k_sem_take(&timer2_sem, K_FOREVER);
+        struct k_poll_event events[2] = {
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &timer2_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &bg_pause_wake_sem),
+        };
+        k_poll(events, 2, K_FOREVER);
+
+        if (bg_park_if_paused()) {
+            continue;
+        }
+
+        if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&timer2_sem, K_NO_WAIT);
+        } else {
+            continue;
+        }
 
         ui_clock_set_time(get_current_time());
+        ui_clock_set_date(current_date);
 
         if (display_status == 1) {
             ui_refresh();
@@ -181,15 +241,20 @@ static void display_timeout_thread_entry(void *p1, void *p2, void *p3)
 static void button_handler_thread_entry(void *p1, void *p2, void *p3)
 {
     while (1) {
-        struct k_poll_event events[5] = {
+        struct k_poll_event events[6] = {
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &button1_sem),
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &button2_sem),
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &button3_sem),
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &button4_sem),
             K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &imu_int1_sem),
+            K_POLL_EVENT_INITIALIZER(K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &bg_pause_wake_sem),
         };
 
-        k_poll(events, 5, K_FOREVER);
+        k_poll(events, 6, K_FOREVER);
+
+        if (bg_park_if_paused()) {
+            continue;
+        }
 
         if (events[0].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button1_sem, K_NO_WAIT);
@@ -215,6 +280,40 @@ static void button_handler_thread_entry(void *p1, void *p2, void *p3)
             }
         }
     }
+}
+
+void app_pause_background_threads(void)
+{
+    /* Cooperative park, not k_thread_suspend(): all three background
+     * threads share the SPI1 bus with the NAND driver (Zephyr's spi_context
+     * lock is per-controller, shared across NAND@0/IMU@1/display@2), so
+     * force-suspending one mid-spi_transceive() would hold that lock forever
+     * and deadlock this thread's own NAND reads during a DUMP. Instead we
+     * wake each thread and wait for it to park itself at its own wake
+     * boundary (see bg_park_if_paused()), which only ever happens between
+     * SPI transactions, never inside one. */
+    atomic_set(&bg_pause_active, 1);
+    k_sem_give(&bg_pause_wake_sem);
+    k_sem_give(&bg_pause_wake_sem);
+    k_sem_give(&bg_pause_wake_sem);
+
+    k_sem_take(&bg_quiesced_sem, K_FOREVER);
+    k_sem_take(&bg_quiesced_sem, K_FOREVER);
+    k_sem_take(&bg_quiesced_sem, K_FOREVER);
+
+    /* A thread may have woken (and acked) via its own normal trigger rather
+     * than consuming a wake token, so up to 3 tokens can be left over —
+     * clear them so they don't cause a spurious immediate re-wake next
+     * cycle (see bg_pause_wake_sem comment above the struct definitions). */
+    k_sem_reset(&bg_pause_wake_sem);
+}
+
+void app_resume_background_threads(void)
+{
+    atomic_set(&bg_pause_active, 0);
+    k_sem_give(&bg_resume_sem);
+    k_sem_give(&bg_resume_sem);
+    k_sem_give(&bg_resume_sem);
 }
 
 static const char *usb_status_str(enum usb_dc_status_code status)

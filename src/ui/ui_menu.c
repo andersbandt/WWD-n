@@ -72,8 +72,24 @@ char sub_menu_1[SUB_MENU_1_LENGTH][SUB_MENU_CHAR_LENGTH] = {
                      };
 
 
+// menu 2 sub-menu options: Data
+#define SUB_MENU_2_LENGTH     2
+char sub_menu_2[SUB_MENU_2_LENGTH][SUB_MENU_CHAR_LENGTH] = {
+    "Log Stats",
+    "Return"
+                     };
+
+
+// menu 3 sub-menu options: Timer
+#define SUB_MENU_3_LENGTH     2
+char sub_menu_3[SUB_MENU_3_LENGTH][SUB_MENU_CHAR_LENGTH] = {
+    "Stopwatch",
+    "Return"
+                     };
+
+
 // creating array of sub menu text items
-char * sub_menu[UI_MAIN_MENU_ITEMS] = {*sub_menu_0, *sub_menu_1};
+char * sub_menu[UI_MAIN_MENU_ITEMS] = {*sub_menu_0, *sub_menu_1, *sub_menu_2, *sub_menu_3};
 
 
 // Sub-menu UI mode mappings
@@ -92,7 +108,19 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
     {
         UI_MODE_IMU_READ,           // Display readings
         UI_MODE_IMU_TEMP,           // Temperature
-        UI_MODE_MENU,               // Pedometer (placeholder - returns to menu)
+        UI_MODE_IMU_PEDOMETER,      // Pedometer
+        UI_MODE_MENU                // Return
+    },
+
+    // Data (Menu 2)
+    {
+        UI_MODE_DATA_STATS,         // Log Stats
+        UI_MODE_MENU                // Return
+    },
+
+    // Timer (Menu 3)
+    {
+        UI_MODE_STOPWATCH,          // Stopwatch
         UI_MODE_MENU                // Return
     },
 };
@@ -200,7 +228,13 @@ static int getSubMenuLength(int menu_number)
         return sizeof(sub_menu_0)/sizeof(sub_menu_0[0]);
     }
     else if (menu_number == 1) {
-        return sizeof(sub_menu_1)/sizeof(sub_menu_0[0]);
+        return sizeof(sub_menu_1)/sizeof(sub_menu_1[0]);
+    }
+    else if (menu_number == 2) {
+        return sizeof(sub_menu_2)/sizeof(sub_menu_2[0]);
+    }
+    else if (menu_number == 3) {
+        return sizeof(sub_menu_3)/sizeof(sub_menu_3[0]);
     }
 
     return -1;
@@ -446,6 +480,18 @@ void commenceUIAction(int absolute_position, int sub_menu_position)
 
     // Set the new UI mode (ui_refresh() will handle calling the appropriate function)
     change_ui_mode(new_mode);
+}
+
+
+/*
+ * ui_menu_force_exit: clears menu/sub-menu running state unconditionally.
+ * See header for why this is needed before change_ui_mode(UI_MODE_CLOCK).
+ */
+void ui_menu_force_exit(void)
+{
+    run_sub_menu = false;
+    in_sub_menu = false;
+    reset_uifunc_params();
 }
 
 

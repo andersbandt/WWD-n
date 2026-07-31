@@ -36,6 +36,13 @@ typedef enum {
     // IMU modes (Menu 1)
     UI_MODE_IMU_READ,                   // IMU accelerometer reading display
     UI_MODE_IMU_TEMP,                   // IMU temperature display
+    UI_MODE_IMU_PEDOMETER,               // Step count display
+
+    // Data modes (Menu 2)
+    UI_MODE_DATA_STATS,                 // NVS log stats (write offset, meta seq)
+
+    // Timer modes (Menu 3)
+    UI_MODE_STOPWATCH,                  // Stopwatch (start/pause/reset)
 
     // Add more modes as needed for future UI functions
 } ui_mode_t;
@@ -49,6 +56,7 @@ typedef enum {
  */
 typedef struct {
     Time time;
+    Date date;
     float imu_temp;
     int charging_status;
     int bat_percent;
@@ -62,6 +70,7 @@ typedef struct {
 #define UI_CLOCK_DIRTY_CHARGING     (1 << 2)
 #define UI_CLOCK_DIRTY_BATTERY      (1 << 3)
 #define UI_CLOCK_DIRTY_STEPS        (1 << 4)
+#define UI_CLOCK_DIRTY_DATE         (1 << 5)
 #define UI_CLOCK_DIRTY_ALL          0xFFFFFFFF
 
 
@@ -138,6 +147,12 @@ void ui_clock_set_charging(int status);
  * @param steps Step count value
  */
 void ui_clock_set_steps(uint32_t steps);
+
+/**
+ * @brief Set calendar date and mark dirty
+ * @param date New date value
+ */
+void ui_clock_set_date(Date date);
 
 
 #endif /* SRC_UI_USERINTERFACE_H_ */

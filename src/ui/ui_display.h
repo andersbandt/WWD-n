@@ -20,6 +20,7 @@
 
 /* C99 header files */
 #include <stdint.h>
+#include <stdbool.h>
 
 
 /* My header files */
@@ -94,6 +95,18 @@ void display_out_temp(float temp);
  *
  */
 void display_out_measurement(char * text, int value);
+
+
+/**
+ * @brief displays NVS log stats (write offset and metadata sequence number)
+ */
+void display_out_data_stats(int write_offset, uint32_t meta_seq);
+
+
+/**
+ * @brief displays a stopwatch as MM:SS, with a RUNNING/PAUSED label
+ */
+void display_out_stopwatch(uint32_t elapsed_ms, bool running);
 
 
 /**
