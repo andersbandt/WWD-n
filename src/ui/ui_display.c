@@ -217,7 +217,20 @@ void display_out_data_stats(int write_offset, uint32_t meta_seq)
 }
 
 
-void display_out_stopwatch(uint32_t elapsed_ms, bool running)
+/*
+ * display_out_stopwatch: redraws just the two fields that actually change
+ * (status label, mm:ss) via clearAndPrintLine, instead of clear_display()
+ * + printLine on every tick - the old version blanked and repainted the
+ * whole screen once a second, which was slow and visibly flickered.
+ * clearAndPrintLine clears each line's own background first, so a shorter
+ * new string (e.g. "PAUSED" replacing "RUNNING") can't leave stale trailing
+ * characters the way a plain printLine would.
+ *
+ * full_redraw should be true only on first entry to this screen (the
+ * caller is responsible for tracking that) - it does one clear_display()
+ * to wipe away whatever the previous screen left behind.
+ */
+void display_out_stopwatch(uint32_t elapsed_ms, bool running, bool full_redraw)
 {
     char time_str[16];
     uint32_t total_sec = elapsed_ms / 1000;
@@ -225,9 +238,11 @@ void display_out_stopwatch(uint32_t elapsed_ms, bool running)
     uint32_t ss = total_sec % 60;
     sprintf(time_str, "%02u:%02u", mm, ss);
 
-    clear_display();
-    printLine(running ? "RUNNING" : "PAUSED", 2, 12, FONT_LARGE);
-    printLine(time_str, 3, 12, FONT_LARGE);
+    if (full_redraw) {
+        clear_display();
+    }
+    clearAndPrintLine(running ? "RUNNING" : "PAUSED", 2, 12, FONT_LARGE);
+    clearAndPrintLine(time_str, 3, 12, FONT_LARGE);
 }
 
 

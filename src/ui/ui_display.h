@@ -106,7 +106,7 @@ void display_out_data_stats(int write_offset, uint32_t meta_seq);
 /**
  * @brief displays a stopwatch as MM:SS, with a RUNNING/PAUSED label
  */
-void display_out_stopwatch(uint32_t elapsed_ms, bool running);
+void display_out_stopwatch(uint32_t elapsed_ms, bool running, bool full_redraw);
 
 
 /**

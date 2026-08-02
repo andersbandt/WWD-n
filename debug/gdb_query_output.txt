@@ -1,25 +1,13 @@
-z_cbvprintf_impl (__out=0x132a1 <out_func>, ctx=0x5d6d8 <lbu_output>, fp=0x4f9ab "> ", ap=..., flags=0) at /home/anders/ncs/v3.1.1/zephyr/lib/os/cbprintf_complete.c:1857
-1857				if ((conv->altform_0c | conv->altform_0) != 0) {
+__enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
+951	  __ASM volatile ("cpsie i" : : : "memory");
 Expected an decimal digit (0-9)
+Breakpoint 1 at 0x199c6: file /home/anders/ncs/v3.1.1/zephyr/arch/arm/core/cortex_m/fault.c, line 1024.
 
-Program received signal SIGTRAP, Trace/breakpoint trap.
-0x0003a686 in assert_post_action (file=0x5743c "WEST_TOPDIR/zephyr/include/zephyr/spinlock.h", line=136) at /home/anders/ncs/v3.1.1/zephyr/lib/os/assert.c:43
-43		k_panic();
-The program being debugged was signaled while in a function called from GDB.
-GDB remains in the frame where the signal was received.
-To change this behavior use "set unwindonsignal on".
-Evaluation of the expression containing the function
-(imu_raw_read_reg) will be abandoned.
-When the function is done executing, GDB will silently stop.
-
-Program received signal SIGTRAP, Trace/breakpoint trap.
-0x0003a686 in assert_post_action (file=0x56e0c "WEST_TOPDIR/zephyr/kernel/sem.c", line=136) at /home/anders/ncs/v3.1.1/zephyr/lib/os/assert.c:43
-43		k_panic();
-The program being debugged was signaled while in a function called from GDB.
-GDB remains in the frame where the signal was received.
-To change this behavior use "set unwindonsignal on".
-Evaluation of the expression containing the function
-(imu_raw_read_reg) will be abandoned.
-When the function is done executing, GDB will silently stop.
+Breakpoint 1, z_arm_fault (msp=536934272, psp=536934296, exc_return=4294967293, callee_regs=0x20007b04 <_kernel+24>) at /home/anders/ncs/v3.1.1/zephyr/arch/arm/core/cortex_m/fault.c:1024
+1024		uint32_t reason = K_ERR_CPU_EXCEPTION;
+$1 = 0x92
+$2 = 0x0
+$3 = 0x2
+$4 = 0x2000f7bc
 [Inferior 1 (Remote target) detached]
 The program is not being run.

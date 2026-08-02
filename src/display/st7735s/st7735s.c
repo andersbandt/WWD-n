@@ -23,6 +23,19 @@
 #include "st7735s.h"
 #include "st7735s_compat.h"
 
+/* xmin/xmax/ymin/ymax/hvtype/hvframe[] below are all global, non-thread-local
+ * draw state shared by every caller of ST7735S_Pixel()/ST7735S_bgPixel()/
+ * ST7735S_flush() (font rendering, shapes, the clock tick redraw, and the
+ * menu redraw all go through here). ui_refresh_thread (1s tick) and
+ * button_handler_thread (on a real button press) can call into this
+ * concurrently; without a lock here that corrupts this state and, in
+ * practice, adjacent RAM — caught live via GDB 2026-08-01 as a usage fault
+ * with a garbage psp inside ui_refresh_thread's own thread struct. A lock
+ * one level up in ui.c (display_draw_mutex) was tried first and didn't fully
+ * cover it; locking here, around the actual shared state, doesn't depend on
+ * having enumerated every caller correctly. */
+K_MUTEX_DEFINE(hvbuffer_mutex);
+
 
 typedef enum {
     NOP       = 0x00,
@@ -258,6 +271,7 @@ int ST7735S_Init(void) {
 }
 
 void ST7735S_flush(void) {
+        k_mutex_lock(&hvbuffer_mutex, K_FOREVER);
         uint16_t xm = xmin + XSTART, ym = ymin + YSTART;
         uint16_t xx = xmax + XSTART, yx = ymax + YSTART;
 
@@ -297,6 +311,7 @@ void ST7735S_flush(void) {
         #error buffer not defined.
         #endif
             resetWindow();
+        k_mutex_unlock(&hvbuffer_mutex);
 }
 
 #if defined(BUFFER)
@@ -365,16 +380,20 @@ first_pixel:
 
 void ST7735S_Pixel(uint16_t x, uint16_t y) {
     if ( x < WIDTH && y < HEIGHT) {
+        k_mutex_lock(&hvbuffer_mutex, K_FOREVER);
         set_hvpixel(x, y);
+        k_mutex_unlock(&hvbuffer_mutex);
     }
 }
 
 void ST7735S_bgPixel(uint16_t x, uint16_t y) {
     if ( x < WIDTH && y < HEIGHT) {
+        k_mutex_lock(&hvbuffer_mutex, K_FOREVER);
         color565_t c = color;
         color = bg_color;
         set_hvpixel(x, y);
         color = c;
+        k_mutex_unlock(&hvbuffer_mutex);
     }
 }
 

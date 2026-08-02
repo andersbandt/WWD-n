@@ -54,6 +54,17 @@ int ui_status = 0;
 ui_mode_t ui_mode = UI_MODE_CLOCK; // internal variable
 // volatile uint32_t step_count; // defined in imu.h
 
+/* ui_refresh() (ui_refresh_thread, 1s tick) and handle_ui_input()
+ * (button_handler_thread, on a real button interrupt) both call into the
+ * same non-reentrant display/SPI1 drawing code (st7735s.c's window-tracking
+ * globals, SPI transaction buffers) with no synchronization between them.
+ * A button press landing mid-redraw corrupts that shared state and crashes
+ * (observed live via GDB 2026-08-01: usage fault inside ui_refresh_thread,
+ * RESETREAS=LOCKUP, reproduced after ruling out the nRF52 reset pin and
+ * button-thread stack size). Same class of bug as the NAND/NVS concurrency
+ * fix (mt29f_bus_mutex/nvs_state_mutex) — same fix shape here. */
+K_MUTEX_DEFINE(display_draw_mutex);
+
 
 int bat_percent; // defined in BQ25120A.h
 int charging_status; // defined in BQ25120A.h
@@ -199,6 +210,7 @@ void init_ui()
 
 
 void ui_refresh() {
+    k_mutex_lock(&display_draw_mutex, K_FOREVER);
     switch (ui_mode) {
         case UI_MODE_CLOCK:
             // Handle updating clock display using dirty flags
@@ -272,6 +284,7 @@ void ui_refresh() {
             ui_mode = UI_MODE_CLOCK; // Fallback to clock mode
             break;
     }
+    k_mutex_unlock(&display_draw_mutex);
 }
 
 
@@ -289,6 +302,13 @@ void handle_ui_input() {
         return;  /* nothing pressed */
     }
 
+    /* Serialize against ui_refresh_thread's periodic redraw (ui_refresh(),
+     * called every 1s) — both threads call into the same non-reentrant
+     * display/SPI1 drawing code below, and a press landing mid-redraw
+     * corrupted shared state badly enough to crash. See display_draw_mutex
+     * comment near ui_mode's declaration. */
+    k_mutex_lock(&display_draw_mutex, K_FOREVER);
+
     /* Any button press wakes a sleeping display first; that press just
      * wakes it and is not also treated as navigation (so waking up doesn't,
      * say, also jump a menu position or fire SELECT). Display timeout/sleep
@@ -297,6 +317,7 @@ void handle_ui_input() {
      * scaffolding for when that lands. */
     if (!display_is_awake()) {
         switch_display(true);
+        k_mutex_unlock(&display_draw_mutex);
         return;
     }
 
@@ -307,6 +328,7 @@ void handle_ui_input() {
         (BUTTON_3_MASK | BUTTON_4_MASK)) {
         ui_menu_force_exit();
         change_ui_mode(UI_MODE_CLOCK);
+        k_mutex_unlock(&display_draw_mutex);
         return;
     }
 
@@ -324,6 +346,7 @@ void handle_ui_input() {
         else if (button_status == BUTTON_2_MASK) {   // SW2 top-right: open/unassigned
             // TODO: no action defined yet for this button
         }
+        k_mutex_unlock(&display_draw_mutex);
         return;
     }
     else if (ui_mode == UI_MODE_CLOCK) {
@@ -331,6 +354,8 @@ void handle_ui_input() {
         // row home combo above already returned before reaching here).
         change_ui_mode(UI_MODE_MENU);
     }
+
+    k_mutex_unlock(&display_draw_mutex);
 
     // Push non-zero button events to buffer for UI functions to consume
     if (button_status != 0) {

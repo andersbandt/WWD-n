@@ -110,6 +110,7 @@ void event_print(inv_imu_sensor_event_t *evt) {
  */
 void event_cb(inv_imu_sensor_event_t *evt) {
     circular_buffer_add(imu_data_buffer, evt);
+    imu_set_latest_event(evt);
 }
 
 

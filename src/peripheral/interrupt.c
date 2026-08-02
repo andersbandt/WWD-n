@@ -21,6 +21,7 @@
 
 
 /* Zephyr files  */
+#include <zephyr/kernel.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/device.h>
 #include <zephyr/logging/log.h>
@@ -140,22 +141,44 @@ static void imu_int2_handler(const struct device *dev,
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
+/* Buttons live on the MCP23008 over I2C, which has shown intermittent
+ * boot-time failures (marginal connection, still being chased on the bench)
+ * — a handful of retries lets a transient NACK/EIO clear on its own instead
+ * of permanently disabling that button for the whole session. */
+#define GPIO_INT_SETUP_RETRIES     5
+#define GPIO_INT_SETUP_RETRY_DELAY_MS  50
+
 static int setup_gpio_interrupt(const struct gpio_dt_spec *spec,
                                 gpio_flags_t flags,
                                 struct gpio_callback *cb,
                                 gpio_callback_handler_t handler)
 {
     int ret;
+    int attempt;
 
-    ret = gpio_pin_configure_dt(spec, GPIO_INPUT);
-    if (ret) {
-        LOG_ERR("gpio_pin_configure failed (%d)", ret);
-        return ret;
+    for (attempt = 1; attempt <= GPIO_INT_SETUP_RETRIES; attempt++) {
+        ret = gpio_pin_configure_dt(spec, GPIO_INPUT);
+        if (ret) {
+            LOG_WRN("gpio_pin_configure failed (%d), attempt %d/%d",
+                    ret, attempt, GPIO_INT_SETUP_RETRIES);
+            k_msleep(GPIO_INT_SETUP_RETRY_DELAY_MS);
+            continue;
+        }
+
+        ret = gpio_pin_interrupt_configure_dt(spec, flags);
+        if (ret) {
+            LOG_WRN("gpio_pin_interrupt_configure failed (%d), attempt %d/%d",
+                    ret, attempt, GPIO_INT_SETUP_RETRIES);
+            k_msleep(GPIO_INT_SETUP_RETRY_DELAY_MS);
+            continue;
+        }
+
+        break;
     }
 
-    ret = gpio_pin_interrupt_configure_dt(spec, flags);
     if (ret) {
-        LOG_ERR("gpio_pin_interrupt_configure failed (%d)", ret);
+        LOG_ERR("gpio_pin_configure/interrupt_configure failed (%d) after %d attempts",
+                ret, GPIO_INT_SETUP_RETRIES);
         return ret;
     }
 

@@ -88,9 +88,14 @@ void updateSubMenuScreen(int abs_pos, int sub_pos, int force);
  *
  * @param position The position of the cursor on the screen.
  *
+ * @param force If set, blanks the entire cursor column instead of just
+ *              erasing prev_position - use whenever prev_position may be
+ *              stale state from a different screen (e.g. entering/leaving
+ *              a submenu), not just an incremental move on the same page.
+ *
  * @returns None (void)
  */
-void updateCursor(int prev_position, int position);
+void updateCursor(int prev_position, int position, int force);
 
 
 /**

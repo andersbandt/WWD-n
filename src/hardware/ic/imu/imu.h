@@ -78,9 +78,18 @@ int imu_apex();
 
 
 /**
- * @brief returns the IMU event at the top ? of the buffer stack
+ * @brief records the most recent FIFO event for live UI display (does not
+ * touch imu_data_buffer - see imu.c comment above latest_imu_event_mutex)
  */
-inv_imu_sensor_event_t imu_deque();
+void imu_set_latest_event(const inv_imu_sensor_event_t *evt);
+
+
+/**
+ * @brief returns the most recent FIFO event for live UI display, without
+ * consuming anything from the NVS-bound imu_data_buffer queue. Returns
+ * false (event zeroed) if no FIFO event has arrived yet.
+ */
+bool imu_get_latest_event(inv_imu_sensor_event_t *out);
 
 
 /**

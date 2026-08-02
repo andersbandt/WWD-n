@@ -17,6 +17,7 @@
 
 /* Standard C99 stuff */
 #include <stdint.h>
+#include <string.h>
 #include <errno.h>
     // below 2 are for printf only (I think)
     #include <stdio.h>
@@ -57,6 +58,21 @@ LOG_MODULE_REGISTER(imu, LOG_LEVEL_INF);
 Circular_Buffer * imu_data_buffer = NULL;
 uint32_t step_count;
 int16_t imu_temperature = 0;
+
+/* imu_data_buffer is drained by imu_process() (button_handler_thread, on
+ * every FIFO watermark interrupt) into NVS. The UI's live "Display readings"
+ * screen used to also call circular_buffer_remove() on this same buffer from
+ * ui_refresh_thread - two unsynchronized consumers racing on the same
+ * head/tail/count state, which corrupted `count` (size_t, so a lost
+ * decrement race can wrap it to a huge value) and sent imu_process()'s
+ * `while (!circular_buffer_empty(...))` into an effective infinite loop on
+ * button_handler_thread, hanging the board. It also silently stole samples
+ * away from the NVS log while the screen was open. Fixed by giving the UI
+ * its own snapshot of the latest event instead of dequeuing from the
+ * NVS-bound queue at all. */
+static inv_imu_sensor_event_t latest_imu_event;
+static bool latest_imu_event_valid = false;
+K_MUTEX_DEFINE(latest_imu_event_mutex);
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -244,12 +260,38 @@ void get_fifo_data() {
 
 
 /*
- * imu_deque: returns the last IMU event on the buffer
+ * imu_set_latest_event: records the most recent FIFO event for live UI
+ * display, without touching imu_data_buffer (the NVS-bound queue). Called
+ * from event_cb() on button_handler_thread, same thread that later drains
+ * imu_data_buffer via imu_process() - single writer, so the mutex here is
+ * only guarding against the UI thread's concurrent read.
  */
-inv_imu_sensor_event_t imu_deque() {
-    inv_imu_sensor_event_t event;
-    circular_buffer_remove(imu_data_buffer, &event);
-    return event;
+void imu_set_latest_event(const inv_imu_sensor_event_t *evt) {
+    k_mutex_lock(&latest_imu_event_mutex, K_FOREVER);
+    latest_imu_event = *evt;
+    latest_imu_event_valid = true;
+    k_mutex_unlock(&latest_imu_event_mutex);
+}
+
+
+/*
+ * imu_get_latest_event: returns the most recent FIFO event for live display.
+ * Safe to call from any thread (e.g. ui_refresh_thread) - unlike the old
+ * imu_deque(), this does not remove anything from imu_data_buffer, so it
+ * can't race with imu_process()'s NVS drain or steal samples from the log.
+ * Returns false (event left zeroed) if no FIFO event has arrived yet.
+ */
+bool imu_get_latest_event(inv_imu_sensor_event_t *out) {
+    k_mutex_lock(&latest_imu_event_mutex, K_FOREVER);
+    bool valid = latest_imu_event_valid;
+    if (valid) {
+        *out = latest_imu_event;
+    }
+    else {
+        memset(out, 0, sizeof(*out));
+    }
+    k_mutex_unlock(&latest_imu_event_mutex);
+    return valid;
 }
 
 

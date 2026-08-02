@@ -265,8 +265,8 @@ static bool should_update_page(int current_pos, int prev_position, int force)
  */
 static void render_menu_items(char **items, int start_idx, int count)
 {
-    for (int i = 0; i < count; i++) {
-        clearAndPrintLine(items[start_idx + i], i + 1, START_X, FONT_MEDIUM);
+    for (int i = 0; i < UI_MENU_ITEMS_PAGE; i++) {
+        clearAndPrintLine(i < count ? items[start_idx + i] : "", i + 1, START_X, FONT_MEDIUM);
     }
 }
 
@@ -280,8 +280,8 @@ static void render_menu_items(char **items, int start_idx, int count)
  */
 static void render_sub_menu_items(int menu_idx, int start_item_idx, int count)
 {
-    for (int i = 0; i < count; i++) {
-        clearAndPrintLine(sub_menu[menu_idx] + SUB_MENU_CHAR_LENGTH * (start_item_idx + i),
+    for (int i = 0; i < UI_MENU_ITEMS_PAGE; i++) {
+        clearAndPrintLine(i < count ? sub_menu[menu_idx] + SUB_MENU_CHAR_LENGTH * (start_item_idx + i) : "",
                          i + 1, START_X, FONT_MEDIUM);
     }
 }
@@ -391,7 +391,7 @@ void updateMainMenuScreen(int absolute_pos, int force)
     }
 
     in_sub_menu = 0;
-    updateCursor(prev_pos, absolute_pos);
+    updateCursor(prev_pos, absolute_pos, force);
 }
 
 
@@ -419,20 +419,37 @@ void updateSubMenuScreen(int abs_pos, int sub_pos, int force)
     int cursor_pos = (sub_pos % UI_MENU_ITEMS_PAGE < items_to_display)
                      ? sub_pos
                      : items_to_display - 1;
-    updateCursor(prev_pos, cursor_pos);
+    updateCursor(prev_pos, cursor_pos, force);
 }
 
 
 /*
  * updateCursor: updates the cursor (">") position
+ *
+ * prev_position is only meaningful when it refers to a row on the SAME
+ * screen the cursor is currently being drawn on (i.e. incremental up/down
+ * navigation within one menu/submenu page). Every caller that switches
+ * screens (entering/returning from a submenu, changing page) passes
+ * force=1 - in that case prev_position may be stale left-over state from
+ * a completely different screen, so instead of trusting it to find the
+ * "old" cursor row, blank the whole cursor column so nothing from a prior
+ * screen can be left behind.
  */
-void updateCursor(int prev_position, int position)
+void updateCursor(int prev_position, int position, int force)
 {
    // calculate positions relative to page
    int relative_position = position % UI_MENU_ITEMS_PAGE;  // generate the 'relative position' with modulus division
-   int prev_relative_position = prev_position % UI_MENU_ITEMS_PAGE;
 
-   printLine(" ", prev_relative_position+1, 0, FONT_MEDIUM); // erase old cursor
+   if (force) {
+       for (int row = 0; row < UI_MENU_ITEMS_PAGE; row++) {
+           printLine(" ", row + 1, 0, FONT_MEDIUM);
+       }
+   }
+   else {
+       int prev_relative_position = prev_position % UI_MENU_ITEMS_PAGE;
+       printLine(" ", prev_relative_position+1, 0, FONT_MEDIUM); // erase old cursor
+   }
+
    printLineTransparent(">", relative_position+1, 0, FONT_MEDIUM); // draw new cursor
 }
 

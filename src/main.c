@@ -93,15 +93,31 @@ static void display_phase(void)
  * per tick and had never actually been runtime-exercised with this real
  * logic before, so don't assume 1024B was ever validated for it. */
 #define SENSOR_UPDATE_STACK_SIZE  2048
-#define UI_REFRESH_STACK_SIZE     2048
+/* 4096 rather than 2048, same reasoning as BUTTON_HANDLER_STACK_SIZE below:
+ * this thread's own draw path (draw_clock_title() -> printLine() ->
+ * drawText()/drawGlyph() -> SPI_Transmit()) is the same font/SPI depth as
+ * button_handler_thread's menu draw, and change_ui_mode() calls ui_refresh()
+ * directly (see ui.c), so this thread's stack absorbs that same call chain
+ * too. It sits adjacent to button_handler_stack in memory — an overflow here
+ * corrupting that neighboring stack (or vice versa) matches the usage-fault
+ * signature (misaligned exception frame) caught live via GDB 2026-08-01,
+ * which persisted even after fixing the ui_refresh()/handle_ui_input() race
+ * with display_draw_mutex. */
+#define UI_REFRESH_STACK_SIZE     4096
 #define DISPLAY_TIMEOUT_STACK_SIZE 512
-/* 2048 rather than 1024, same reasoning as SENSOR_UPDATE/UI_REFRESH above:
- * this thread's FIFO-watermark path does SPI reads (get_fifo_data()) then
- * imu_process() -> nvs_log_record() (NAND writes through mt29f_bus_mutex/
- * nvs_state_mutex), several frames deep under NO_OPTIMIZATIONS — don't
- * assume the old 1024B, sized for a mostly-idle button poller, still holds
- * now that this thread is also the sole IMU FIFO drain path. */
-#define BUTTON_HANDLER_STACK_SIZE  2048  /* also drains the IMU FIFO, see below */
+/* 4096 rather than 2048. 2048 was sized only for the FIFO-watermark path
+ * (get_fifo_data() -> imu_process() -> nvs_log_record(), several frames deep
+ * under NO_OPTIMIZATIONS) — it never accounted for handle_ui_input(), which
+ * this thread also calls on every real button press and which walks into
+ * change_ui_mode() -> updateMainMenuScreen() -> render_menu_items() -> font/
+ * SPI drawing calls. Measured via GDB (2026-08-01) with the 2048B stack:
+ * the CONFIG_INIT_STACKS 0xaa fill pattern was already overwritten down to
+ * ~132 bytes from the bottom of the buffer — a hair from overflow — which
+ * lines up with the board resetting specifically on the first real button
+ * press once the UI is up (the one time this thread's display-draw path
+ * actually runs). Same failure shape as the DISPLAY_TIMEOUT_STACK_SIZE 512B
+ * overflow documented in CLAUDE.md. */
+#define BUTTON_HANDLER_STACK_SIZE  4096  /* also drains the IMU FIFO, see below */
 
 #define SENSOR_UPDATE_PRIORITY   7
 #define UI_REFRESH_PRIORITY      7

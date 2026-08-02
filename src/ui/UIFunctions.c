@@ -53,6 +53,12 @@ Date date_offset;
 int position = 0;  // position tracks where the cursor is - 0 for on the tens place, 1 for on the tenth place, 2 for on the done button
 bool first_ui_time = true; // useful for doing things the first time a function has to get called
 
+/* Separate from stopwatch_running/stopwatch_elapsed_ms below - this only
+ * tracks whether the screen itself needs a one-time full clear_display()
+ * on entry, so it's safe to reset on every reset_uifunc_params() call
+ * without disturbing the actual timer state. */
+static bool stopwatch_screen_dirty = true;
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! FUNCTIONS -------------------------------------------------------------------------------------------------------------//
@@ -62,6 +68,7 @@ bool first_ui_time = true; // useful for doing things the first time a function 
 void reset_uifunc_params() {
     position = 0;
     first_ui_time = true;
+    stopwatch_screen_dirty = true;
 }
 
 
@@ -245,7 +252,9 @@ void system_clear_faults_UI_FUNC(void) {
 
 void imuRead_UI_FUNC(void) {
     inv_imu_sensor_event_t event;
-    event = imu_deque();
+    if (!imu_get_latest_event(&event)) {
+        return;  // no FIFO event has arrived yet - leave the screen as-is
+    }
     display_out_imu(&event, IMU_DISPLAY_BOTH);
     return;
 }
@@ -314,7 +323,8 @@ void stopwatch_UI_FUNC(void) {
         elapsed += (uint32_t)(k_uptime_get() - stopwatch_start_uptime);
     }
 
-    display_out_stopwatch(elapsed, stopwatch_running);
+    display_out_stopwatch(elapsed, stopwatch_running, stopwatch_screen_dirty);
+    stopwatch_screen_dirty = false;
     return;
 }
 
