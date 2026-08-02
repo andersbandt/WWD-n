@@ -218,20 +218,27 @@ void display_out_data_stats(int write_offset, uint32_t meta_seq)
 
 
 /*
- * display_out_stopwatch: redraws just the two fields that actually change
- * (status label, mm:ss) via clearAndPrintLine, instead of clear_display()
+ * display_out_stopwatch: redraws only the field(s) that actually changed
+ * since the last call, via clearAndPrintLine, instead of clear_display()
  * + printLine on every tick - the old version blanked and repainted the
- * whole screen once a second, which was slow and visibly flickered.
- * clearAndPrintLine clears each line's own background first, so a shorter
- * new string (e.g. "PAUSED" replacing "RUNNING") can't leave stale trailing
- * characters the way a plain printLine would.
+ * whole screen once a second (visibly flickered); the first fix still
+ * redrew both lines unconditionally every tick even though the
+ * RUNNING/PAUSED label only changes on start/pause and mm:ss only changes
+ * once a real second ticks over. clearAndPrintLine clears each line's own
+ * background first, so a shorter new string (e.g. "PAUSED" replacing
+ * "RUNNING") can't leave stale trailing characters the way a plain
+ * printLine would.
  *
  * full_redraw should be true only on first entry to this screen (the
  * caller is responsible for tracking that) - it does one clear_display()
- * to wipe away whatever the previous screen left behind.
+ * and forces both fields to redraw, to wipe away whatever the previous
+ * screen left behind and to reset the last-drawn-value tracking below.
  */
 void display_out_stopwatch(uint32_t elapsed_ms, bool running, bool full_redraw)
 {
+    static bool last_running;
+    static uint32_t last_total_sec = UINT32_MAX;  // force first draw to differ
+
     char time_str[16];
     uint32_t total_sec = elapsed_ms / 1000;
     uint32_t mm = total_sec / 60;
@@ -240,9 +247,19 @@ void display_out_stopwatch(uint32_t elapsed_ms, bool running, bool full_redraw)
 
     if (full_redraw) {
         clear_display();
+        last_running = !running;      // force the label to redraw below
+        last_total_sec = UINT32_MAX;  // force the time to redraw below
     }
-    clearAndPrintLine(running ? "RUNNING" : "PAUSED", 2, 12, FONT_LARGE);
-    clearAndPrintLine(time_str, 3, 12, FONT_LARGE);
+
+    if (running != last_running) {
+        clearAndPrintLine(running ? "RUNNING" : "PAUSED", 2, 12, FONT_LARGE);
+        last_running = running;
+    }
+
+    if (total_sec != last_total_sec) {
+        clearAndPrintLine(time_str, 3, 12, FONT_LARGE);
+        last_total_sec = total_sec;
+    }
 }
 
 

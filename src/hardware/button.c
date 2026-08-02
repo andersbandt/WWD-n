@@ -38,9 +38,14 @@ static const struct gpio_dt_spec btn2 = GPIO_DT_SPEC_GET(DT_NODELABEL(button2), 
 static const struct gpio_dt_spec btn3 = GPIO_DT_SPEC_GET(DT_NODELABEL(button3), gpios);
 static const struct gpio_dt_spec btn4 = GPIO_DT_SPEC_GET(DT_NODELABEL(button4), gpios);
 
-// Holds the current state of each button. A 0 in a bit indicates
-// that button is currently pressed (active low), otherwise it is released.
-static uint8_t g_ui8ButtonStates = 0xFF;  // Start with all buttons released
+// Holds the current state of each button. A 1 in a bit indicates that
+// button is currently pressed (gpio_port_get() already applies the
+// GPIO_ACTIVE_LOW correction from the devicetree, so bit=1 means logically
+// active/pressed here, not raw-low). All 4 buttons live on the same
+// MCP23008 expander pin, so this only reflects reality right after the
+// first real button_poll() call in init_buttons() - the 0x00 here is just
+// a placeholder.
+static uint8_t g_ui8ButtonStates = 0x00;
 
 // Button input buffer for storing button events
 static Circular_Buffer *button_input_buffer = NULL;
@@ -91,27 +96,36 @@ int init_buttons(void)
 /**
  * @brief Poll the current state of all buttons
  *
- * Reads the GPIO pins for all buttons and returns their state.
- * Active LOW: bit = 0 when button is pressed, bit = 1 when released
+ * Reads all 4 button pins in a SINGLE gpio_port_get() call (one I2C
+ * transaction to the MCP23008), not 4 separate gpio_pin_get_dt() calls.
+ * The buttons previously were read one at a time, each doing its own
+ * full-port I2C read - that meant up to 4 sequential I2C round-trips
+ * elapsed between reading the first button and the last, so a
+ * near-simultaneous two-button press (e.g. the SW3+SW4 "return to clock"
+ * combo, see ui.c) could easily land with one button's read seeing it
+ * pressed and another's read - a few hundred microseconds to a
+ * millisecond later - seeing it already released, making the combo
+ * unreliable to trigger. A single port-wide read makes all 4 bits
+ * reflect the exact same instant.
  *
- * @return uint8_t Button state byte (bits 0-3 for buttons 1-4)
+ * @return uint8_t Button state byte (bits 0-3 for buttons 1-4), bit=1
+ *         means pressed (gpio_port_get() already applies the DT's
+ *         GPIO_ACTIVE_LOW correction), bit=0 means released.
  */
 uint8_t button_poll(void)
 {
-    uint8_t button_states = 0;
-    int button1_status, button2_status, button3_status, button4_status;
+    gpio_port_value_t port_value;
 
-    // Read all button GPIO pins
-    button1_status = gpio_pin_get_dt(&btn1);
-    button2_status = gpio_pin_get_dt(&btn2);
-    button3_status = gpio_pin_get_dt(&btn3);
-    button4_status = gpio_pin_get_dt(&btn4);
+    int ret = gpio_port_get(btn1.port, &port_value);
+    if (ret != 0) {
+        LOG_ERR("button_poll: gpio_port_get failed: %d", ret);
+        return g_ui8ButtonStates;  // keep last known state on I2C error
+    }
 
-    // Build button state byte (bit = 1 when released, bit = 0 when pressed for active low)
-    button_states = (button1_status & 0x1) |
-                    ((button2_status & 0x1) << 1) |
-                    ((button3_status & 0x1) << 2) |
-                    ((button4_status & 0x1) << 3);
+    uint8_t button_states = (((port_value >> btn1.pin) & 0x1) << 0) |
+                             (((port_value >> btn2.pin) & 0x1) << 1) |
+                             (((port_value >> btn3.pin) & 0x1) << 2) |
+                             (((port_value >> btn4.pin) & 0x1) << 3);
 
     g_ui8ButtonStates = button_states;
 
@@ -122,15 +136,15 @@ uint8_t button_poll(void)
  * @brief Check if a specific button is currently pressed
  *
  * @param button_mask Button mask (e.g., BUTTON_1_MASK)
- * @return true if button is pressed (active low = 0)
+ * @return true if button is pressed
  * @return false if button is released
  */
 bool button_is_pressed(uint8_t button_mask)
 {
     uint8_t current_state = button_poll();
 
-    // Active low: button is pressed when bit is 0
-    return !(current_state & button_mask);
+    // bit=1 means pressed - see button_poll()
+    return (current_state & button_mask) != 0;
 }
 
 /**
