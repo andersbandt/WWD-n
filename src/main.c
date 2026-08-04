@@ -190,6 +190,8 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
             ui_clock_set_steps(imu_get_pedo());
         }
 
+        ui_clock_set_battery_mv(battery_voltage_mv());
+
         // TODO: enable when BMS is ready
         // ui_clock_set_battery(battery_percent());
         // ui_clock_set_charging(battery_charging());

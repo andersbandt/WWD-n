@@ -60,6 +60,7 @@ typedef struct {
     float imu_temp;
     int charging_status;
     int bat_percent;
+    int bat_mv;             // raw divider reading, mV (see battery_voltage_mv() in power.c)
     uint32_t step_count;
     uint32_t dirty_flags;  // Bitmask for tracking which fields changed
 } ui_clock_data_t;
@@ -135,6 +136,12 @@ void ui_clock_set_temp(float temp);
  * @param percent Battery percentage (0-100)
  */
 void ui_clock_set_battery(int percent);
+
+/**
+ * @brief Set battery voltage (raw divider reading, mV) and mark dirty
+ * @param mv Battery voltage in millivolts
+ */
+void ui_clock_set_battery_mv(int mv);
 
 /**
  * @brief Set charging status and mark dirty

@@ -82,9 +82,17 @@ void display_out_pedometer(int steps);
 
 
 /**
- * display_out_temp: displays temperature reading
+ * display_out_temp: displays temperature reading (lower-left corner badge)
  */
 void display_out_temp(float temp);
+
+/**
+ * display_out_battery: displays battery voltage (upper-right corner badge)
+ *
+ * @param mv: battery voltage in millivolts, as read from the divider (see
+ * battery_voltage_mv() in power.c)
+ */
+void display_out_battery(int mv);
 
 /**
  * @brief displays a certain measurement

@@ -137,6 +137,15 @@ void ui_clock_set_battery(int percent)
 }
 
 /**
+ * @brief Set battery voltage (raw divider reading, mV) and mark dirty
+ */
+void ui_clock_set_battery_mv(int mv)
+{
+    clock_data.bat_mv = mv;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_BATTERY);
+}
+
+/**
  * @brief Set charging status and mark dirty
  */
 void ui_clock_set_charging(int status)
@@ -166,7 +175,7 @@ void ui_clock_set_date(Date date)
 
 /* Weekday + day-of-month header, top-left — replaces the old static "WWD-n"
  * title text (that slot is otherwise idle screen space). Sits at line 0
- * (y=2..~22, FONT_LARGE) which doesn't overlap the temp badge (top-right,
+ * (y=2..~22, FONT_LARGE) which doesn't overlap the battery badge (top-right,
  * x>=82) or the time display (starts at y=CLOCK_TIME_Y=46), so it's safe to
  * redraw any time the screen gets cleared. */
 static void draw_clock_title(void)
@@ -224,11 +233,13 @@ void ui_refresh() {
                 ui_clock_clear_dirty(UI_CLOCK_DIRTY_TEMP);
             }
 
-            // enable when BMS is ready
-            // if (ui_clock_is_dirty(UI_CLOCK_DIRTY_CHARGING | UI_CLOCK_DIRTY_BATTERY)) {
-            //     display_out_bms(clock_data.charging_status, clock_data.bat_percent);
-            //     ui_clock_clear_dirty(UI_CLOCK_DIRTY_CHARGING | UI_CLOCK_DIRTY_BATTERY);
-            // }
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_BATTERY)) {
+                display_out_battery(clock_data.bat_mv);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_BATTERY);
+            }
+
+            // enable UI_CLOCK_DIRTY_CHARGING/display_out_bms() when BMS is ready
+            // (no charge-status GPIO wired yet, see power.c battery_charging())
 
             if (ui_clock_is_dirty(UI_CLOCK_DIRTY_STEPS)) {
                 display_out_pedometer(clock_data.step_count);

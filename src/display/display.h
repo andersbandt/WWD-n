@@ -102,6 +102,25 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
 
 
 /**
+ * @brief Left-aligns text within a fixed-size box, always clearing the whole box first
+ *
+ * Mirror of printFieldRightAligned() for corner badges anchored on the left edge —
+ * text position is already stable for left-aligned strings, but the clear region is
+ * still bounded to fieldLeft..fieldLeft+fieldWidth (not the full row) so a shrinking
+ * value can't leave stale trailing digits while also not trampling anything else
+ * sharing that row further right (e.g. a badge in the opposite corner).
+ *
+ * @param text: pointer to char for the string. String should terminate in \0
+ * @param posY: pixel Y position (top of the text)
+ * @param fieldLeft: pixel X of the box's left edge
+ * @param fieldWidth: box width in pixels — must comfortably fit the longest expected text
+ * @param fontSize: font size to use
+ */
+void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_t fieldLeft,
+                            const uint32_t fieldWidth, font_size_t fontSize);
+
+
+/**
  * @brief Prints text to a line without drawing background (transparent mode)
  *
  * @param text: pointer to char for the string. String should terminate in \0

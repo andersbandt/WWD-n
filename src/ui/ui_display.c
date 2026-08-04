@@ -55,20 +55,23 @@ void display_out_bms(int charging, int battery_percent) {
 
 
 /* Clock face layout: big centered time up top, small corner badges for
- * temp (top-right) and step count (bottom-right). Badges use
- * printFieldRightAligned() rather than printLine()/clearAndPrintLine()
- * because their digit count changes over time (e.g. temp 100 -> 9) —
- * clearAndPrintLine() only clears from the text's own left edge to the
- * screen's right edge, so a shrinking value leaves stale digits behind.
- * printFieldRightAligned() always clears the same fixed-size box first. */
+ * battery voltage (top-right), temp (bottom-left), and step count
+ * (bottom-right). Badges use printFieldRightAligned()/printFieldLeftAligned()
+ * rather than printLine()/clearAndPrintLine() because their digit count
+ * changes over time (e.g. temp 100 -> 9) — clearAndPrintLine() only clears
+ * from the text's own left edge to the screen's right edge, so a shrinking
+ * value leaves stale digits behind (and would trample a neighboring badge
+ * sharing the same row, e.g. temp/steps both on the bottom row). The
+ * printField*Aligned() variants always clear the same fixed-size box first. */
 #define CLOCK_TIME_LINE  1
 #define CLOCK_TIME_X     8
 #define CLOCK_TIME_FONT  FONT_XXLARGE
 
 #define CLOCK_BADGE_FONT  FONT_SMALL
 #define CLOCK_BADGE_WIDTH 44
-#define CLOCK_TEMP_Y      4
-#define CLOCK_STEPS_Y_MARGIN 20  /* from bottom of screen */
+#define CLOCK_BATTERY_Y   4       /* top-right badge */
+#define CLOCK_TEMP_X      2       /* bottom-left badge */
+#define CLOCK_STEPS_Y_MARGIN 20  /* from bottom of screen, shared by temp + steps row */
 
 /* Pixel Y equivalent of calculateLineY(CLOCK_TIME_LINE, CLOCK_TIME_FONT) in
  * display.c (10 + 1*(28 + 28*3/10) = 46) — needed here because
@@ -182,7 +185,19 @@ void display_out_temp(float temp) {
     /* imu_get_temp() (imu.c) converts the raw Celsius register value to
      * Fahrenheit before returning it — label accordingly, was mislabeled "C". */
     sprintf(text, "%.1fF", (double)temp);
-    printFieldRightAligned(text, CLOCK_TEMP_Y, WIDTH - 2,
+    printFieldLeftAligned(text, HEIGHT - CLOCK_STEPS_Y_MARGIN, CLOCK_TEMP_X,
+                           CLOCK_BADGE_WIDTH, CLOCK_BADGE_FONT);
+}
+
+
+void display_out_battery(int mv) {
+    char text[10];
+    /* Raw divider voltage, not state-of-charge — battery_percent()'s LiPo
+     * discharge-curve mapping is a separate concern from validating that the
+     * ADC/divider reading itself is sane, which is the point of this badge
+     * right now (see project_mcp23008_bringup.md). */
+    sprintf(text, "%.2fV", mv / 1000.0);
+    printFieldRightAligned(text, CLOCK_BATTERY_Y, WIDTH - 2,
                             CLOCK_BADGE_WIDTH, CLOCK_BADGE_FONT);
 }
 

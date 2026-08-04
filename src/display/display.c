@@ -231,6 +231,31 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
 
 
 /*
+ * printFieldLeftAligned: left-aligns text within a FIXED-size box (posY, fieldLeft,
+ * fieldWidth all caller-chosen and constant across calls) and always clears that whole
+ * box before drawing. Mirror of printFieldRightAligned() — see display.h.
+ */
+void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_t fieldLeft,
+                            const uint32_t fieldWidth, font_size_t fontSize)
+{
+    if (text == 0) {
+        return;
+    }
+
+    uint32_t fontHeight = (uint32_t)fontSize;
+
+    setColor(BACK_R, BACK_G, BACK_B);
+    filledRect(fieldLeft - 2, posY - 2, fieldLeft + fieldWidth + 2, posY + fontHeight + 2);
+
+    setColor(FORE_R, FORE_G, FORE_B);
+    setFont(getFontPointer(fontSize));
+    drawText(fieldLeft, posY, text);
+
+    flushBuffer();
+}
+
+
+/*
  * printLineTransparent: prints text to a line without drawing background pixels
  */
 void printLineTransparent(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize)
