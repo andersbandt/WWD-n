@@ -33,7 +33,13 @@
 	power_ctrl {
 		compatible = "gpio-leds";
 		vbat_div_en: vbat_div_en {
-			gpios = <&mcp23008 4 GPIO_ACTIVE_HIGH>;  /* VBAT_DIV_GPIO GP4: enables voltage divider FET */
+			/* VBAT_DIV_GPIO GP4 IS the divider's bottom leg directly — no FET.
+			 * "Asserted" (ACTIVE_LOW here) means the pin is driven low,
+			 * grounding the bottom leg to complete the divider for a sample.
+			 * Idle state must be high-impedance (input), not driven high or
+			 * low, or it either leaks VBAT->GND continuously through both
+			 * legs or injects 3.3V into the divider node — see power.c. */
+			gpios = <&mcp23008 4 GPIO_ACTIVE_LOW>;
 		};
 		boost_sel: boost_sel {
 			gpios = <&mcp23008 6 GPIO_ACTIVE_HIGH>;  /* BOOST_SEL GP6: TPS63900 mode select */
@@ -211,6 +217,13 @@
 		zephyr,reference = "ADC_REF_INTERNAL";
 		zephyr,acquisition-time = <ADC_ACQ_TIME_DEFAULT>;
 		zephyr,input-positive = <NRF_SAADC_AIN2>;  /* P0.04 */
+		/* zephyr,resolution is optional in the binding but defaults to 0 if
+		 * omitted, which adc_sequence_init_dt() passes straight through to
+		 * the SAADC driver — a 0-bit request is rejected with -EINVAL.
+		 * battery_voltage_mv() swallows that error and returns 0, which is
+		 * why the display always showed 0.00V. 12-bit is the SAADC's native
+		 * max resolution on nRF52. */
+		zephyr,resolution = <12>;
 	};
 };
 

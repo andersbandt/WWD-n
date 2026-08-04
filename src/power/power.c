@@ -7,8 +7,15 @@
 //! @date 2026
 //!
 // Hardware:
-//   VBAT_DIV_GPIO  = MCP23008 GP4  — enables 10k/10k voltage divider FET (active HIGH)
-//   AIN2 (P0.04)   = divider output (VBAT / 2)
+//   VBAT_DIV_GPIO  = MCP23008 GP4 — this pin IS the 10k/10k divider's bottom leg
+//                    directly (no FET, despite what earlier comments here said).
+//                    Driven low (DTS ACTIVE_LOW, so gpio "asserted") grounds the
+//                    bottom leg and completes the divider for a sample. Idle state
+//                    must be high-impedance (input, not driven high or low) —
+//                    driving it low continuously leaks VBAT->GND through both legs,
+//                    and driving it high injects 3.3V into the divider node instead
+//                    of grounding it, which was silently doubling every reading.
+//   AIN2 (P0.04)   = divider output (VBAT / 2) when VBAT_DIV_GPIO is grounded
 //   BOOST_SEL      = MCP23008 GP6  — TPS63900 mode select
 //                    (active HIGH = LOWER VCC output voltage, i.e. power-save mode;
 //                    LOW = normal/higher output. Previously documented backwards.)
@@ -51,7 +58,10 @@ void power_init(void)
     if (!gpio_is_ready_dt(&vbat_div_en)) {
         LOG_ERR("VBAT_DIV_EN GPIO not ready");
     } else {
-        gpio_pin_configure_dt(&vbat_div_en, GPIO_OUTPUT_INACTIVE);
+        /* Idle state is high-impedance, not driven — see the file-header
+         * comment. battery_voltage_mv() switches it to an output only for
+         * the duration of a sample. */
+        gpio_pin_configure_dt(&vbat_div_en, GPIO_INPUT);
     }
 
     if (!gpio_is_ready_dt(&boost_sel_gpio)) {
@@ -71,13 +81,17 @@ int battery_voltage_mv(void)
 
     adc_sequence_init_dt(&adc_vbat, &seq);
 
-    /* Enable the divider FET, allow a brief settling time */
-    gpio_pin_set_dt(&vbat_div_en, 1);
+    /* Ground the divider's bottom leg for the sample window only (see the
+     * file-header comment — this pin is the leg itself, not a FET gate).
+     * GPIO_OUTPUT_ACTIVE + the DTS ACTIVE_LOW flag together drive it low. */
+    gpio_pin_configure_dt(&vbat_div_en, GPIO_OUTPUT_ACTIVE);
     k_sleep(K_MSEC(1));
 
     int err = adc_read_dt(&adc_vbat, &seq);
 
-    gpio_pin_set_dt(&vbat_div_en, 0);
+    /* Back to high-impedance immediately — leaving it driven (either
+     * direction) either wastes current or corrupts the next sample. */
+    gpio_pin_configure_dt(&vbat_div_en, GPIO_INPUT);
 
     if (err) {
         LOG_ERR("adc_read failed: %d", err);
@@ -108,8 +122,13 @@ void power_debug_hold_vbat_div(bool on)
     /* Profiling/debug only: battery_voltage_mv() pulses VBAT_DIV_EN for ~1ms
      * per real read, which isn't representative of "what does the divider's
      * own static draw look like held on continuously" — this bypasses the
-     * pulse for that measurement. Not for normal runtime use. */
-    gpio_pin_set_dt(&vbat_div_en, on ? 1 : 0);
+     * pulse for that measurement. Not for normal runtime use.
+     *
+     * Must switch pin *mode* (input/output), not just the driven level —
+     * see the file-header comment. Holding it as a driven output at 0 is
+     * the correct "on" state (grounds the bottom leg); "off" has to release
+     * back to input, not drive high. */
+    gpio_pin_configure_dt(&vbat_div_en, on ? GPIO_OUTPUT_ACTIVE : GPIO_INPUT);
 }
 
 bool battery_charging(void)

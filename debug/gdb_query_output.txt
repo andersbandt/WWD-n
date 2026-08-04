@@ -1,13 +1,15 @@
-__enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
-951	  __ASM volatile ("cpsie i" : : : "memory");
+0x0002f28c in z_spinlock_validate_pre (l=0x20007b4c <lock>) at /home/anders/ncs/v3.1.1/zephyr/include/zephyr/spinlock.h:141
+141	}
 Expected an decimal digit (0-9)
-Breakpoint 1 at 0x199c6: file /home/anders/ncs/v3.1.1/zephyr/arch/arm/core/cortex_m/fault.c, line 1024.
+Breakpoint 1 at 0x496c: file /home/anders/Documents/NCS/WWD-n/src/power/power.c, line 96.
 
-Breakpoint 1, z_arm_fault (msp=536934272, psp=536934296, exc_return=4294967293, callee_regs=0x20007b04 <_kernel+24>) at /home/anders/ncs/v3.1.1/zephyr/arch/arm/core/cortex_m/fault.c:1024
-1024		uint32_t reason = K_ERR_CPU_EXCEPTION;
-$1 = 0x92
-$2 = 0x0
-$3 = 0x2
-$4 = 0x2000f7bc
+Breakpoint 1, battery_voltage_mv () at /home/anders/Documents/NCS/WWD-n/src/power/power.c:96
+96	    if (err) {
+$1 = 0
+$2 = 1857
+102	    int32_t val_mv = raw;
+103	    adc_raw_to_millivolts_dt(&adc_vbat, &val_mv);
+104	    return (int)(val_mv * 2);
+$3 = 1632
 [Inferior 1 (Remote target) detached]
 The program is not being run.
