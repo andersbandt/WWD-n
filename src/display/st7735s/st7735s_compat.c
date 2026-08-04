@@ -71,6 +71,23 @@ void Pin_RES_Inactive(void) {
     gpio_pin_set_dt(&rs_dt, 1);
 }
 
+void ST7735S_hard_reset_pulse(void) {
+    /* Bench-validation only — see header comment. Configure defensively:
+     * this may be called standalone (e.g. live via gdb_query's `call`)
+     * before SPI_Init_ST7735() has ever run. */
+    if (!gpio_is_ready_dt(&rs_dt)) {
+        return;
+    }
+    gpio_pin_configure_dt(&rs_dt, GPIO_OUTPUT_INACTIVE);
+
+    /* Same timing as the "hard reset" step in ST7735S_Init(): assert
+     * (hold the panel in reset), then release. */
+    Pin_RES_Inactive();
+    k_msleep(250);
+    Pin_RES_Active();
+    k_msleep(250);
+}
+
 void Pin_DC_High(void) {
     gpio_pin_set_dt(&dc_dt, 1);
     k_busy_wait(10);
