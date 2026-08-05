@@ -73,10 +73,6 @@ void display_out_bms(int charging, int battery_percent) {
 #define CLOCK_TEMP_X      2       /* bottom-left badge */
 #define CLOCK_STEPS_Y_MARGIN 20  /* from bottom of screen, shared by temp + steps row */
 
-/* Pixel Y equivalent of calculateLineY(CLOCK_TIME_LINE, CLOCK_TIME_FONT) in
- * display.c (10 + 1*(28 + 28*3/10) = 46) — needed here because
- * printFieldRightAligned() takes a raw pixel Y, not a line number. */
-#define CLOCK_TIME_Y       46
 #define CLOCK_TIME_CHAR_W  (CLOCK_TIME_FONT / 2)   /* matches printFieldRightAligned's charWidth approximation */
 #define CLOCK_TIME_FIELD_W (2 * CLOCK_TIME_CHAR_W) /* width of one 2-digit field: HH, MM, or SS */
 /* Right edge of each field in drawText's fixed left-to-right layout starting
@@ -90,7 +86,7 @@ void display_out_bms(int charging, int battery_percent) {
  * full redraw — needed whenever the screen was cleared out from under us
  * (e.g. returning to UI_MODE_CLOCK from the menu), see that function. */
 static bool clock_time_initialized = false;
-static int8_t clock_prev_h = -1, clock_prev_m = -1, clock_prev_s = -1;
+static int32_t clock_prev_h = -1, clock_prev_m = -1, clock_prev_s = -1;
 
 /* Force the next display_out_time() call to do a full "HH:MM:SS" redraw
  * (including the colons) instead of a partial field update. Call this
@@ -111,10 +107,9 @@ void display_out_time(Time time, time_invert_field_t invertField) {
          * more pixels over SPI than necessary — flushBuffer() only sends the
          * dirty bounding box, so this panel visibly "wipes" left-to-right on
          * every full-string redraw. Only touch the 2-digit field(s) that
-         * actually changed; colons are drawn once and never touched again
-         * since they never change. */
-        char field[8];  /* generous headroom for "%02d" of an int8_t; silences -Wformat-overflow */
-
+         * actually changed (via printTwoDigitFieldIfChanged(), shared with
+         * display_out_stopwatch() below); colons are drawn once and never
+         * touched again since they never change. */
         if (!clock_time_initialized) {
             clearAndPrintLine(time_str, CLOCK_TIME_LINE, CLOCK_TIME_X, CLOCK_TIME_FONT);
             clock_time_initialized = true;
@@ -124,21 +119,10 @@ void display_out_time(Time time, time_invert_field_t invertField) {
             return;
         }
 
-        if (time.hours != clock_prev_h) {
-            sprintf(field, "%02d", time.hours);
-            printFieldRightAligned(field, CLOCK_TIME_Y, CLOCK_HH_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
-            clock_prev_h = time.hours;
-        }
-        if (time.minutes != clock_prev_m) {
-            sprintf(field, "%02d", time.minutes);
-            printFieldRightAligned(field, CLOCK_TIME_Y, CLOCK_MM_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
-            clock_prev_m = time.minutes;
-        }
-        if (time.seconds != clock_prev_s) {
-            sprintf(field, "%02d", time.seconds);
-            printFieldRightAligned(field, CLOCK_TIME_Y, CLOCK_SS_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
-            clock_prev_s = time.seconds;
-        }
+        uint32_t posY = calculateLineY(CLOCK_TIME_LINE, CLOCK_TIME_FONT);
+        printTwoDigitFieldIfChanged(time.hours, &clock_prev_h, posY, CLOCK_HH_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
+        printTwoDigitFieldIfChanged(time.minutes, &clock_prev_m, posY, CLOCK_MM_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
+        printTwoDigitFieldIfChanged(time.seconds, &clock_prev_s, posY, CLOCK_SS_RIGHT, CLOCK_TIME_FIELD_W, CLOCK_TIME_FONT);
         return;
     }
 
@@ -234,47 +218,74 @@ void display_out_data_stats(int write_offset, uint32_t meta_seq)
 
 /*
  * display_out_stopwatch: redraws only the field(s) that actually changed
- * since the last call, via clearAndPrintLine, instead of clear_display()
- * + printLine on every tick - the old version blanked and repainted the
- * whole screen once a second (visibly flickered); the first fix still
- * redrew both lines unconditionally every tick even though the
- * RUNNING/PAUSED label only changes on start/pause and mm:ss only changes
- * once a real second ticks over. clearAndPrintLine clears each line's own
- * background first, so a shorter new string (e.g. "PAUSED" replacing
- * "RUNNING") can't leave stale trailing characters the way a plain
- * printLine would.
+ * since the last call, instead of clear_display() + printLine on every tick
+ * - the old version blanked and repainted the whole screen once a second
+ * (visibly flickered); the next fix redrew the whole "MM:SS" string
+ * whenever either digit pair changed (still ~2x the necessary SPI traffic
+ * on every tick, since usually only SS changes). This version reuses
+ * display_out_time()'s printTwoDigitFieldIfChanged() helper to independently
+ * diff MM and SS the same way the clock face diffs HH/MM/SS - only the
+ * 2-digit field that actually changed gets redrawn. The RUNNING/PAUSED
+ * label is unrelated and still uses clearAndPrintLine(), which clears its
+ * own line's background first so a shorter new string (e.g. "PAUSED"
+ * replacing "RUNNING") can't leave stale trailing characters.
  *
  * full_redraw should be true only on first entry to this screen (the
  * caller is responsible for tracking that) - it does one clear_display()
  * and forces both fields to redraw, to wipe away whatever the previous
  * screen left behind and to reset the last-drawn-value tracking below.
  */
+#define STOPWATCH_LABEL_LINE  2
+#define STOPWATCH_LABEL_X     12
+#define STOPWATCH_LABEL_FONT  FONT_LARGE
+
+#define STOPWATCH_TIME_LINE   3
+#define STOPWATCH_TIME_X      12
+#define STOPWATCH_TIME_FONT   FONT_LARGE
+#define STOPWATCH_TIME_CHAR_W (STOPWATCH_TIME_FONT / 2)
+#define STOPWATCH_TIME_FIELD_W (2 * STOPWATCH_TIME_CHAR_W)
+#define STOPWATCH_MM_RIGHT (STOPWATCH_TIME_X + 2*STOPWATCH_TIME_CHAR_W)
+#define STOPWATCH_SS_RIGHT (STOPWATCH_TIME_X + 5*STOPWATCH_TIME_CHAR_W)
+
 void display_out_stopwatch(uint32_t elapsed_ms, bool running, bool full_redraw)
 {
     static bool last_running;
-    static uint32_t last_total_sec = UINT32_MAX;  // force first draw to differ
+    static bool time_initialized = false;
+    static int32_t last_mm = -1, last_ss = -1;  // shared MM/SS diffing state, see printTwoDigitFieldIfChanged()
 
-    char time_str[16];
     uint32_t total_sec = elapsed_ms / 1000;
     uint32_t mm = total_sec / 60;
     uint32_t ss = total_sec % 60;
-    sprintf(time_str, "%02u:%02u", mm, ss);
 
     if (full_redraw) {
         clear_display();
-        last_running = !running;      // force the label to redraw below
-        last_total_sec = UINT32_MAX;  // force the time to redraw below
+        last_running = !running;    // force the label to redraw below
+        time_initialized = false;   // force a full "MM:SS" redraw below
     }
 
     if (running != last_running) {
-        clearAndPrintLine(running ? "RUNNING" : "PAUSED", 2, 12, FONT_LARGE);
+        clearAndPrintLine(running ? "RUNNING" : "PAUSED", STOPWATCH_LABEL_LINE, STOPWATCH_LABEL_X, STOPWATCH_LABEL_FONT);
         last_running = running;
     }
 
-    if (total_sec != last_total_sec) {
-        clearAndPrintLine(time_str, 3, 12, FONT_LARGE);
-        last_total_sec = total_sec;
+    /* First draw of this screen (or after full_redraw): paint the whole
+     * "MM:SS" string once, including the colon, same as display_out_time()'s
+     * clock_time_initialized path — after this, only the field(s) that
+     * actually changed get touched via printTwoDigitFieldIfChanged(), shared
+     * with the clock face above. */
+    if (!time_initialized) {
+        char time_str[16];  /* generous headroom for "%02u:%02u"; silences -Wformat-overflow */
+        sprintf(time_str, "%02u:%02u", mm, ss);
+        clearAndPrintLine(time_str, STOPWATCH_TIME_LINE, STOPWATCH_TIME_X, STOPWATCH_TIME_FONT);
+        time_initialized = true;
+        last_mm = mm;
+        last_ss = ss;
+        return;
     }
+
+    uint32_t posY = calculateLineY(STOPWATCH_TIME_LINE, STOPWATCH_TIME_FONT);
+    printTwoDigitFieldIfChanged(mm, &last_mm, posY, STOPWATCH_MM_RIGHT, STOPWATCH_TIME_FIELD_W, STOPWATCH_TIME_FONT);
+    printTwoDigitFieldIfChanged(ss, &last_ss, posY, STOPWATCH_SS_RIGHT, STOPWATCH_TIME_FIELD_W, STOPWATCH_TIME_FONT);
 }
 
 

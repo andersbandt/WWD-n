@@ -12,6 +12,7 @@
 #define SRC_IC_IMU_IMU_H_
 
 #include <stdint.h>
+#include <stddef.h>
 
 /* My header files  */
 #include <circular_buffer.h>
@@ -108,6 +109,43 @@ void imu_reg_poll();
  * @brief function for just getting temperature data from IMU
  */
 float imu_get_temp();
+
+
+/**
+ * @brief converts a raw IMU temperature register value to Fahrenheit - same
+ * formula imu_get_temp() applies to a fresh reading, exposed so historical
+ * raw values (e.g. from temp_history_get()) convert identically
+ */
+float imu_raw_to_fahrenheit(int16_t raw);
+
+
+/**
+ * @brief appends a raw temperature reading to the in-RAM recent-history ring
+ * used by the temperature graph screen. See imu.c for why this is RAM-only
+ * rather than reconstructed from the flash log.
+ *
+ * @param raw: raw register encoding, same as struct record_temperature.raw
+ */
+void temp_history_push(int16_t raw);
+
+
+/**
+ * @brief copies up to max_count of the most recent temp_history_push()
+ * values into out, oldest first.
+ *
+ * @param[out] out: caller-owned buffer, at least max_count entries
+ * @param max_count: capacity of out
+ * @return number of samples copied (0 if none pushed yet)
+ */
+size_t temp_history_get(int16_t *out, size_t max_count);
+
+
+/**
+ * @brief counter incremented on every temp_history_push(), for cheap
+ * "has anything changed since I last drew" checks by a UI screen that
+ * redraws on a timer.
+ */
+uint32_t temp_history_get_rev(void);
 
 
 /**

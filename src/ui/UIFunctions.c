@@ -17,6 +17,7 @@
 /* Standard C99 stuff */
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <unistd.h>
 
 /* Zephyr files */
@@ -270,6 +271,83 @@ void imutempRead_UI_FUNC() {
 void pedometer_UI_FUNC(void) {
     display_out_measurement("Steps", (int)step_count);
     return;
+}
+
+
+/* Plenty for a 128px-wide plot (each sample gets >1px) - doesn't need to
+ * match TEMP_HISTORY_LEN in imu.c, temp_history_get() just copies up to
+ * however many it's asked for. */
+#define TEMP_GRAPH_SAMPLES 60
+
+/* Left margin reserved for the min/max Fahrenheit labels, so they sit
+ * beside the plot box instead of overlapping the line - see the comment
+ * above drawGraph() in display.h for why the box itself can't be scaled
+ * from data automatically. */
+#define TEMP_GRAPH_LABEL_MARGIN 32
+#define TEMP_GRAPH_LABEL_FONT   FONT_SMALL
+
+void tempGraph_UI_FUNC(void) {
+    static uint32_t last_drawn_rev;
+
+    /* Redraw only when new data has actually landed since the last draw (or
+     * this is the first draw since entering the screen) - a line graph can't
+     * be partially redrawn the way the clock/stopwatch digit fields are, so
+     * the cheapest available optimization is skipping the redraw entirely
+     * when nothing changed, rather than re-plotting the same points on
+     * every ui_refresh() tick. */
+    uint32_t rev = temp_history_get_rev();
+    if (!first_ui_time && rev == last_drawn_rev) {
+        return;
+    }
+    first_ui_time = false;
+    last_drawn_rev = rev;
+
+    int16_t samples[TEMP_GRAPH_SAMPLES];
+    size_t n = temp_history_get(samples, TEMP_GRAPH_SAMPLES);
+
+    if (n < 2) {
+        display_out_measurement("Temp Graph", 0);  // not enough history yet
+        return;
+    }
+
+    int16_t y_min = samples[0];
+    int16_t y_max = samples[0];
+    for (size_t i = 1; i < n; i++) {
+        if (samples[i] < y_min) y_min = samples[i];
+        if (samples[i] > y_max) y_max = samples[i];
+    }
+    if (y_min == y_max) {  // drawGraph requires y_max > y_min
+        y_min--;
+        y_max++;
+    }
+
+    uint32_t box_top = 4;
+    uint32_t box_bottom = HEIGHT - 4;
+    uint32_t plot_left = 4 + TEMP_GRAPH_LABEL_MARGIN;
+
+    /* drawGraph() only clears its own box - it's a generic primitive, not
+     * a full-screen owner (see display.h). This screen previously relied
+     * on that box happening to cover almost the entire panel, which left a
+     * thin unclearable border; once the label margin shrank the box, the
+     * whole left strip (and whatever the previous screen - the menu - left
+     * there) was exposed. Every other full-screen UI function clears itself
+     * on entry (display_out_data_stats, display_out_measurement, etc.) -
+     * this one needs to do the same. */
+    clear_display();
+
+    drawGraph(samples, n, y_min, y_max, plot_left, box_top, WIDTH - 4, box_bottom);
+
+    /* Min/max labels in the reserved left margin - same raw->Fahrenheit
+     * conversion imu_get_temp() uses for the live reading, applied to the
+     * historical extremes instead. Drawn after drawGraph() so they aren't
+     * immediately overwritten by its own background clear. */
+    char label_max[8];
+    char label_min[8];
+    snprintf(label_max, sizeof(label_max), "%dF", (int)imu_raw_to_fahrenheit(y_max));
+    snprintf(label_min, sizeof(label_min), "%dF", (int)imu_raw_to_fahrenheit(y_min));
+
+    printFieldLeftAligned(label_max, box_top, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
+    printFieldLeftAligned(label_min, box_bottom - TEMP_GRAPH_LABEL_FONT, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
 }
 
 

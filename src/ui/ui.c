@@ -282,6 +282,10 @@ void ui_refresh() {
             pedometer_UI_FUNC();
             break;
 
+        case UI_MODE_TEMP_GRAPH:
+            tempGraph_UI_FUNC();
+            break;
+
         case UI_MODE_DATA_STATS:
             data_stats_UI_FUNC();
             break;

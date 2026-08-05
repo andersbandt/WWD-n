@@ -74,6 +74,28 @@ static inv_imu_sensor_event_t latest_imu_event;
 static bool latest_imu_event_valid = false;
 K_MUTEX_DEFINE(latest_imu_event_mutex);
 
+/* In-RAM recent-history ring for the temperature graph screen. Pushed
+ * alongside nvs_log_record(RECORD_TEMPERATURE, ...) (see nvs_pipeline_tick()
+ * in nvs_bringup.c) instead of read back from the flash log itself - the
+ * flash log has no index, so reconstructing "last N temperature samples"
+ * from it means scanning forward from offset 0 through every interleaved
+ * record (mostly RECORD_IMU_FIFO, which vastly outnumbers RECORD_TEMPERATURE
+ * at the default 100 Hz IMU / 10 s temp rates) - hundreds of NAND page reads
+ * for even a modest sample count. This ring sidesteps that entirely: it's
+ * live-only (reset on reboot, capped at TEMP_HISTORY_LEN samples), which is
+ * what the graph screen actually wants. Guarded by its own mutex since
+ * temp_history_push() runs on ui_refresh_thread outside display_draw_mutex's
+ * scope (see handle_ui_input()/ui_refresh() in ui.c), while
+ * temp_history_get() will run from whichever thread draws the graph. */
+#define TEMP_HISTORY_LEN 60
+static int16_t temp_history_buf[TEMP_HISTORY_LEN];
+static size_t temp_history_head = 0;   /* next write index */
+static size_t temp_history_count = 0;  /* valid entries so far, caps at TEMP_HISTORY_LEN */
+static uint32_t temp_history_rev = 0;  /* bumped on every push - lets a redraw-on-change
+                                         * UI screen skip re-plotting when nothing's new,
+                                         * without an O(n) compare against the last draw */
+K_MUTEX_DEFINE(temp_history_mutex);
+
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -305,13 +327,83 @@ float imu_get_temp() {
         int16_t imu_temp = 100;
     #endif
 
-    /* Was truncating to int16_t twice (once via integer /128, once via the
-     * int16_t return) — threw away all decimal precision. Float division
-     * throughout keeps it. */
-    float temp_celsius = ((float)imu_temp / 128.0f) + 25.0f;
-    float imu_f = temp_celsius * 1.8f + 32.0f;
+    return imu_raw_to_fahrenheit(imu_temp);
+}
 
-    return imu_f;
+
+/*
+ * imu_raw_to_fahrenheit: shared raw-register-to-Fahrenheit conversion.
+ * Factored out of imu_get_temp() so the temperature graph screen (which
+ * converts historical raw values out of temp_history_get(), not a fresh
+ * register read) uses the exact same formula instead of a second copy of it.
+ *
+ * Was truncating to int16_t twice (once via integer /128, once via the
+ * int16_t return) — threw away all decimal precision. Float division
+ * throughout keeps it.
+ */
+float imu_raw_to_fahrenheit(int16_t raw) {
+    float temp_celsius = ((float)raw / 128.0f) + 25.0f;
+    return temp_celsius * 1.8f + 32.0f;
+}
+
+
+/*
+ * temp_history_push: appends a raw temperature reading (same encoding as
+ * struct record_temperature.raw - (raw/128)+25 = degrees C) to the recent-
+ * history ring, overwriting the oldest entry once full. See the comment on
+ * temp_history_buf above for why this is RAM-only rather than flash-backed.
+ */
+void temp_history_push(int16_t raw)
+{
+    k_mutex_lock(&temp_history_mutex, K_FOREVER);
+
+    temp_history_buf[temp_history_head] = raw;
+    temp_history_head = (temp_history_head + 1) % TEMP_HISTORY_LEN;
+    if (temp_history_count < TEMP_HISTORY_LEN) {
+        temp_history_count++;
+    }
+    temp_history_rev++;
+
+    k_mutex_unlock(&temp_history_mutex);
+}
+
+
+/*
+ * temp_history_get_rev: returns a counter that increments every
+ * temp_history_push(). Lets a caller that redraws on a timer (e.g. the
+ * graph screen, redrawn every ui_refresh() tick) cheaply detect "nothing
+ * new since I last drew" and skip the redraw, instead of re-plotting
+ * unchanged data every tick or doing an O(n) compare against the last draw.
+ */
+uint32_t temp_history_get_rev(void)
+{
+    k_mutex_lock(&temp_history_mutex, K_FOREVER);
+    uint32_t rev = temp_history_rev;
+    k_mutex_unlock(&temp_history_mutex);
+    return rev;
+}
+
+
+/*
+ * temp_history_get: copies up to max_count of the most recent
+ * temp_history_push() values into out, oldest first (so the caller can feed
+ * it straight into drawGraph() left-to-right), and returns how many were
+ * copied. Returns 0 (out untouched) if no samples have been pushed yet.
+ */
+size_t temp_history_get(int16_t *out, size_t max_count)
+{
+    k_mutex_lock(&temp_history_mutex, K_FOREVER);
+
+    size_t n = (temp_history_count < max_count) ? temp_history_count : max_count;
+    size_t oldest = (temp_history_head + TEMP_HISTORY_LEN - temp_history_count) % TEMP_HISTORY_LEN;
+    size_t start = (oldest + (temp_history_count - n)) % TEMP_HISTORY_LEN;
+
+    for (size_t i = 0; i < n; i++) {
+        out[i] = temp_history_buf[(start + i) % TEMP_HISTORY_LEN];
+    }
+
+    k_mutex_unlock(&temp_history_mutex);
+    return n;
 }
 
 

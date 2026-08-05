@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
@@ -89,7 +90,7 @@ static const uint8_t* getFontPointer(font_size_t fontSize)
 /*
  * calculateLineY: calculates Y position for a line based on font size
  */
-static uint32_t calculateLineY(uint32_t lineNum, font_size_t fontSize)
+uint32_t calculateLineY(uint32_t lineNum, font_size_t fontSize)
 {
     if (lineNum == 0) {
         return 2;  // special case for line 0 - always at top
@@ -231,6 +232,33 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
 
 
 /*
+ * printTwoDigitFieldIfChanged: redraws a right-aligned "%02u" field via
+ * printFieldRightAligned() only when value differs from *last_value, and
+ * updates *last_value to match. Pass -1 as the initial *last_value to force
+ * the first call to draw.
+ *
+ * Factored out of display_out_time()'s HH/MM/SS partial-redraw so the
+ * wall-clock face and the stopwatch's MM:SS can share one diffing
+ * implementation instead of each hand-rolling the same "if changed, redraw
+ * just this field" logic.
+ */
+void printTwoDigitFieldIfChanged(uint32_t value, int32_t *last_value,
+                                  const uint32_t posY, const uint32_t fieldRight,
+                                  const uint32_t fieldWidth, font_size_t fontSize)
+{
+    if ((int32_t)value == *last_value) {
+        return;
+    }
+
+    char field[12];  /* "%02u" of a uint32_t - documented for 0-99 fields but sized
+                       * for the full range defensively, since this is a public helper */
+    sprintf(field, "%02u", value);
+    printFieldRightAligned(field, posY, fieldRight, fieldWidth, fontSize);
+    *last_value = (int32_t)value;
+}
+
+
+/*
  * printFieldLeftAligned: left-aligns text within a FIXED-size box (posY, fieldLeft,
  * fieldWidth all caller-chosen and constant across calls) and always clears that whole
  * box before drawing. Mirror of printFieldRightAligned() — see display.h.
@@ -250,6 +278,61 @@ void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_
     setColor(FORE_R, FORE_G, FORE_B);
     setFont(getFontPointer(fontSize));
     drawText(fieldLeft, posY, text);
+
+    flushBuffer();
+}
+
+
+/*
+ * drawGraph: primitive line graph over a fixed pixel box - connects num_data
+ * int16_t samples as a polyline scaled into [y_min, y_max], clamping any
+ * out-of-range sample to that range so one spike can't blow out the whole
+ * scale. Draws its own background + border, then flushes once at the end
+ * (not once per segment), so an N-sample graph costs one SPI transfer
+ * regardless of N.
+ *
+ * Deliberately reuses drawLine()/filledRect()/drawRect() from gfx.c rather
+ * than adding new drawing primitives - drawLine is already linked into the
+ * image via filledRect() (used throughout the existing UI: clearAndPrintLine,
+ * printFieldRightAligned, etc.), so this function's marginal flash cost is
+ * just its own scaling/loop logic, not a new copy of line-drawing code.
+ *
+ * @param data: sample array, left to right
+ * @param num_data: sample count, must be >= 2
+ * @param y_min, y_max: fixed value range to scale against (not auto-ranged
+ *        from the data - caller decides the scale, e.g. a known sensor range)
+ * @param left, top, right, bottom: pixel box to draw into, border included
+ */
+void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
+               uint16_t left, uint16_t top, uint16_t right, uint16_t bottom)
+{
+    if (data == NULL || num_data < 2 || y_max <= y_min || right <= left || bottom <= top) {
+        return;
+    }
+
+    uint16_t plot_w = right - left;
+    uint16_t plot_h = bottom - top;
+    int32_t y_range = (int32_t)y_max - (int32_t)y_min;
+
+    setColor(BACK_R, BACK_G, BACK_B);
+    filledRect(left, top, right, bottom);
+
+    setColor(FORE_R, FORE_G, FORE_B);
+    drawRect(left, top, right, bottom);
+
+    for (size_t i = 0; i + 1 < num_data; i++) {
+        int16_t v0 = data[i];
+        int16_t v1 = data[i + 1];
+        v0 = (v0 < y_min) ? y_min : (v0 > y_max) ? y_max : v0;
+        v1 = (v1 < y_min) ? y_min : (v1 > y_max) ? y_max : v1;
+
+        uint16_t x0 = left + (uint32_t)i       * plot_w / (num_data - 1);
+        uint16_t x1 = left + (uint32_t)(i + 1) * plot_w / (num_data - 1);
+        uint16_t y0 = bottom - (uint32_t)(v0 - y_min) * plot_h / y_range;
+        uint16_t y1 = bottom - (uint32_t)(v1 - y_min) * plot_h / y_range;
+
+        drawLine(x0, y0, x1, y1);
+    }
 
     flushBuffer();
 }

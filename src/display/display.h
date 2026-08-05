@@ -14,6 +14,7 @@
 
 /* standard C file */
 #include <stdint.h>
+#include <stddef.h>
 
 
 extern int display_status;
@@ -102,6 +103,39 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
 
 
 /**
+ * @brief Y position for a given line/font, as used internally by printLine() etc.
+ *
+ * Exposed so callers computing their own fixed-box field geometry (see
+ * printTwoDigitFieldIfChanged()) don't have to hand-duplicate this math.
+ *
+ * @param lineNum: line number (0-4)
+ * @param fontSize: font size to use
+ */
+uint32_t calculateLineY(uint32_t lineNum, font_size_t fontSize);
+
+
+/**
+ * @brief Redraws a right-aligned "%02u" field only if it changed since last_value
+ *
+ * Thin wrapper around printFieldRightAligned() that skips the redraw (and the SPI
+ * traffic it costs) when the value hasn't changed. Shared by the wall-clock
+ * HH:MM:SS display and the stopwatch MM:SS display so both fields update at
+ * the same granularity instead of redrawing whole multi-digit strings for a
+ * single digit's change.
+ *
+ * @param value: field value to display (0-99 for a %02u field)
+ * @param last_value: caller-owned last-drawn value; pass -1 initially to force the first draw
+ * @param posY: pixel Y position (top of the text)
+ * @param fieldRight: pixel X of the box's right edge
+ * @param fieldWidth: box width in pixels
+ * @param fontSize: font size to use
+ */
+void printTwoDigitFieldIfChanged(uint32_t value, int32_t *last_value,
+                                  const uint32_t posY, const uint32_t fieldRight,
+                                  const uint32_t fieldWidth, font_size_t fontSize);
+
+
+/**
  * @brief Left-aligns text within a fixed-size box, always clearing the whole box first
  *
  * Mirror of printFieldRightAligned() for corner badges anchored on the left edge —
@@ -118,6 +152,26 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
  */
 void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_t fieldLeft,
                             const uint32_t fieldWidth, font_size_t fontSize);
+
+
+/**
+ * @brief Draws a primitive line graph over a fixed pixel box
+ *
+ * Connects num_data samples as a polyline scaled into [y_min, y_max] (values
+ * outside that range are clamped, not auto-ranged), with its own background
+ * and border. Flushes once at the end regardless of sample count.
+ *
+ * @param data: sample array, left to right
+ * @param num_data: sample count, must be >= 2 (no-op otherwise)
+ * @param y_min: value mapped to the bottom of the box
+ * @param y_max: value mapped to the top of the box
+ * @param left: pixel X of the box's left edge
+ * @param top: pixel Y of the box's top edge
+ * @param right: pixel X of the box's right edge
+ * @param bottom: pixel Y of the box's bottom edge
+ */
+void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
+               uint16_t left, uint16_t top, uint16_t right, uint16_t bottom);
 
 
 /**

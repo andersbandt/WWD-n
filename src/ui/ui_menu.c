@@ -63,11 +63,12 @@ char sub_menu_0[SUB_MENU_0_LENGTH][SUB_MENU_CHAR_LENGTH] = {
 
 
 // menu 1 sub-menu options: IMU
-#define SUB_MENU_1_LENGTH     4
+#define SUB_MENU_1_LENGTH     5
 char sub_menu_1[SUB_MENU_1_LENGTH][SUB_MENU_CHAR_LENGTH] = {
     "Display readings",
     "Temperature",
     "Pedometer",
+    "Temp Graph",
     "Return"
                      };
 
@@ -109,6 +110,7 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
         UI_MODE_IMU_READ,           // Display readings
         UI_MODE_IMU_TEMP,           // Temperature
         UI_MODE_IMU_PEDOMETER,      // Pedometer
+        UI_MODE_TEMP_GRAPH,         // Temp Graph
         UI_MODE_MENU                // Return
     },
 

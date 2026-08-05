@@ -253,8 +253,10 @@ void nvs_pipeline_tick(void)
 
     seconds++;
     if (seconds % rate_config_get_temp_interval_sec() == 0) {
-        struct record_temperature t = { .raw = getTempDataFromIMUReg() };
+        int16_t raw = getTempDataFromIMUReg();
+        struct record_temperature t = { .raw = raw };
         nvs_log_record(RECORD_TEMPERATURE, &t, sizeof(t), get_dt_ticks());
+        temp_history_push(raw);  /* RAM copy for the graph screen, see imu.c */
     }
     if (seconds % ANCHOR_INTERVAL_SEC == 0) {
         nvs_log_boot_anchor();

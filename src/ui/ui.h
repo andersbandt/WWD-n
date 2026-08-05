@@ -37,6 +37,7 @@ typedef enum {
     UI_MODE_IMU_READ,                   // IMU accelerometer reading display
     UI_MODE_IMU_TEMP,                   // IMU temperature display
     UI_MODE_IMU_PEDOMETER,               // Step count display
+    UI_MODE_TEMP_GRAPH,                  // Temperature history graph
 
     // Data modes (Menu 2)
     UI_MODE_DATA_STATS,                 // NVS log stats (write offset, meta seq)

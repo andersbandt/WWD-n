@@ -64,6 +64,13 @@ void imutempRead_UI_FUNC(void);
 void pedometer_UI_FUNC(void);
 
 
+/**
+ * @brief UI function to plot the in-RAM recent temperature history (see
+ * temp_history_push()/temp_history_get() in imu.c) as a line graph
+ */
+void tempGraph_UI_FUNC(void);
+
+
 /////////////////////////////////////////////////////
 ////////// MENU 2 - DATA ////////////////////////////
 /////////////////////////////////////////////////////
