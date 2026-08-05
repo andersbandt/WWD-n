@@ -55,11 +55,22 @@
 		button1: button1 {
 			gpios = <&mcp23008 1 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;  /* BUTTON1 GP1 */
 		};
+		/* BUTTON2/BUTTON3 were swapped here vs. the physical board: empirically
+		 * verified 2026-08-04 by pressing each labeled SW1-4 one at a time and
+		 * reading back button_poll()'s live bitmask over UART - physical SW2
+		 * lands on GP3 and physical SW3 lands on GP2, not GP2/GP3 respectively
+		 * as originally assumed (see project_button_press_reset_rootcause.md /
+		 * button-combo investigation). This is why the SW3+SW4 "return home"
+		 * combo (ui.c) never fired - pressing physical SW3+SW4 produced
+		 * BUTTON_2_MASK|BUTTON_4_MASK, not the BUTTON_3_MASK|BUTTON_4_MASK the
+		 * code checks for. Swapping the pin numbers here (not the code) keeps
+		 * BUTTON_2_MASK/BUTTON_3_MASK meaning what their name and every
+		 * comment elsewhere in the codebase already assumes they mean. */
 		button2: button2 {
-			gpios = <&mcp23008 2 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;  /* BUTTON2 GP2 */
+			gpios = <&mcp23008 3 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;  /* BUTTON2 GP3 - physical SW2, see comment above */
 		};
 		button3: button3 {
-			gpios = <&mcp23008 3 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;  /* BUTTON3 GP3 */
+			gpios = <&mcp23008 2 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;  /* BUTTON3 GP2 - physical SW3, see comment above */
 		};
 		button4: button4 {
 			gpios = <&mcp23008 0 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;  /* BUTTON4 GP0 */
