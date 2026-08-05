@@ -337,16 +337,24 @@ void tempGraph_UI_FUNC(void) {
 
     drawGraph(samples, n, y_min, y_max, plot_left, box_top, WIDTH - 4, box_bottom);
 
-    /* Min/max labels in the reserved left margin - same raw->Fahrenheit
+    /* Min/max/mid labels in the reserved left margin - same raw->Fahrenheit
      * conversion imu_get_temp() uses for the live reading, applied to the
-     * historical extremes instead. Drawn after drawGraph() so they aren't
+     * historical extremes (and their midpoint) instead. One decimal place -
+     * a bare integer was throwing away resolution the graph's own vertical
+     * scale doesn't have to lose. Drawn after drawGraph() so they aren't
      * immediately overwritten by its own background clear. */
-    char label_max[8];
-    char label_min[8];
-    snprintf(label_max, sizeof(label_max), "%dF", (int)imu_raw_to_fahrenheit(y_max));
-    snprintf(label_min, sizeof(label_min), "%dF", (int)imu_raw_to_fahrenheit(y_min));
+    char label_max[10];
+    char label_mid[10];
+    char label_min[10];
+    int16_t y_mid = y_min + (y_max - y_min) / 2;
+    snprintf(label_max, sizeof(label_max), "%.1fF", (double)imu_raw_to_fahrenheit(y_max));
+    snprintf(label_mid, sizeof(label_mid), "%.1fF", (double)imu_raw_to_fahrenheit(y_mid));
+    snprintf(label_min, sizeof(label_min), "%.1fF", (double)imu_raw_to_fahrenheit(y_min));
+
+    uint32_t box_mid_y = box_top + (box_bottom - box_top) / 2 - TEMP_GRAPH_LABEL_FONT / 2;
 
     printFieldLeftAligned(label_max, box_top, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
+    printFieldLeftAligned(label_mid, box_mid_y, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
     printFieldLeftAligned(label_min, box_bottom - TEMP_GRAPH_LABEL_FONT, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
 }
 
