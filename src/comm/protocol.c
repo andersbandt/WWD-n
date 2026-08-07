@@ -23,6 +23,7 @@
 #include "rate_config.h"
 #include <nvs.h>
 #include "main.h"
+#include <ui.h>
 
 LOG_MODULE_REGISTER(protocol, CONFIG_LOG_DEFAULT_LEVEL);
 
@@ -188,6 +189,14 @@ static void handle_dump_start(void)
     // the mutex-held-while-suspended deadlock that risks.
     app_pause_background_threads();
 
+    // On-device feedback for the duration of the dump — otherwise the screen
+    // just freezes on whatever it last showed with no indication anything is
+    // happening (a large log can take a while over CDC ACM). Safe to draw
+    // here: background threads are parked, so this thread has exclusive
+    // access to display_draw_mutex/SPI1. See ui_show_dump_in_progress()'s
+    // doc comment for the restore caveat.
+    ui_show_dump_in_progress(true);
+
     // Include whatever is still sitting in the in-memory page buffer so the
     // dump isn't missing the tail of the log (see nvs_notes.md).
     nvs_flush_buffer();
@@ -223,6 +232,7 @@ static void handle_dump_start(void)
         if (rc < 0) {
             LOG_ERR("protocol: nvs_read failed at addr %u: %d", addr, rc);
             send_err(CMD_DUMP_START, ERR_NVS_READ_FAIL);
+            ui_show_dump_in_progress(false);
             app_resume_background_threads();
             return;
         }
@@ -247,6 +257,7 @@ static void handle_dump_start(void)
     memcpy(done_payload + 4, &crc_be, 4);
     send_frame(CMD_DUMP_DONE, done_payload, sizeof(done_payload));
 
+    ui_show_dump_in_progress(false);
     app_resume_background_threads();
 
     LOG_INF("protocol: dump complete, %u bytes, crc32=0x%08x", total, dump_crc);

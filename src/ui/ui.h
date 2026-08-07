@@ -102,6 +102,17 @@ void ui_fault(int code);
 
 
 /**
+ * @brief Shows/hides the "FLASH DUMP IN PROGRESS" overlay used during CMD_DUMP_START
+ *
+ * Must only be called while background threads are parked — see the doc
+ * comment in ui.c for the full contract.
+ *
+ * @param active true to show the message, false to restore the prior screen
+ */
+void ui_show_dump_in_progress(bool active);
+
+
+/**
  * @brief Mark clock data fields as dirty (needing update)
  * @param flags Bitmask of UI_CLOCK_DIRTY_* flags
  */

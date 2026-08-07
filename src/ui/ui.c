@@ -415,6 +415,62 @@ void ui_fault(int code) {
 }
 
 
+/* Remembers whatever was on screen before ui_show_dump_in_progress(true) so
+ * the false call has something to restore beyond just "the clock face" —
+ * see the caveat below. */
+static ui_mode_t dump_prev_mode = UI_MODE_CLOCK;
+
+/**
+ * ui_show_dump_in_progress: overlay/restore the "FLASH DUMP IN PROGRESS"
+ * message used by the USB host command protocol (protocol.c) during a
+ * CMD_DUMP_START. A full NVS log dump runs silently for however long
+ * app_pause_background_threads() has ui_refresh_thread/button_handler_thread
+ * parked (large log ~= a while over CDC ACM), so without this the screen
+ * just freezes on whatever it last showed with no indication a dump is
+ * happening.
+ *
+ * Caller contract: only call this between app_pause_background_threads()
+ * and app_resume_background_threads() (main.c) — with those threads parked,
+ * this function (running on the protocol thread) has exclusive access to
+ * display_draw_mutex/SPI1, same as the rest of handle_dump_start().
+ *
+ * Caveat: restoring (active=false) only fully repaints UI_MODE_CLOCK — the
+ * common resting state. Other modes (menu navigation, a running stopwatch,
+ * IMU screens) are best-effort via ui_refresh(): their _UI_FUNC()s use
+ * static last-drawn-value/dirty-flag state that doesn't know the screen was
+ * just wiped out from under it, so some fields may not repaint until they
+ * next change. A dump landing mid-navigation is an edge case; revisit if it
+ * turns out to matter in practice.
+ *
+ * @param active true to show the message, false to restore the prior screen
+ */
+void ui_show_dump_in_progress(bool active)
+{
+    if (active) {
+        dump_prev_mode = ui_mode;
+
+        k_mutex_lock(&display_draw_mutex, K_FOREVER);
+        clear_display();
+        printLine("FLASH DUMP", 1, 10, FONT_MEDIUM);
+        printLine("IN PROGRESS", 2, 10, FONT_MEDIUM);
+        k_mutex_unlock(&display_draw_mutex);
+        return;
+    }
+
+    k_mutex_lock(&display_draw_mutex, K_FOREVER);
+    clear_display();
+    if (dump_prev_mode == UI_MODE_CLOCK) {
+        draw_clock_title();
+        display_clock_time_reset();  /* screen was just cleared — full redraw next time */
+        ui_clock_mark_dirty(UI_CLOCK_DIRTY_ALL);
+    }
+    k_mutex_unlock(&display_draw_mutex);
+
+    ui_refresh();  /* redraw whatever ui_mode is right now, immediately rather
+                     * than waiting up to 1s for the next ui_refresh_thread tick */
+}
+
+
 
 
 
