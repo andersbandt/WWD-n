@@ -21,6 +21,7 @@ static const struct device *const rtc_dev =
 #define RV3028_REG_SECONDS 0x00
 #define RV3028_REG_CLKOUT  0x35
 #define RV3028_REG_ID      0x28
+#define RV3028_REG_BACKUP  0x37
 
 /* Block until the RV-3028 is genuinely ready to be bound, or the timeout
  * expires. Two conditions, in order: the part ACKs its address at all, and its
@@ -100,6 +101,27 @@ void i2c_bus_scan(void)
     if (found == 0) {
         cdc_write("  no device ACKed (0x52 expected)\r\n");
     }
+
+    /* When nothing ACKs, the next question is always "dead bus or dead device?"
+     * and guessing wrong sends someone to the soldering iron for nothing. Read
+     * the idle line levels: I2C is open-drain with external pull-ups, so both
+     * lines must sit HIGH when the bus is idle. A line stuck LOW is an
+     * electrical fault (short, or a device clock-stretching/holding SDA);
+     * both HIGH means the wiring and pull-ups are fine and the device itself
+     * is simply not answering — solder, power, or a dead part.
+     * SCL = P0.30, SDA = P1.09 (i2c0_default in nrf52833_ders-pinctrl.dtsi). */
+    {
+        uint32_t p0_in = *(volatile uint32_t *)0x50000510;
+        uint32_t p1_in = *(volatile uint32_t *)0x50000810;
+        int scl = (p0_in >> 30) & 1;
+        int sda = (p1_in >>  9) & 1;
+
+        cdc_printf("  idle lines: SCL(P0.30)=%d SDA(P1.09)=%d -> %s\r\n",
+                   scl, sda,
+                   (scl && sda)
+                       ? "bus OK (pull-ups fine) — device is silent, not the bus"
+                       : "BUS FAULT — a line is held LOW, check shorts/stuck device");
+    }
 }
 
 void rv3028_probe(void)
@@ -146,6 +168,28 @@ void rv3028_probe(void)
                        clkout, (clkout & 0x80) ? 1 : 0, clkout & 0x07);
         } else {
             cdc_write("CLKOUT reg 0x35 read FAILED\r\n");
+        }
+    }
+
+    /* BACKUP (EEPROM-backed): bits 3:2 = BSM. 3 = LEVEL (LSM), 1 = DIRECT (DSM),
+     * 0 = disabled. VBACKUP is wired to VBAT here, which sits above the 3.3 V
+     * VDD for most of the battery range — under DSM that parks the part in
+     * backup mode, where it powers down I2C and never ACKs. LEVEL is the only
+     * correct setting on this board, so print it: the DTS property alone does
+     * nothing, the driver has to have landed the write over I2C. */
+    {
+        uint8_t backup;
+
+        if (i2c_reg_read_byte(i2c_dev, 0x52, RV3028_REG_BACKUP, &backup) == 0) {
+            uint8_t bsm = (backup >> 2) & 0x03;
+
+            cdc_printf("BACKUP reg 0x37 = 0x%02x (BSM=%d, %s)\r\n",
+                       backup, bsm,
+                       bsm == 3 ? "LEVEL/LSM — correct for VBACKUP=VBAT" :
+                       bsm == 1 ? "DIRECT/DSM — WRONG, I2C will die on battery" :
+                                  "disabled");
+        } else {
+            cdc_write("BACKUP reg 0x37 read FAILED\r\n");
         }
     }
 

@@ -133,6 +133,58 @@ static void nand_id_probe(void)
                (rx[2] == 0x2c && rx[3] == 0x24)
                    ? "=> SPI1 bus + MISO path GOOD, fault is IMU-local"
                    : "=> NAND silent too, suspect the shared bus");
+
+    /* SN1 returns 2c 25 rather than the expected 2c 24 — one bit apart, so the
+     * single-shot read above cannot tell a genuinely different part from a
+     * flaky MISO bit. Repeat it: a stable value across many reads means the
+     * silicon really is reporting 0x25 (a different device/variant, fix is to
+     * widen the accepted ID); any variation means a signal-integrity problem
+     * on the shared SPI1 bus (fix is electrical). Purely read-only. */
+    {
+        uint8_t  vals[8]  = { 0 };
+        uint16_t cnts[8]  = { 0 };
+        int      distinct = 0;
+        int      errs     = 0;
+        const int iters   = 64;
+
+        for (int i = 0; i < iters; i++) {
+            uint8_t t[4] = { 0x9F, 0x00, 0x00, 0x00 };
+            uint8_t r[4] = { 0, 0, 0, 0 };
+            struct spi_buf tb = { .buf = t, .len = sizeof(t) };
+            struct spi_buf rb = { .buf = r, .len = sizeof(r) };
+            struct spi_buf_set ts = { .buffers = &tb, .count = 1 };
+            struct spi_buf_set rs = { .buffers = &rb, .count = 1 };
+
+            if (spi_transceive_dt(&nand_spi, &ts, &rs) != 0) {
+                errs++;
+                continue;
+            }
+
+            for (int j = 0; j <= distinct; j++) {
+                if (j == distinct) {
+                    if (distinct < (int)ARRAY_SIZE(vals)) {
+                        vals[distinct] = r[3];
+                        cnts[distinct] = 1;
+                        distinct++;
+                    }
+                    break;
+                }
+                if (vals[j] == r[3]) {
+                    cnts[j]++;
+                    break;
+                }
+            }
+        }
+
+        cdc_printf("  [id stability] %d reads, %d spi errors, %d distinct "
+                   "device-id value(s):\r\n", iters, errs, distinct);
+        for (int j = 0; j < distinct; j++) {
+            cdc_printf("      0x%02x x%d\r\n", vals[j], cnts[j]);
+        }
+        cdc_write(distinct == 1
+                      ? "      => STABLE: silicon really reports this id\r\n"
+                      : "      => UNSTABLE: SPI1 signal integrity problem\r\n");
+    }
 }
 
 /* SPIM1 register dump. Read from firmware rather than GDB: gdb_query resets the

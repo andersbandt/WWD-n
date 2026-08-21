@@ -155,6 +155,45 @@ static int spi_nand_check_id(void)
   if (memcmp(expected, read_id, ARRAY_SIZE(read_id)) != 0) {
     LOG_ERR("Wrong ID: %02X %02X , expected: %02X %02X",
         read_id[0], read_id[1], expected[0], expected[1]);
+
+    /* A bare hex mismatch is not actionable during board bring-up — the same
+     * message covers "no chip at all", "bus is broken" and "somebody fitted
+     * the wrong part". Name the silicon instead. IDs per the Micron SPI NAND
+     * table in the Linux MTD driver (drivers/mtd/nand/spi/micron.c); note the
+     * low bit distinguishes supply voltage, so a 3.3 V part and its 1.8 V twin
+     * are one bit apart and trivially confused on a BOM. */
+    if (read_id[0] == MANUFACTURER_ID) {
+      const char *part = NULL;
+      bool low_voltage = false;
+
+      switch (read_id[1]) {
+      case 0x14: part = "MT29F1G01ABAFD 1Gb";                        break;
+      case 0x15: part = "MT29F1G01ABAFD 1Gb"; low_voltage = true;    break;
+      case 0x24: part = "MT29F2G01ABAGD 2Gb";                        break;
+      case 0x25: part = "MT29F2G01ABBGD 2Gb"; low_voltage = true;    break;
+      case 0x34: part = "MT29F4G01ABAFD 4Gb";                        break;
+      case 0x35: part = "MT29F4G01ABBFD 4Gb"; low_voltage = true;    break;
+      case 0x36: part = "MT29F4G01ADAGD 4Gb";                        break;
+      case 0x46: part = "MT29F8G01ADAFD 8Gb";                        break;
+      case 0x47: part = "MT29F8G01ADBFD 8Gb"; low_voltage = true;    break;
+      default:   break;
+      }
+
+      if (part != NULL) {
+        LOG_ERR("  chip is Micron %s (%s part)", part,
+                low_voltage ? "1.8 V" : "3.3 V");
+        if (low_voltage) {
+          LOG_ERR("  *** WRONG PART: this board runs the NAND at 3.3 V. ***");
+          LOG_ERR("  *** Fit MT29F2G01ABAGD (id 0x24). Do NOT widen this  ***");
+          LOG_ERR("  *** check -- 3.3 V exceeds this part's max VCC.      ***");
+        }
+      } else {
+        LOG_ERR("  unrecognised Micron device id -- check the part marking");
+      }
+    } else {
+      LOG_ERR("  manufacturer byte is not Micron (0x%02X) -- bus fault or no chip",
+              read_id[0]);
+    }
     return -ENODEV;
   }
   return ret;

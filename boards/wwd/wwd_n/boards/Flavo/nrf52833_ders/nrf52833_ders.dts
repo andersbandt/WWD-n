@@ -197,7 +197,22 @@
 	rv3028: rv3028@52 {
 		compatible = "microcrystal,rv3028";
 		reg = <0x52>;
-		backup-switch-mode = "direct";            /* coin cell on VBACKUP */
+		/* VBACKUP is wired directly to VBAT (2.8-4.5 V), NOT a coin cell as
+		 * originally assumed. Against the regulated 3.3 V VDD that means
+		 * VBACKUP > VDD for most of the battery's range.
+		 *
+		 * DSM ("direct") switches to VBACKUP the moment VDD < VBACKUP, so the
+		 * part sat in backup mode permanently on a charged battery — and in
+		 * backup mode it powers down I2C, so it never ACKed at 0x52.
+		 * rtc_wait_ready() then timed out, device_init() failed, rv3028_init()
+		 * nulled its handle, and rv3028_get_time() returned {0,0,0} forever:
+		 * the display froze at 00:00:00 / THU 01-01-2026.
+		 *
+		 * LSM ("level") only switches when VDD itself collapses below
+		 * VTH:LSM (2.0 V), which is the actual intent here — keep time off
+		 * VBAT when the 3.3 V rail is down, stay on VDD (and answer I2C)
+		 * whenever it is up. */
+		backup-switch-mode = "level";
 		int-gpios = <&gpio0 5 GPIO_ACTIVE_LOW>;   /* RTC_INT P0.05 */
 		/* RTC_CLKOUT is wired to XL1 (P0.00) — no crystal is populated on
 		 * this board, so this is the intended LF clock source. The driver

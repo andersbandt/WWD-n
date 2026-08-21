@@ -5,6 +5,94 @@ bring-up session.
 
 ---
 
+## [HARDWARE DEFECT 2026-08-21] SN1 has the WRONG NAND part — 1.8 V variant on a 3.3 V board
+
+**SN1 cannot be used for NVS logging until the chip is replaced.** This is a
+procurement/assembly defect, not a firmware bug, and it must not be "fixed" in software.
+
+`mt29f_init()` fails on SN1 with `Wrong ID: 2C 25, expected: 2C 24` → `Check ID Failed` →
+`NVS unavailable`.
+
+**The ID is real, not a bus glitch.** `0x24` and `0x25` are one bit apart, so a flaky MISO
+bit was the obvious competing explanation. Ruled out by a 64-iteration read-ID loop added
+to `nand_id_probe()` (`imu_bringup.c`): **64/64 reads returned `0x25`, 0 SPI errors**, on
+the same SPI1 bus where the IMU reads `WHO_AM_I = 0x67` correctly. Stable value = the
+silicon really reports 0x25.
+
+**What 0x25 is** (per the Micron SPI NAND table in Linux `drivers/mtd/nand/spi/micron.c`):
+
+| Device ID | Part | Density | Supply |
+|---|---|---|---|
+| `0x24` | MT29F2G01ABAGD | 2 Gb | **3.3 V** ← the BOM part |
+| `0x25` | MT29F2G01ABBGD | 2 Gb | **1.8 V** ← what is fitted on SN1 |
+
+The low bit of the device ID encodes supply voltage across the whole family (0x14/0x15,
+0x34/0x35, 0x46/0x47), so the 3.3 V part and its 1.8 V twin are one bit apart and trivially
+confused when ordering. The board's KiCAD footprint and 3D model are both
+`MT29F2G01ABAGDWB-IT_G`, so 3.3 V is unambiguously the intended part.
+
+**Do NOT widen the ID check to accept 0x25.** The board supplies the NAND at 3.3 V, which
+exceeds the ABBGD's maximum VCC. Anything it reads or writes is unreliable, and the part is
+being stressed beyond its ratings. Fix is to fit the correct MT29F2G01ABAGD.
+
+**Diagnostics added this session** so this is self-evident on any future board:
+- `spi_nand_check_id()` (`mt29f_nand.c`) now decodes the device ID against a known-part
+  table and prints the part number, its supply voltage, and an explicit "WRONG PART" banner
+  for any 1.8 V variant, instead of a bare hex mismatch.
+- `nand_id_probe()` (`imu_bringup.c`) now repeats READ ID 64x and reports distinct values,
+  separating "different silicon" from "SPI signal integrity" without a rebuild.
+
+**Check the other boards' IDs before the wrist test** — if SN1's chip came off a mis-ordered
+reel, others may be affected. SN3 is believed good (multi-MB dumps verified byte-for-byte,
+2026-07-26), but confirm from its boot log.
+
+---
+
+## [ANALYZED 2026-08-07] Torn NAND page writes from reflash/power-cycle storm — NO ACTION TAKEN
+
+A dump taken 2026-08-07 (`DUMP_20260807100926_lots_of_data`, 204MB, 8.82M records) came back
+looking alarming: hundreds of distinct `UNKNOWN_*` record types in the header summary and
+`dump_decoder: record overruns page N at offset M` warnings. Investigated by reading the
+actual decoded data (not just the header counts) plus `nvs.c`/`dump_decoder.py` — root-caused,
+**not a new bug**, no fix applied (deliberately, this session — see below).
+
+**Context:** this dump followed a session with heavy reflashing/power-cycling (dev bring-up
+work). `RESET_MARKER` count = 1066, decoder's per-boot `segment` counter tops out at 934 — this
+dump spans ~1000 boot sessions.
+
+**Mechanism, confirmed from code + data:**
+- `dump_decoder.py`'s `decode_dump()` scans each 2176-byte page independently, restarting at
+  offset 0 every page — corruption in one page can never desync parsing of the next page. Every
+  `UNKNOWN_*`/overrun instance is self-contained garbage within a single page.
+- On flash, `nvs_flush_page_buffer()` (`nvs.c`) only ever writes whole pages, 0xFF-padded — a
+  legitimate record can never straddle a page boundary. So a header whose declared length runs
+  past the page end, or a `record_type` outside the enum, can only mean the header bytes
+  themselves are corrupted on flash: a **torn/partial NAND page program**, i.e. power dying
+  mid-`mt29f_write()`. Consistent with reflash/power-cycle-heavy NAND hardware behavior.
+- Quantitative support: of 18,475 `UNKNOWN_*` rows (0.2% of all records — small in aggregate),
+  ~78% land within 5 records of a `RESET_MARKER`/`TIME_ANCHOR` — i.e. right at a boot boundary,
+  exactly where a torn write from the *previous* session's power-loss would surface.
+- Side effect found: at least one segment showed `seconds_since_boot` spiking to ~453622s (5.2
+  days) inside an otherwise seconds-old session — almost certainly a torn record's garbage
+  `dt_ticks` field. `format_header()`/`summarize()` (`dump_decoder.py`) sum per-segment
+  `(max-min)` durations with no plausibility clamp, so that one poisoned segment alone inflated
+  the dump's reported "logged duration" to ~873169s (~10 days) — a display artifact, not real
+  elapsed time.
+
+**Conclusion:** boot-boundary NAND tearing from power cycling, self-contained per page (each
+page's own scan aborts cleanly via the existing overrun check), ~0.2% of records affected.
+Does **not** implicate the plane-aliasing bug above (that was odd/even-block-specific and
+already fixed/verified) — this is reboot-triggered, not block-parity-triggered.
+
+**No corrective action taken this session, per Anders — explicitly deferred.** If revisited:
+1. Decoder-side (cheap): clamp/flag implausible per-segment durations before summing in
+   `format_header()`/`summarize()` so one torn record can't blow up the "logged duration" figure.
+2. Firmware-side (bigger lift): no per-record CRC/magic exists today (only `struct log_state`
+   metadata blocks have one) — there's currently no way to detect a torn record beyond the
+   bounds check already firing. Would need a design discussion, not a quick patch.
+
+---
+
 ## [RESOLVED 2026-07-26] Block 2040/2041 plane-aliasing bug — FIXED and VERIFIED on SN3
 
 **Fix applied:** `spi_nand_page_cache_read()` and `spi_nand_program_load()` in
