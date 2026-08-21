@@ -32,7 +32,11 @@ typedef struct  {
 } __attribute__((packed)) color565_t;
 
 extern uint16_t WIDTH, HEIGHT;
-extern uint16_t XSTART, XSTART;
+extern uint16_t XSTART, YSTART;  /* was "XSTART, XSTART" - YSTART had no
+                                  * declaration here at all and only linked
+                                  * because st7735s.c defines both at file
+                                  * scope. Both are 0 on this panel, so the
+                                  * typo never produced a visible symptom. */
 
 extern color565_t color;
 extern color565_t bg_color;

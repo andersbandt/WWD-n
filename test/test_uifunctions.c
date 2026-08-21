@@ -49,7 +49,7 @@ static const struct device *const cdc_dev =
 
 /* System Settings Functions (Menu 0) */
 extern void system_prompt_for_time_UI_FUNC(void);
-extern void system_change_display_contrast_UI_FUNC(void);
+extern void system_adjust_brightness_UI_FUNC(void);
 extern void system_clear_faults_UI_FUNC(void);
 
 /* IMU Functions (Menu 1) */
@@ -167,18 +167,24 @@ static void test_prompt_for_time(void)
  */
 static void test_change_contrast(void)
 {
-    LOG_INF("Testing: system_change_display_contrast_UI_FUNC()");
+    LOG_INF("Testing: system_adjust_brightness_UI_FUNC()");
     LOG_INF("Instructions:");
-    LOG_INF("  - Button 1: Decrease contrast");
-    LOG_INF("  - Button 2: Increase contrast");
-    LOG_INF("  - Both buttons: Exit");
+    LOG_INF("  - SW1 (top-left):    Decrease brightness");
+    LOG_INF("  - SW4 (bottom-left): Increase brightness");
+    LOG_INF("  - SW3+SW4:           Exit");
 
     k_msleep(2000);
 
     clear_display();
-    system_change_display_contrast_UI_FUNC();
 
-    LOG_INF("Test completed: system_change_display_contrast_UI_FUNC()");
+    /* Non-blocking tick now (it used to spin in its own loop) - drive it the
+     * same way ui_refresh() does so button presses can actually accumulate. */
+    for (int i = 0; i < 200; i++) {
+        system_adjust_brightness_UI_FUNC();
+        k_msleep(50);
+    }
+
+    LOG_INF("Test completed: system_adjust_brightness_UI_FUNC()");
 }
 
 /**

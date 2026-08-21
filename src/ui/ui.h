@@ -30,7 +30,7 @@ typedef enum {
 
     // System Settings modes (Menu 0)
     UI_MODE_PROMPT_TIME,                // Time setting interface
-    UI_MODE_CHANGE_CONTRAST,            // Display contrast adjustment
+    UI_MODE_ADJUST_BRIGHTNESS,          // Backlight brightness adjustment
     UI_MODE_CLEAR_FAULTS,               // Fault clearing interface
 
     // IMU modes (Menu 1)

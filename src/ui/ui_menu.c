@@ -56,7 +56,7 @@ char * main_menu_options[UI_MAIN_MENU_ITEMS] = {
 #define SUB_MENU_0_LENGTH     4
 char sub_menu_0[SUB_MENU_0_LENGTH][SUB_MENU_CHAR_LENGTH] = {
                          "Change Date/Time",
-                         "Display Settings",
+                         "Brightness",
                          "Clear faults",
                          "Return"
                      };
@@ -100,7 +100,7 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
     // System settings (Menu 0)
     {
         UI_MODE_PROMPT_TIME,        // Change Date/Time
-        UI_MODE_CHANGE_CONTRAST,    // Display Settings
+        UI_MODE_ADJUST_BRIGHTNESS,  // Adjust Brightness
         UI_MODE_CLEAR_FAULTS,       // Clear faults
         UI_MODE_MENU                // Return (back to menu)
     },

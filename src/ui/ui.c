@@ -261,8 +261,8 @@ void ui_refresh() {
             system_prompt_for_time_UI_FUNC();
             break;
 
-        case UI_MODE_CHANGE_CONTRAST:
-            system_change_display_contrast_UI_FUNC();
+        case UI_MODE_ADJUST_BRIGHTNESS:
+            system_adjust_brightness_UI_FUNC();
             break;
 
         case UI_MODE_CLEAR_FAULTS:

@@ -17,7 +17,7 @@
 
     /* External declarations for UI functions */
     extern void system_prompt_for_time_UI_FUNC(void);
-    extern void system_change_display_contrast_UI_FUNC(void);
+    extern void system_adjust_brightness_UI_FUNC(void);
     extern void imuRead_UI_FUNC(void);
     extern void imutempRead_UI_FUNC(void);
     extern void reset_uifunc_params(void);
@@ -34,7 +34,7 @@
 
     // system_prompt_for_time_UI_FUNC();
 
-    system_change_display_contrast_UI_FUNC();
+    system_adjust_brightness_UI_FUNC();
 
     // imuRead_UI_FUNC();
 
@@ -53,7 +53,7 @@
  *
  * Just add this single line after ui_refresh() to test any function:
  *
- *     system_change_display_contrast_UI_FUNC();  // or any other UI_FUNC
+ *     system_adjust_brightness_UI_FUNC();  // or any other UI_FUNC
  *
  * That's it! No need for the full snippet above if you just want to quickly
  * test one function.

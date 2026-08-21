@@ -31,9 +31,11 @@ void system_prompt_for_time_UI_FUNC();
 
 
 /**
- * @brief UI function to change display contrast
+ * @brief UI function to adjust the display backlight brightness.
+ * SW1 (top-left) decrements, SW4 (bottom-left) increments — same
+ * left-column-changes-the-value convention as the time/date setter.
  */
-void system_change_display_contrast_UI_FUNC();
+void system_adjust_brightness_UI_FUNC(void);
 
 
 /**

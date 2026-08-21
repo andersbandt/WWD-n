@@ -23,7 +23,7 @@
  * SW3+SW4 together (the bottom row) always returns to UI_MODE_CLOCK — see
  * handle_ui_input() in ui.c. */
 #define BUTTON_1_MASK   0x01  /* SW1, top-left,     UP */
-#define BUTTON_2_MASK   0x02  /* SW2, top-right,    open/unassigned */
+#define BUTTON_2_MASK   0x02  /* SW2, top-right,    open in menus; NEXT SCREEN in the time/date setter */
 #define BUTTON_3_MASK   0x04  /* SW3, bottom-right, SELECT */
 #define BUTTON_4_MASK   0x08  /* SW4, bottom-left,  DOWN */
 

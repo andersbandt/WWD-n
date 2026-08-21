@@ -156,6 +156,46 @@ void display_out_time(Time time, time_invert_field_t invertField) {
 }
 
 
+/* Date-setting screen. Deliberately mirrors the invert-branch of
+ * display_out_time() above (same line, x and font) so the TIME and DATE
+ * screens of system_prompt_for_time_UI_FUNC() line up with each other as the
+ * user pages between them. */
+#define DATE_SET_LINE 2
+#define DATE_SET_X    20
+#define DATE_SET_FONT FONT_SMALL
+
+void display_out_date(Date date, date_invert_field_t invertField) {
+    char date_str[16];
+    sprintf(date_str, "%02u/%02u/%04u", date.month, date.day, date.year);
+
+    // Date format: "MM/DD/YYYY"
+    //   Month: indices 0-1
+    //   Day:   indices 3-4
+    //   Year:  indices 6-9
+    int invertStart = -1;
+    int invertEnd = -1;
+
+    switch (invertField) {
+        case DATE_INVERT_MONTH:
+            invertStart = 0;
+            invertEnd = 1;
+            break;
+        case DATE_INVERT_DAY:
+            invertStart = 3;
+            invertEnd = 4;
+            break;
+        case DATE_INVERT_YEAR:
+            invertStart = 6;
+            invertEnd = 9;
+            break;
+        default:
+            break;
+    }
+
+    printLineWithInversion(date_str, DATE_SET_LINE, DATE_SET_X, DATE_SET_FONT, invertStart, invertEnd);
+}
+
+
 void display_out_pedometer(int steps) {
     char text[15];
     sprintf(text, "%d", steps);
@@ -372,9 +412,13 @@ void display_out_imu(const inv_imu_sensor_event_t *event, imu_display_mode_t mod
 
 void display_out_fault(int error_code)
 {
-    char text[12];
-    sprintf(text, "Fault: [%d]", error_code);
-    
+    /* "Fault: [" + int + "]" — 9 chars of literal plus up to 11 for a full
+     * negative int32. char[12] + sprintf() was a stack smash waiting for a
+     * 3-digit fault code (13 bytes incl. NUL into a 12-byte buffer); nothing
+     * calls ui_fault() today, which is the only reason it never fired. */
+    char text[24];
+    snprintf(text, sizeof(text), "Fault: [%d]", error_code);
+
     clear_display();
     printLine(text, 2, 12, FONT_LARGE);  // print text displaying what kind of measurement it is
     return;

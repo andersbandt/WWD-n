@@ -408,22 +408,44 @@ size_t temp_history_get(int16_t *out, size_t max_count)
 
 
 /*
- * imu_get_pedo
+ * imu_get_pedo: refreshes the cached step_count from the IMU's APEX pedometer.
+ *
+ * getPedometer() only writes through to its out-param when the APEX step-detect
+ * status bit is set - i.e. when the IMU has actually seen new steps since the
+ * last read. In between (the common case: the device is sitting still, and this
+ * is polled every 9s by sensor_update_thread) it leaves the out-param alone.
+ * This function used to pass in a zeroed local and then assign it to step_count
+ * unconditionally, so every poll without fresh step activity clobbered a
+ * perfectly good running total back to 0 - which is what the clock face's
+ * bottom-right badge was showing. The count would then "come back" as soon as
+ * the user walked again, because the next detect interrupt refilled it with the
+ * IMU's own cumulative total.
+ *
+ * Two guards, so a stale/absent reading can never destroy the total:
+ *   1. `count` is seeded with the current step_count rather than 0, so a
+ *      getPedometer() call that writes nothing is a no-op instead of a reset.
+ *   2. The APEX step counter is cumulative (step_cnt plus the step_cnt_ovflw
+ *      accumulator in ICM_42670.c), so it must never decrease - a lower reading
+ *      is spurious and is rejected.
+ *
+ * Consequence worth knowing: there is deliberately no path here that resets the
+ * total to 0. Nothing needs one today (the counter only restarts on reboot,
+ * where step_count starts at 0 anyway); a future "reset steps" UI action would
+ * have to clear step_count directly rather than expect a poll to do it.
  */
 int imu_get_pedo() {
     float step_cadence = 0;
     const char* activity[20]; // NOTE: I think this thing will be something like "walking, running, etc?"
 
-    uint32_t count = 0;
+    uint32_t count = step_count;  // guard 1: unwritten out-param leaves the total intact
 
     #ifdef USE_DERS_IMU
         volatile int status = getPedometer(&count, &step_cadence, activity);
     #else
         volatile int status = 999;
     #endif
-        step_count = count;
 
-    if (status == 0) {
+    if (status == 0 && count > step_count) {  // guard 2: cumulative, so never accept a decrease
         step_count = count;
     }
 

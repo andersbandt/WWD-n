@@ -37,6 +37,16 @@ typedef enum {
 } time_invert_field_t;
 
 
+// Date field inversion enum — mirrors time_invert_field_t for the combined
+// MM/DD/YYYY date-setting screen (see display_out_date()).
+typedef enum {
+    DATE_INVERT_NONE = 0,
+    DATE_INVERT_MONTH = 1,
+    DATE_INVERT_DAY = 2,
+    DATE_INVERT_YEAR = 3
+} date_invert_field_t;
+
+
 // IMU display mode enum
 typedef enum {
     IMU_DISPLAY_ACCEL,
@@ -73,6 +83,18 @@ void display_out_time(Time time, time_invert_field_t invertField);
  * knowledge — e.g. switching back into UI_MODE_CLOCK.
  */
 void display_clock_time_reset(void);
+
+
+/**
+ * display_out_date: displays a whole date as "MM/DD/YYYY" on one line, with
+ * optional field inversion — the date half of the time/date setting screen
+ * (system_prompt_for_time_UI_FUNC), which edits month, day and year together
+ * rather than one per screen.
+ *
+ * @param date: Date structure containing day, month, year
+ * @param invertField: which field to invert (DATE_INVERT_NONE/MONTH/DAY/YEAR)
+ */
+void display_out_date(Date date, date_invert_field_t invertField);
 
 
 /**

@@ -51,8 +51,17 @@ Date date_offset;
 //! -----------------------------------------------------------------------------------------------------------------------//
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int position = 0;  // position tracks where the cursor is - 0 for on the tens place, 1 for on the tenth place, 2 for on the done button
+int position = 0;  // field cursor within the current setting screen (see system_prompt_for_time_UI_FUNC)
 bool first_ui_time = true; // useful for doing things the first time a function has to get called
+
+/* Which screen of the time/date setter is showing. Reset with position by
+ * reset_uifunc_params() so re-entering the setter always starts at TIME. */
+typedef enum {
+    SET_SCREEN_TIME = 0,   // HH:MM:SS
+    SET_SCREEN_DATE = 1,   // MM/DD/YYYY
+} set_screen_t;
+
+static set_screen_t set_screen = SET_SCREEN_TIME;
 
 /* Separate from stopwatch_running/stopwatch_elapsed_ms below - this only
  * tracks whether the screen itself needs a one-time full clear_display()
@@ -68,6 +77,7 @@ static bool stopwatch_screen_dirty = true;
 
 void reset_uifunc_params() {
     position = 0;
+    set_screen = SET_SCREEN_TIME;
     first_ui_time = true;
     stopwatch_screen_dirty = true;
 }
@@ -80,20 +90,104 @@ void reset_uifunc_params() {
 /////////////////////////////////////////////////////
 
 /*
- * prompt_for_time: UI function to walk the user through prompting for time
+ * system_prompt_for_time_UI_FUNC: two-screen time/date setter.
+ *
+ * Button assignment (physical layout, SW1-4 clockwise from top-left — see
+ * button.h). The two axes of editing are split left/right rather than being
+ * spread across all four corners: the left column changes the *value* under
+ * the cursor, the right column moves the *cursor*.
+ *
+ *   SW1 (top-left)     DECREMENT the selected field
+ *   SW4 (bottom-left)  INCREMENT the selected field
+ *   SW2 (top-right)    NEXT SCREEN (TIME -> DATE -> commit & exit)
+ *   SW3 (bottom-right) NEXT FIELD within the current screen (wraps)
+ *
+ * Screens:
+ *   SET_SCREEN_TIME  "HH:MM:SS"    fields: hours -> minutes -> seconds
+ *   SET_SCREEN_DATE  "MM/DD/YYYY"  fields: month -> day -> year
+ *
+ * Month/day/year live on one screen (previously one screen each), so the
+ * whole date is visible while editing any part of it — which also matters for
+ * day-of-month clamping, since increment_day() depends on the month/year
+ * shown alongside it.
+ *
+ * NOTE: the time fields (time_offset) are edited here same as always but were
+ * never wired to an actual clock-commit call — see the clock_set_time() TODO
+ * in clock.h / CLAUDE.md Known Issues. Only the date is committed on exit.
  */
-/*
- * system_prompt_for_time_UI_FUNC: walks HOURS -> MINUTES -> SECONDS -> DAY ->
- * MONTH -> YEAR, then commits the date (set_date() + ui_clock_set_date()) and
- * exits. NOTE: the time fields (time_offset) are edited here same as always
- * but were never wired to an actual clock-commit call — see clock_set_time()
- * TODO in clock.h / CLAUDE.md Known Issues. Only fixing the date half here.
- */
+
+#define SET_FIELDS_PER_SCREEN 3
+
+/* Redraws the current screen in full: the title line plus the value line with
+ * the selected field inverted. Both screens draw their value on the same line
+ * via the same font (see display_out_date() in ui_display.c), so paging
+ * between them never leaves a stale longer string behind — except the title,
+ * which clearAndPrintLine() clears for us. */
+static void draw_time_set_screen(void)
+{
+    if (set_screen == SET_SCREEN_TIME) {
+        clearAndPrintLine("SET TIME", 0, 12, FONT_LARGE);
+        display_out_time(time_offset,
+                         position == 0 ? TIME_INVERT_HOURS :
+                         position == 1 ? TIME_INVERT_MINUTES :
+                                         TIME_INVERT_SECONDS);
+    }
+    else {
+        clearAndPrintLine("SET DATE", 0, 12, FONT_LARGE);
+        display_out_date(date_offset,
+                         position == 0 ? DATE_INVERT_MONTH :
+                         position == 1 ? DATE_INVERT_DAY :
+                                         DATE_INVERT_YEAR);
+    }
+}
+
+/* Applies dir to whichever field the cursor is on. */
+static void adjust_selected_field(direction_t dir)
+{
+    if (set_screen == SET_SCREEN_TIME) {
+        if (position == 0) {
+            time_offset.hours = increment_hour(time_offset.hours, dir);
+        }
+        else if (position == 1) {
+            time_offset.minutes = increment_minute(time_offset.minutes, dir);
+        }
+        else {
+            time_offset.seconds = increment_second(time_offset.seconds, dir);
+        }
+        return;
+    }
+
+    if (position == 0) {
+        date_offset.month = increment_month(date_offset.month, dir);
+        /* A shorter month can strand the day out of range (e.g. Jan 31 -> Feb).
+         * Clamp rather than letting an invalid date reach set_date(). */
+        uint8_t max_day = days_in_month(date_offset.month, date_offset.year);
+        if (date_offset.day > max_day) {
+            date_offset.day = max_day;
+        }
+    }
+    else if (position == 1) {
+        date_offset.day = increment_day(date_offset.day, date_offset.month, date_offset.year, dir);
+    }
+    else {
+        date_offset.year = increment_year(date_offset.year, dir);
+        /* Same clamp as above, for Feb 29 in a year that stops being a leap year. */
+        uint8_t max_day = days_in_month(date_offset.month, date_offset.year);
+        if (date_offset.day > max_day) {
+            date_offset.day = max_day;
+        }
+    }
+}
+
 void system_prompt_for_time_UI_FUNC() {
     if (first_ui_time) {
         date_offset = current_date; // seed from the real date, not zeroed
-        clearAndPrintLine("HOURS", 0, 12, FONT_LARGE);
-        display_out_time(time_offset, TIME_INVERT_HOURS);
+        set_screen = SET_SCREEN_TIME;
+        position = 0;
+        /* Wipe whatever the menu left on screen — the two lines this function
+         * draws don't cover the whole panel on their own. */
+        clear_display();
+        draw_time_set_screen();
         button_buffer_clear();
         first_ui_time = false;
     }
@@ -101,90 +195,31 @@ void system_prompt_for_time_UI_FUNC() {
     // Get button event from buffer instead of polling directly
     uint8_t btn_poll = get_button_event();
 
-    // INCREMENT (button 1)
-    if (btn_poll == 1) {
-        if (position == 0) { // increment HOURS
-            time_offset.hours = increment_hour(time_offset.hours, DIR_UP);
-        }
-        else if (position == 1) { // increment MINUTES
-            time_offset.minutes = increment_minute(time_offset.minutes, DIR_UP);
-        }
-        else if (position == 2) { // increment SECONDS
-            time_offset.seconds = increment_second(time_offset.seconds, DIR_UP);
-        }
-        else if (position == 3) { // increment DAY
-            date_offset.day = increment_day(date_offset.day, date_offset.month, date_offset.year, DIR_UP);
-        }
-        else if (position == 4) { // increment MONTH
-            date_offset.month = increment_month(date_offset.month, DIR_UP);
-        }
-        else if (position == 5) { // increment YEAR
-            date_offset.year = increment_year(date_offset.year, DIR_UP);
-        }
+    // DECREMENT (SW1, top-left)
+    if (btn_poll == BUTTON_1_MASK) {
+        adjust_selected_field(DIR_DOWN);
+        draw_time_set_screen();
     }
-    // DECREMENT (button 2)
-    if (btn_poll == 2) {
-        if (position == 0) { // increment HOURS
-            time_offset.hours = increment_hour(time_offset.hours, DIR_DOWN);
-        }
-        else if (position == 1) { // increment MINUTES
-            time_offset.minutes = increment_minute(time_offset.minutes, DIR_DOWN);
-        }
-        else if (position == 2) { // increment SECONDS
-            time_offset.seconds = increment_second(time_offset.seconds, DIR_DOWN);
-        }
-        else if (position == 3) { // decrement DAY
-            date_offset.day = increment_day(date_offset.day, date_offset.month, date_offset.year, DIR_DOWN);
-        }
-        else if (position == 4) { // decrement MONTH
-            date_offset.month = increment_month(date_offset.month, DIR_DOWN);
-        }
-        else if (position == 5) { // decrement YEAR
-            date_offset.year = increment_year(date_offset.year, DIR_DOWN);
-        }
+    // INCREMENT (SW4, bottom-left)
+    else if (btn_poll == BUTTON_4_MASK) {
+        adjust_selected_field(DIR_UP);
+        draw_time_set_screen();
     }
-
-    // update display if we changed offset digit value
-    if (btn_poll == 1 || btn_poll == 2) {
-        if (position <= 2) {
-            display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS);
-        }
-        else if (position == 3) {
-            display_out_measurement("DAY", date_offset.day);
-        }
-        else if (position == 4) {
-            display_out_measurement("MONTH", date_offset.month);
-        }
-        else if (position == 5) {
-            display_out_measurement("YEAR", date_offset.year);
-        }
+    // NEXT FIELD within this screen (SW3, bottom-right)
+    else if (btn_poll == BUTTON_3_MASK) {
+        position = (position + 1) % SET_FIELDS_PER_SCREEN;
+        draw_time_set_screen();
     }
-
-    // ADVANCE (button 3 or 4)
-    if (btn_poll == 8) {
-        position++;
+    // NEXT SCREEN (SW2, top-right)
+    else if (btn_poll == BUTTON_2_MASK) {
         button_buffer_clear();
 
-        if (position <= 2) {
-            display_out_time(time_offset, position == 0 ? TIME_INVERT_HOURS : position == 1 ? TIME_INVERT_MINUTES : TIME_INVERT_SECONDS);
+        if (set_screen == SET_SCREEN_TIME) {
+            set_screen = SET_SCREEN_DATE;
+            position = 0;
+            draw_time_set_screen();
         }
-
-        if (position == 1) {
-            clearAndPrintLine("MINUTES", 0, 12, FONT_LARGE);
-        }
-        else if (position == 2) {
-            clearAndPrintLine("SECONDS", 0, 12, FONT_LARGE);
-        }
-        else if (position == 3) {
-            display_out_measurement("DAY", date_offset.day);
-        }
-        else if (position == 4) {
-            display_out_measurement("MONTH", date_offset.month);
-        }
-        else if (position == 5) {
-            display_out_measurement("YEAR", date_offset.year);
-        }
-        else if (position == 6) {
+        else {
             set_date(date_offset);
             ui_clock_set_date(date_offset);
             ui_mode = UI_MODE_CLOCK;
@@ -196,46 +231,73 @@ void system_prompt_for_time_UI_FUNC() {
 
 
 
-void system_change_display_contrast_UI_FUNC() {
-    // set up variables and print to screen
-    uint8_t btn_poll;
-    bool status = true;
-    uint8_t brightness = 100;
-    int new_brightness = 0;
+/*
+ * system_adjust_brightness_UI_FUNC: backlight brightness screen.
+ *
+ *   SW1 (top-left)     DECREMENT brightness
+ *   SW4 (bottom-left)  INCREMENT brightness
+ *   SW3+SW4            exit to the clock face (the global home combo)
+ *
+ * Same left-column-changes-the-value convention as the time/date setter.
+ *
+ * This used to spin in its own `while (status)` loop with a k_usleep(10000),
+ * which is why the value appeared to oscillate between 95 and 100 on its own:
+ * the loop's exit condition was `btn_poll == 0`, and get_button_event()
+ * returns 0 whenever the event buffer is *empty* - i.e. the loop fell out
+ * almost immediately every time. `brightness` was a stack local re-initialised
+ * to 100 on each entry, and ui_refresh() re-entered the function on every 1s
+ * tick, so the only reachable states were "100" (fresh entry) and "95" (a
+ * single decrement landing before the buffer drained). Nothing the user
+ * pressed could accumulate.
+ *
+ * Now it's a non-blocking tick like every other _UI_FUNC(): one pass per
+ * ui_refresh(), no internal loop, no sleep (see the "no sleeps in here, they
+ * will fuck up the Zephyr threads" TODO at the top of this file), and the
+ * value lives in the driver's own backlight_pct rather than a stack local.
+ */
+#define BRIGHTNESS_STEP 5
+#define BRIGHTNESS_MIN  5    /* never let the user black the backlight out entirely -
+                              * at 0 the screen is unreadable and they can't see to
+                              * turn it back up */
+#define BRIGHTNESS_MAX  100
 
-    // add delay to prevent user from automatically exiting upon function entry
-    display_out_measurement("Brightness", brightness);
+void system_adjust_brightness_UI_FUNC(void) {
+    /* Seeded from the display driver's live value (st7735s_compat.c), not a
+     * local - so re-entering this screen shows the brightness actually in
+     * effect, including one set on a previous visit or preserved across a
+     * sleepIn/sleepOut. */
+    uint8_t brightness = backlight_pct;
 
-    while (status) {
-        k_usleep(10000);
-        btn_poll = get_button_event();
+    if (first_ui_time) {
+        first_ui_time = false;
+        button_buffer_clear();
+        display_out_measurement("Brightness", brightness);
+        return;
+    }
 
-        // decrement
-        if (btn_poll == 1) {
-            if (brightness >= 5) {
-                brightness -= 5;
-            }
-            new_brightness = 1;
+    uint8_t btn_poll = get_button_event();
+    bool changed = false;
+
+    // DECREMENT (SW1, top-left)
+    if (btn_poll == BUTTON_1_MASK) {
+        if (brightness > BRIGHTNESS_MIN) {
+            brightness = (brightness - BRIGHTNESS_STEP < BRIGHTNESS_MIN)
+                            ? BRIGHTNESS_MIN : brightness - BRIGHTNESS_STEP;
+            changed = true;
         }
-        // increment
-        else if (btn_poll == 2) {
-            if (brightness <= 95) {
-                brightness += 5;
-            }
-            new_brightness = 1;
+    }
+    // INCREMENT (SW4, bottom-left)
+    else if (btn_poll == BUTTON_4_MASK) {
+        if (brightness < BRIGHTNESS_MAX) {
+            brightness = (brightness + BRIGHTNESS_STEP > BRIGHTNESS_MAX)
+                            ? BRIGHTNESS_MAX : brightness + BRIGHTNESS_STEP;
+            changed = true;
         }
-        // exit (both buttons)
-        else if (btn_poll == 0) {
-            status = false;
-        }
+    }
 
-
-        // adjust backlight brightness
-        if (new_brightness) {
-            display_out_measurement("Brightness", brightness);
-            Backlight_Pct(brightness);
-            new_brightness = 0;
-        }
+    if (changed) {
+        Backlight_Pct(brightness);
+        display_out_measurement("Brightness", brightness);
     }
 
     return;
