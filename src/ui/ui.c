@@ -150,8 +150,23 @@ void ui_clock_set_battery_mv(int mv)
  */
 void ui_clock_set_charging(int status)
 {
+    if (clock_data.charging_status == status) {
+        return;  /* nothing to redraw — the indicator's text never changes */
+    }
     clock_data.charging_status = status;
-    ui_clock_mark_dirty(UI_CLOCK_DIRTY_CHARGING);
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_POWER);
+}
+
+/**
+ * @brief Set low-power (TPS63900 power-save) indicator state and mark dirty
+ */
+void ui_clock_set_low_power(int low_power)
+{
+    if (clock_data.low_power == low_power) {
+        return;
+    }
+    clock_data.low_power = low_power;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_POWER);
 }
 
 /**
@@ -215,10 +230,22 @@ void init_ui()
     // ui_mode = UI_MODE_PROMPT_TIME;
     initMenu();
     ui_status = 1;
+
+    /* Start the auto-off countdown from boot, not from the first button press —
+     * an untouched device should put its screen to sleep on its own. */
+    ui_note_activity();
 }
 
 
 void ui_refresh() {
+    /* Nothing to draw into a sleeping panel — the ST7735S is in SLPIN with
+     * the backlight at 0 (see switch_display()), so every draw here would be
+     * SPI traffic nobody can see. Clock data still keeps updating in the
+     * background; the wake path below repaints from it. */
+    if (!display_is_awake()) {
+        return;
+    }
+
     k_mutex_lock(&display_draw_mutex, K_FOREVER);
     switch (ui_mode) {
         case UI_MODE_CLOCK:
@@ -238,8 +265,14 @@ void ui_refresh() {
                 ui_clock_clear_dirty(UI_CLOCK_DIRTY_BATTERY);
             }
 
-            // enable UI_CLOCK_DIRTY_CHARGING/display_out_bms() when BMS is ready
-            // (no charge-status GPIO wired yet, see power.c battery_charging())
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_POWER)) {
+                /* "CHG" is fed by battery_charging(), still stubbed false —
+                 * the badge is drawn anyway so the slot is reserved on screen
+                 * (see display_out_power_indicators() in ui_display.c). */
+                display_out_power_indicators(clock_data.charging_status,
+                                             clock_data.low_power);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_POWER);
+            }
 
             if (ui_clock_is_dirty(UI_CLOCK_DIRTY_STEPS)) {
                 display_out_pedometer(clock_data.step_count);
@@ -303,6 +336,48 @@ void ui_refresh() {
 }
 
 
+/* ---------------------------------------------------------------------------
+ * Display auto-off
+ *
+ * Deliberately driven from ui_refresh_thread's existing 1 s tick (main.c
+ * calls ui_idle_tick() there) rather than by re-enabling display_timeout_thread
+ * + timer3. That thread has been disabled since 2026-07-28 because its 512 B
+ * stack overflowed under this NO_OPTIMIZATIONS build and took the board down
+ * with it; the work here is a k_uptime_get() comparison plus, once per
+ * timeout, a switch_display() call, so giving it its own 4 KB stack to sleep
+ * in would cost RAM for nothing. A 1 s granularity on a 9 s timeout is fine.
+ *
+ * Wake-up is handled in handle_ui_input() below: the button that wakes the
+ * screen is consumed by the wake and not also treated as navigation.
+ * ------------------------------------------------------------------------- */
+static int64_t last_activity_ms;
+
+void ui_note_activity(void)
+{
+    last_activity_ms = k_uptime_get();
+}
+
+void ui_idle_tick(void)
+{
+    if (ui_status == 0 || !display_is_awake()) {
+        return;
+    }
+
+    if ((k_uptime_get() - last_activity_ms) < UI_DISPLAY_TIMEOUT_MS) {
+        return;
+    }
+
+    /* switch_display() drives the panel over SPI1 (backlight PWM + SLPIN),
+     * so it needs the same serialization as every other draw path — see
+     * display_draw_mutex above. */
+    k_mutex_lock(&display_draw_mutex, K_FOREVER);
+    switch_display(false);
+    k_mutex_unlock(&display_draw_mutex);
+
+    LOG_INF("display asleep after %d ms idle", UI_DISPLAY_TIMEOUT_MS);
+}
+
+
 /* Physical button layout (SW1-4, clockwise from top-left) — see button.h:
  *   BUTTON_1_MASK = SW1 = top-left     = UP
  *   BUTTON_2_MASK = SW2 = top-right    = open/unassigned
@@ -326,15 +401,31 @@ void handle_ui_input() {
 
     /* Any button press wakes a sleeping display first; that press just
      * wakes it and is not also treated as navigation (so waking up doesn't,
-     * say, also jump a menu position or fire SELECT). Display timeout/sleep
-     * itself isn't implemented yet (display_timeout_thread is disabled —
-     * see main.c), so display_is_awake() is always true today; this is
-     * scaffolding for when that lands. */
+     * say, also jump a menu position or fire SELECT). Sleep comes from
+     * ui_idle_tick() above. */
     if (!display_is_awake()) {
         switch_display(true);
+
+        /* The ST7735S keeps its GRAM through SLPIN/SLPOUT, so the screen
+         * comes back showing whatever it slept on — no clear_display() here
+         * (that would flash the panel). What is stale is the *content*:
+         * everything ui_refresh() skipped while asleep. Force a full repaint
+         * of the clock face from the current data; other modes are
+         * best-effort via ui_refresh(), same caveat as
+         * ui_show_dump_in_progress(). */
+        if (ui_mode == UI_MODE_CLOCK) {
+            display_clock_time_reset();
+            ui_clock_mark_dirty(UI_CLOCK_DIRTY_ALL);
+            draw_clock_title();
+        }
+        ui_refresh();
+
+        ui_note_activity();
         k_mutex_unlock(&display_draw_mutex);
         return;
     }
+
+    ui_note_activity();
 
     /* Bottom row together = always home, regardless of mode. Clear any
      * latched sub-menu running state first or change_ui_mode() will refuse

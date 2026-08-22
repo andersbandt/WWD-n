@@ -56,6 +56,16 @@ uint8_t battery_percent(int mv);
 void power_save_enable(bool enable);
 
 /*
+ * Returns true if power-save mode is currently selected on the TPS63900.
+ *
+ * Reports the shadow of what power_save_enable()/power_rail_init() last drove
+ * onto BOOST_SEL, not a read-back of the pin — the expander pin is on I2C and
+ * its level wouldn't tell you the converter's actual mode anyway. Drives the
+ * clock face's "LP" indicator.
+ */
+bool power_save_is_enabled(void);
+
+/*
  * Profiling/debug only: hold VBAT_DIV_EN on/off continuously, bypassing
  * battery_voltage_mv()'s normal brief-pulse behavior. Used to measure the
  * divider's own static current draw in isolation. Not for normal runtime use.

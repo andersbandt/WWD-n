@@ -69,14 +69,92 @@ exactly 10/sec when draining at 10 Hz. That rate-tracking is what proves the edg
 watermark-driven rather than an artefact of the polling loop's own SPI traffic. Steady
 state sits at 11-12 packets against `IMU_FIFO_WM` = 10.
 
-**Re-arming:** `FIFO_CONFIG5.WM_GT_TH_EN` is cleared, so the watermark fires only on
-`count == threshold` *exactly*. An undrained FIFO sails past the threshold and never
-fires again — the FIFO must be drained for the interrupt to re-arm. That is why the
-interrupt rate equals the drain rate.
+**Re-arming (superseded 2026-07-31):** this originally read "`FIFO_CONFIG5.WM_GT_TH_EN`
+is cleared, so the watermark fires only on `count == threshold` *exactly*" — which is
+exactly the bug that made the FIFO produce zero records. `WM_GT_TH_EN` is now **set**
+(>= threshold), so an undrained FIFO no longer sails past the threshold and goes silent
+forever. The interrupt rate still tracks the drain rate in practice because the FIFO is
+drained on every edge.
 
 **FIFO count byte order:** 0x3d (named `FIFO_COUNTH` in the regmap) empirically holds the
 **low** byte and 0x3e the high byte. Reading it the documented way yields an impossible
 16384 for a 2 KB FIFO.
+
+## [RESEARCH 2026-08-22] Raise-to-wake: what exists today
+
+Asked "are the APEX features fully disabled, and where did FIFO sizing land?" —
+answers, from reading the current tree (no hardware attached):
+
+### APEX is fully ENABLED, but only one of its outputs is wired to a pin
+
+`IMU_APEX_ENABLED = 1` (`imu.h`), so `imu_init()` calls `imu_apex()` ->
+`startApex()` (`ICM_42670.c`), which currently:
+
+- sets DMP ODR to 50 Hz (`APEX_CONFIG1_DMP_ODR_50Hz`), DMP power-save disabled
+- **enables tilt detect** (`inv_imu_apex_enable_tilt`)
+- **enables the pedometer** (`inv_imu_apex_enable_pedometer`)
+- **configures and enables WOM** — thresholds 80/80/80, OR'd across axes,
+  3-sample duration (`inv_imu_configure_wom` + `inv_imu_enable_wom`)
+
+So the raise-to-wake building blocks (tilt + WOM) are already running in the
+part. What is missing is a **route to the MCU**: `enableFifoInterrupt()` builds
+an `inv_imu_interrupt_parameter_t` zeroed to all-off and turns on only
+`INV_FIFO_THS` before calling `inv_imu_set_config_int1()`. INT1 (P0.09) is the
+only interrupt line on this board (INT2 is not wired — `IMU_HAS_INT2` in
+`interrupt.c`), and it is spoken for by the FIFO watermark, which is what feeds
+the whole NVS logging pipeline. Tilt and WOM therefore only ever set bits in
+`INT_STATUS3` / `INT_STATUS2`; nothing in firmware reads the tilt bit.
+
+Note the ordering: `imu_fifo_interrupt()` runs *before* `imu_apex()` in
+`imu_init()`, and `startApex()` never touches `INT_SOURCE0`, so the FIFO_THS
+routing survives APEX bring-up.
+
+The pedometer is the one APEX output actually consumed: `getPedometer()` polls
+`INT_STATUS3` (`updateApex()`) on the 9 s `sensor_update_thread` tick and reads
+`STEP_DET_INT` / `STEP_CNT_OVF_INT`. Same polling shape works for
+`INT_STATUS3_TILT_DET_INT_MASK` (bit 3) — that is the cheapest raise-to-wake
+path available without new hardware:
+
+1. **Polled tilt (no wiring change).** Read `INT_STATUS3` on a tick and wake the
+   display on `TILT_DET_INT`. Latency is bounded by the poll rate, and each poll
+   is an SPI register read — the FIFO watermark interrupt already fires ~10x/s
+   at 100 Hz/WM=10, so tilt could be checked from that same handler for free.
+   Downside: tilt-detect is a "device orientation changed and held" detector, not
+   a wrist-flick gesture — expect it to feel sluggish compared to a real
+   raise-to-wake.
+2. **Share INT1 between FIFO_THS and WOM/TILT.** Both can be enabled in
+   `inv_imu_set_config_int1()`; the ISR would then have to read `INT_STATUS`
+   /`INT_STATUS2`/`INT_STATUS3` to demux, which is extra SPI traffic in interrupt
+   context on the bus the NAND and display also share.
+3. **Wire INT2** — v2 hardware only; it is not routed on this PCB.
+
+Also worth re-checking on hardware: the "[WOM Disables FIFO_THS Interrupt]"
+claim further down this file was **disproved** on 2026-07-31 (datasheet +
+driver code review) — WOM is enabled today and FIFO_THS demonstrably still
+fires at ~100 Hz/WM=10, so that section is wrong and only kept for history.
+
+### FIFO sizing — where it landed
+
+- `IMU_FIFO_WM = 10` packets (`imu.h`), written to `FIFO_CONFIG2` by
+  `enableFifoInterrupt()`. This overwrites the driver's own default of 1 that
+  `inv_imu_configure_fifo()` writes.
+- `FIFO_CONFIG5.WM_GT_TH_EN` is **set** (>= threshold), not the exact-equals
+  comparison that caused the 0-records bug — set in both
+  `inv_imu_configure_fifo()` and again explicitly in `enableFifoInterrupt()`.
+- `INTF_CONFIG0`: FIFO count is in **records/packets**, little-endian
+  (but see the "FIFO count byte order" note above — 0x3d empirically holds the
+  low byte).
+- `FIFO_CONFIG1`: **STREAM** mode, bypass off — i.e. on overflow the oldest data
+  is overwritten rather than the FIFO latching up. (The comment above that code
+  in `inv_imu_driver.c` still says "snapshot mode"; the snapshot line beneath it
+  is commented out. The comment is stale, the code is stream.)
+- Accel + gyro + FSYNC timestamp all enabled in `FIFO_CONFIG5`; hi-res off
+  (`IMU_HIGH_RES_ENABLED = 0`).
+- At 100 Hz with WM=10 that is an INT1 edge every ~100 ms; steady state sits at
+  11-12 packets in the FIFO (see the FIFO watermark section above).
+
+The host-side event buffer is separate and unchanged: `circular_buffer_init(64,
+sizeof(inv_imu_sensor_event_t))`, sized against `CONFIG_HEAP_MEM_POOL_SIZE=4096`.
 
 ## [STALE — does NOT reproduce on nRF52833] IMU Init Fails When NVS Is Enabled
 

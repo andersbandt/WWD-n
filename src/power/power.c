@@ -67,6 +67,13 @@ void power_init(void)
     power_rail_init();
 }
 
+/* Shadow of what was last written to BOOST_SEL. The MCP23008 pin is
+ * write-only as far as this module is concerned (reading it back costs an I2C
+ * transaction and would report the pin, not the converter's actual mode), so
+ * the UI's low-power indicator reads this instead. Kept in sync by the only
+ * two functions that drive the pin. */
+static bool power_save_active;
+
 void power_rail_init(void)
 {
     if (!gpio_is_ready_dt(&boost_sel_gpio)) {
@@ -75,6 +82,7 @@ void power_rail_init(void)
     }
 
     gpio_pin_configure_dt(&boost_sel_gpio, GPIO_OUTPUT_INACTIVE);
+    power_save_active = false;
 }
 
 int battery_voltage_mv(void)
@@ -121,6 +129,12 @@ uint8_t battery_percent(int mv)
 void power_save_enable(bool enable)
 {
     gpio_pin_set_dt(&boost_sel_gpio, enable ? 1 : 0);
+    power_save_active = enable;
+}
+
+bool power_save_is_enabled(void)
+{
+    return power_save_active;
 }
 
 void power_debug_hold_vbat_div(bool on)

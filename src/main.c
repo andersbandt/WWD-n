@@ -192,9 +192,15 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
 
         ui_clock_set_battery_mv(battery_voltage_mv());
 
+        /* Clock-face power indicators. battery_charging() is still stubbed
+         * false (discrete BMS, no charge-status signal wired — see power.c),
+         * so "CHG" reads not-charging until that lands; the badge is on
+         * screen so the slot is reserved. "LP" tracks BOOST_SEL. */
+        ui_clock_set_charging(battery_charging() ? 1 : 0);
+        ui_clock_set_low_power(power_save_is_enabled() ? 1 : 0);
+
         // TODO: enable when BMS is ready
         // ui_clock_set_battery(battery_percent());
-        // ui_clock_set_charging(battery_charging());
     }
 }
 
@@ -224,6 +230,10 @@ static void ui_refresh_thread_entry(void *p1, void *p2, void *p3)
         ui_clock_set_date(current_date);
 
         if (display_status == 1) {
+            /* Auto-off first, so a tick that crosses the timeout puts the
+             * panel to sleep instead of drawing one more frame into it
+             * (ui_refresh() itself no-ops while asleep). */
+            ui_idle_tick();
             ui_refresh();
         }
 

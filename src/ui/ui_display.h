@@ -117,6 +117,20 @@ void display_out_temp(float temp);
 void display_out_battery(int mv);
 
 /**
+ * @brief displays the clock face's two power-status indicators ("LP" / "CHG")
+ *
+ * Both badges are always drawn — dim when inactive, accent-colored when
+ * active — so their positions on the clock face never shift.
+ *
+ * @param charging: non-zero if the battery is charging (see battery_charging()
+ *        in power.c — stubbed false until a charge-status signal is wired)
+ * @param low_power: non-zero if the TPS63900 is in power-save mode
+ *        (power_save_is_enabled(), power.c)
+ */
+void display_out_power_indicators(int charging, int low_power);
+
+
+/**
  * @brief displays a certain measurement
  *
  * @param text     string representing accompanying text to display measurement with

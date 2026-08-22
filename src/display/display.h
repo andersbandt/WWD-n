@@ -13,6 +13,7 @@
 
 
 /* standard C file */
+#include <stdbool.h>
 #include <stdint.h>
 #include <stddef.h>
 
@@ -112,6 +113,25 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
  * @param fontSize: font size to use
  */
 uint32_t calculateLineY(uint32_t lineNum, font_size_t fontSize);
+
+
+/**
+ * @brief Draws a small on/off status indicator in a fixed right-aligned box
+ *
+ * Same geometry and clear-first behavior as printFieldRightAligned(), but the
+ * text is drawn in the accent color when @p active and the dim color when not —
+ * for constant-text badges whose meaning is carried by their state rather than
+ * their content (clock face charging / low-power indicators).
+ *
+ * @param text: pointer to char for the string. String should terminate in \0
+ * @param posY: pixel Y position (top of the text)
+ * @param fieldRight: pixel X of the box's right edge
+ * @param fieldWidth: box width in pixels
+ * @param fontSize: font size to use
+ * @param active: true to draw in the accent color, false for dim
+ */
+void printStatusField(const char * text, const uint32_t posY, const uint32_t fieldRight,
+                      const uint32_t fieldWidth, font_size_t fontSize, bool active);
 
 
 /**

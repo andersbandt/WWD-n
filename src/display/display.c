@@ -232,6 +232,47 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
 
 
 /*
+ * printStatusField: same fixed-box, right-aligned, always-clear-first geometry as
+ * printFieldRightAligned(), but drawn in the accent color when `active` and the dim
+ * color when not — for small on/off status indicators (e.g. the clock face's
+ * charging / low-power badges) where the text is constant and only its *state*
+ * changes. Kept separate rather than adding a color argument to
+ * printFieldRightAligned() so every existing caller of that function keeps its
+ * "always FORE" behavior unchanged.
+ *
+ * Restores the shared FORE color before returning — setColor() is global state in
+ * gfx.c, so leaving it on ACCENT/DIM would silently recolor whatever drew next.
+ */
+void printStatusField(const char * text, const uint32_t posY, const uint32_t fieldRight,
+                      const uint32_t fieldWidth, font_size_t fontSize, bool active)
+{
+    if (text == 0) {
+        return;
+    }
+
+    uint32_t fontHeight = (uint32_t)fontSize;
+    uint32_t charWidth = fontSize / 2;  /* matches printFieldRightAligned's convention */
+    uint32_t textWidth = strlen(text) * charWidth;
+    uint32_t fieldLeft = fieldRight - fieldWidth;
+    uint32_t textX = (textWidth < fieldWidth) ? (fieldRight - textWidth) : fieldLeft;
+
+    setColor(BACK_R, BACK_G, BACK_B);
+    filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
+
+    if (active) {
+        setColor(ACCENT_R, ACCENT_G, ACCENT_B);
+    } else {
+        setColor(DIM_R, DIM_G, DIM_B);
+    }
+    setFont(getFontPointer(fontSize));
+    drawText(textX, posY, text);
+
+    setColor(FORE_R, FORE_G, FORE_B);
+    flushBuffer();
+}
+
+
+/*
  * printTwoDigitFieldIfChanged: redraws a right-aligned "%02u" field via
  * printFieldRightAligned() only when value differs from *last_value, and
  * updates *last_value to match. Pass -1 as the initial *last_value to force

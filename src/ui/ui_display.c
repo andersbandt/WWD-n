@@ -73,6 +73,20 @@ void display_out_bms(int charging, int battery_percent) {
 #define CLOCK_TEMP_X      2       /* bottom-left badge */
 #define CLOCK_STEPS_Y_MARGIN 20  /* from bottom of screen, shared by temp + steps row */
 
+/* Power-status indicator row, top-right, tucked between the battery badge
+ * (y 4..16) and the big time display (starts at CLOCK_TIME_Y = line 1 of
+ * FONT_XXLARGE = y 46). x >= 86 keeps it clear of the weekday/day header,
+ * which is drawn from x=10 in FONT_LARGE and runs to roughly x=70 at its
+ * longest ("Wed 28"). Both indicators are constant text whose *state* is
+ * carried by color (printStatusField: accent = on, dim = off), so the badge
+ * width never changes and the two boxes can sit tight against each other. */
+#define CLOCK_STATUS_Y        22
+#define CLOCK_STATUS_FONT     FONT_SMALL
+#define CLOCK_CHG_RIGHT       (WIDTH - 2)
+#define CLOCK_CHG_WIDTH       20   /* "CHG" at FONT_SMALL = 18 px */
+#define CLOCK_LOWPWR_RIGHT    (CLOCK_CHG_RIGHT - CLOCK_CHG_WIDTH - 4)
+#define CLOCK_LOWPWR_WIDTH    16   /* "LP" at FONT_SMALL = 12 px */
+
 #define CLOCK_TIME_CHAR_W  (CLOCK_TIME_FONT / 2)   /* matches printFieldRightAligned's charWidth approximation */
 #define CLOCK_TIME_FIELD_W (2 * CLOCK_TIME_CHAR_W) /* width of one 2-digit field: HH, MM, or SS */
 /* Right edge of each field in drawText's fixed left-to-right layout starting
@@ -226,6 +240,28 @@ void display_out_battery(int mv) {
 }
 
 
+
+/*
+ * display_out_power_indicators: the clock face's two power-status badges.
+ *
+ * "LP"  — low-power mode, i.e. BOOST_SEL / the TPS63900 mode select is set to
+ *         the power-save rail (power_save_is_enabled(), power.c).
+ * "CHG" — charging. This board's BMS is a discrete charge-management circuit
+ *         with no I2C register and no charge-status GPIO wired, so
+ *         battery_charging() is stubbed false and this badge reads "not
+ *         charging" permanently for now — it is on screen so the layout slot
+ *         is reserved and the wiring is a one-line change once there is a
+ *         real signal to read (see power.c battery_charging()).
+ *
+ * Both are always drawn (never blanked out) so their positions stay stable;
+ * inactive is dim, active is accent-colored.
+ */
+void display_out_power_indicators(int charging, int low_power) {
+    printStatusField("LP", CLOCK_STATUS_Y, CLOCK_LOWPWR_RIGHT,
+                     CLOCK_LOWPWR_WIDTH, CLOCK_STATUS_FONT, low_power != 0);
+    printStatusField("CHG", CLOCK_STATUS_Y, CLOCK_CHG_RIGHT,
+                     CLOCK_CHG_WIDTH, CLOCK_STATUS_FONT, charging != 0);
+}
 
 /*
 BELOW FUNCTIONS ARE SPECIALIZED AND LIKELY CALLED IN FROM A UI MENU FUNCTION
