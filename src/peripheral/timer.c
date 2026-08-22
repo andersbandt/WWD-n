@@ -57,8 +57,16 @@ K_TIMER_DEFINE(timer3, timer3_callback, NULL);
 
 
 // NOTE: this has to be here (for at least TIMER0)
-// TODO: put all the timer periods here so they are easy to change and manage
-#define TIMER0_PERIOD 5
+// All timer periods, in one place (2026-08-22 — was scattered as inline literals
+// in timer_start()'s switch and the timer0 callback below; timer1 and timer3 in
+// particular shared the same "9" written as two separate literals, easy to
+// change one while meaning the other).
+#define TIMER0_PERIOD       5   /* LED blink group repeat, seconds */
+#define TIMER0_BLINK_MSEC   50  /* fast on/off toggle rate within one blink burst */
+#define TIMER1_PERIOD       9   /* sensor (IMU temp/step-count) update, seconds */
+#define TIMER2_PERIOD       1   /* UI refresh / wall-clock tick, seconds */
+#define TIMER3_PERIOD       9   /* display timeout, seconds (one-shot; timer currently
+                                 * never started — see main.c/CLAUDE.md Known Issues) */
 
 
 /* Semaphores for thread synchronization */
@@ -100,21 +108,21 @@ int timer_start(int timer_num) {
         break;
     case 1:
         /* Timer 1: Sensor (IMU temp/step-count) update */
-        duration = K_SECONDS(9);
-        period = K_SECONDS(9);
+        duration = K_SECONDS(TIMER1_PERIOD);
+        period = K_SECONDS(TIMER1_PERIOD);
         k_timer_start(&timer1, duration, period);
         break;
 
     case 2:
         /* Timer 2: UI refresh (also drives wall-clock update) */
-        duration = K_SECONDS(1);
-        period = K_SECONDS(1);
+        duration = K_SECONDS(TIMER2_PERIOD);
+        period = K_SECONDS(TIMER2_PERIOD);
         k_timer_start(&timer2, duration, period);
         break;
 
     case 3:
-        /* Timer 3: Display timeout - 9 seconds one-shot */
-        duration = K_SECONDS(9);
+        /* Timer 3: Display timeout - one-shot */
+        duration = K_SECONDS(TIMER3_PERIOD);
         period = K_NO_WAIT;  /* One-shot: no repeat */
         k_timer_start(&timer3, duration, period);
         break;
@@ -174,7 +182,7 @@ static void timer0_callback(struct k_timer *timer_id) {
         k_timer_start(&timer0, K_SECONDS(TIMER0_PERIOD), K_SECONDS(TIMER0_PERIOD));
     }
     else {
-        k_timer_start(&timer0, K_MSEC(50), K_MSEC(50));
+        k_timer_start(&timer0, K_MSEC(TIMER0_BLINK_MSEC), K_MSEC(TIMER0_BLINK_MSEC));
     }
 }
 

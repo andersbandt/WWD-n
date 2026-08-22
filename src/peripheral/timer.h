@@ -12,11 +12,12 @@ extern struct k_sem timer4_sem;  /* Display timeout semaphore */
 /**
  * @brief Initialize all timers for the WWD device
  *
- * Initializes 4 timers:
- * - Timer 0: LED blinking (10 seconds)
+ * Initializes 4 timers (periods defined together in timer.c, see TIMER*_PERIOD):
+ * - Timer 0: LED blinking (5 seconds)
  * - Timer 1: Clock update (9 seconds)
  * - Timer 2: UI refresh (1 second)
- * - Timer 3: Display timeout (9 seconds, one-shot)
+ * - Timer 3: Display timeout (9 seconds, one-shot) — not currently started, see
+ *   CLAUDE.md Known Issues
  */
 void init_timer(void);
 

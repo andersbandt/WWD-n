@@ -86,7 +86,8 @@ static void display_phase(void)
 
 /* 2048 rather than 1024: both threads now make a real RV-3028 I2C read
  * (get_current_time() -> rv3028_get_time() -> Zephyr rtc_get_time() ->
- * i2c_transfer) or IMU SPI reads, several calls deep, under this project's
+ * i2c_transfer, and as of 2026-08-22 get_date() -> rv3028_get_date() the same
+ * way) or IMU SPI reads, several calls deep, under this project's
  * CONFIG_NO_OPTIMIZATIONS build. 1024B undersized display_timeout_thread's
  * far simpler body enough to overflow into a CPU-lockup reset (see
  * project_thread_bringup_crash memory) — these threads do considerably more
@@ -199,8 +200,13 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
         ui_clock_set_charging(battery_charging() ? 1 : 0);
         ui_clock_set_low_power(power_save_is_enabled() ? 1 : 0);
 
-        // TODO: enable when BMS is ready
-        // ui_clock_set_battery(battery_percent());
+        // battery_percent() (power.c) is implemented and ready to wire in — deliberately
+        // not called yet. The clock face currently shows raw divider mV via
+        // display_out_battery(), not percent, on purpose: validating the ADC/divider
+        // reading itself is the current bring-up concern, separate from the LiPo
+        // discharge-curve mapping (see the comment on display_out_battery() in
+        // ui_display.c). Switch to percent once that validation is done.
+        // ui_clock_set_battery(battery_percent(battery_voltage_mv()));
     }
 }
 
@@ -227,7 +233,7 @@ static void ui_refresh_thread_entry(void *p1, void *p2, void *p3)
         }
 
         ui_clock_set_time(get_current_time());
-        ui_clock_set_date(current_date);
+        ui_clock_set_date(get_date());
 
         if (display_status == 1) {
             /* Auto-off first, so a tick that crosses the timeout puts the
@@ -305,6 +311,14 @@ static void button_handler_thread_entry(void *p1, void *p2, void *p3)
             if (imu_alive) {
                 get_fifo_data();
                 imu_process();
+
+                /* Raise-to-wake v1 (WOM only, no tilt confirm — see
+                 * imu_notes.md 2026-08-22). WOM shares INT1 with FIFO_THS;
+                 * imu_check_wom() only ever reads INT_STATUS2, which nothing
+                 * else touches, so this can't race the FIFO drain above. */
+                if (imu_check_wom()) {
+                    ui_wake_display_if_asleep();
+                }
             }
         }
     }

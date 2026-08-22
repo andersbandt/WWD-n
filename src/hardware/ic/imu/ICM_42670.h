@@ -116,10 +116,24 @@ void getFifoCount();
 int getDataFromFifo(void);
 
 
+/**
+ * @brief raise-to-wake v1: true if a WOM event fired on any axis since the
+ * last call (see checkWom() in ICM_42670.c for why this is safe to share
+ * INT1 with the FIFO watermark)
+ */
+bool checkWom(void);
+
+
 /*
  * @brief gets the current step count recorded by the IMU
+ *
+ * @param[out] activity  On a fresh step-detect event, *activity is set to point at a
+ *                        static string naming the APEX activity class ("unknown"/"walk"/
+ *                        "run" — see APEX_ACTIVITY_NAMES in ICM_42670.c). Pass NULL if the
+ *                        caller doesn't need it. Left untouched when there's no fresh event
+ *                        (same "no write on stale read" behavior as step_count/step_cadence).
  */
-int getPedometer(uint32_t * step_count, float * step_cadence, const char* activity);
+int getPedometer(uint32_t * step_count, float * step_cadence, const char **activity);
 
 
 // ICM42670P C++ class functions

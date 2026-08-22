@@ -1373,9 +1373,17 @@ int inv_imu_disable_wom(struct inv_imu_device *s)
 	int                           status = 0;
 	uint8_t                       value;
 
-
-	// TODO: splice in rewriting this interrupt value (same for above function too)
-	// inv_imu_interrupt_parameter_t config_int = { (inv_imu_interrupt_value)0 };
+	/* Deliberately not touching INT1/INT2 routing here (and not in
+	 * inv_imu_enable_wom() above either): this function only flips WOM_CONFIG's
+	 * enable bit in the sensor itself. Interrupt routing is configured separately
+	 * via inv_imu_set_config_int1()/int2() (see init_hardware_from_ui() below, and
+	 * enableFifoInterrupt() in ICM_42670.c), which today deliberately leaves
+	 * INV_WOM_X/Y/Z off on INT1 — that pin already carries FIFO_THS, and
+	 * imu_int1_handler() (interrupt.c) treats every edge as "drain the FIFO" with
+	 * no demux of INT_STATUS/INT_STATUS2, so routing WOM there without also adding
+	 * that demux would just add spurious wakeups with no consumer. See the
+	 * raise-to-wake research note in imu_notes.md (2026-08-22) before wiring this
+	 * up — options 1/2 there cover exactly this tradeoff. */
 
 	/* Disable WOM */
 	status |= inv_imu_read_reg(s, WOM_CONFIG, 1, &value);

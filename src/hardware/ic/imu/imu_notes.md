@@ -1,5 +1,51 @@
 # IMU Notes
 
+## [2026-08-22] Raise-to-wake v1 implemented: WOM shares INT1 with FIFO_THS, no tilt yet
+
+Follow-through on the RESEARCH note above and the TODO-sweep entry below it. First
+prototype is on the wrist now (offline dev otherwise), so this is untested on hardware —
+needs a real on-wrist check before trusting it.
+
+**What's wired:**
+- `enableFifoInterrupt()` (`ICM_42670.c`) now enables `INV_WOM_X/Y/Z` alongside
+  `INV_FIFO_THS` in the `inv_imu_set_config_int1()` call that configures INT1 routing.
+  WOM itself still gets armed later by `inv_imu_enable_wom()` in `startApex()` — routing
+  it here just means it's live the instant that enable bit flips.
+- New `checkWom()` (`ICM_42670.c`) / `imu_check_wom()` (`imu.c`, `USE_DERS_IMU`-gated like
+  the rest of the driver) reads `INT_STATUS2` for the WOM bits. `INT_STATUS2` has no other
+  reader anywhere in the driver, so this can't race the FIFO drain (`INT_STATUS`, owned by
+  `inv_imu_get_data_from_fifo()`) or the pedometer/tilt poll (`INT_STATUS3`, owned by
+  `updateApex()` on the 9s tick) — the whole reason tilt is NOT wired in this pass (see
+  the TODO-sweep entry below).
+- `button_handler_thread_entry()` (`main.c`), INT1 branch: after the existing
+  `get_fifo_data()`/`imu_process()` FIFO drain, `if (imu_check_wom()) ui_wake_display_if_asleep();`.
+- New `ui_wake_display_if_asleep()` (`ui.c`/`ui.h`) + a `wake_display_and_repaint()` static
+  helper factored out of `handle_ui_input()`'s existing wake-on-button-press branch, so
+  button wake and WOM wake now run the literal same repaint code. `handle_ui_input()`'s
+  own lock/return structure is untouched — only its body was deduplicated — because that
+  structure exists to fix a real GDB-diagnosed crash (button press landing mid-redraw).
+
+**Two things considered and deliberately NOT done this pass:**
+- *Enabling WOM's INT1 routing from `startApex()` instead of `enableFifoInterrupt()`.*
+  `inv_imu_set_config_int1()` is a full overwrite of every source bit it manages on every
+  call, not an incremental merge — a second call from `startApex()` with a WOM-only struct
+  would silently clear `INV_FIFO_THS` (defaults to 0 in a fresh `{0}` struct) and kill FIFO
+  routing, breaking NVS logging the moment `imu_apex()` ran. `enableFifoInterrupt()` stays
+  the single place that declares the complete INT1 state.
+- *Wiring the button interrupt directly to `ui_wake_display_if_asleep()`.* Buttons already
+  wake the display inline in `handle_ui_input()`. Adding a separate call in main.c's button
+  branches would run before `handle_ui_input()`'s own `!display_is_awake()` check, so that
+  check would see the display as already-awake and fall through to also treat the same
+  press as navigation — breaking the "first press after sleep only wakes, doesn't jump a
+  menu position" contract. Also currently unreachable anyway: all four buttons are on the
+  MCP23008 expander, not populated on this board.
+
+**Still open (v2, if WOM-only produces too many false wakes on the wrist):** add the tilt
+confirm-gate. Needs `int_status3` (the static accumulator in `ICM_42670.c`) protected by a
+mutex once a second thread reads `INT_STATUS3`, or route the interrupt-thread's tilt check
+through `updateApex()` itself rather than a second raw register read — see the TODO-sweep
+entry below for the full race analysis.
+
 ## [RESOLVED 2026-07-26] IMU bring-up on nRF52833 (SN2): NFC pins killed the chip select
 
 **Result: working.** `imu_init()` returns 0 and live accel data streams
@@ -155,6 +201,72 @@ fires at ~100 Hz/WM=10, so that section is wrong and only kept for history.
 
 The host-side event buffer is separate and unchanged: `circular_buffer_init(64,
 sizeof(inv_imu_sensor_event_t))`, sized against `CONFIG_HEAP_MEM_POOL_SIZE=4096`.
+
+## [2026-08-22] TODO sweep: one real bug fixed, two design tradeoffs deferred on purpose
+
+Working through the file-level TODOs left in the IMU driver (offline, no hardware
+attached). One was a live bug; two were design questions that got documented rather
+than "resolved" in code, because acting on them now would be a guess.
+
+### Fixed: `getPedometer()`'s activity string was never wired up, and the call site had a real type bug
+`ICM_42670.c`'s `getPedometer()` took `const char* activity` but never wrote through it —
+the TODO said "I think I need some char variable containing activities if I want this to
+return a string." Worse, the one call site (`imu_get_pedo()` in `imu.c`) declared
+`const char* activity[20]` (an *array* of 20 uninitialized pointers) and passed that where
+a single `const char*` was expected — a real signature mismatch that only compiled because
+the parameter was dead on both ends.
+
+Fixed properly:
+- `getPedometer()`'s third param is now `const char **activity` (a real out-param, NULL-safe).
+- Added `APEX_ACTIVITY_NAMES[4]` in `ICM_42670.c`, indexed by
+  `APEX_DATA3_ACTIVITY_CLASS_t` (0=unknown, 1=walk, 2=run; index 3 unused/reserved but
+  present so the `& APEX_DATA3_ACTIVITY_CLASS_MASK` guard can't run off the array).
+- `imu_get_pedo()` now passes `&activity` (a real `const char *`), same "left untouched on
+  a stale/absent read" contract as `step_count`/`step_cadence` already had.
+- Nothing yet *displays* the activity string — `imu_get_pedo()` computes it but only
+  returns `step_count`. Wiring it into the UI is a separate, later task.
+
+### Deferred (documented, not implemented): WOM → interrupt routing
+`inv_imu_disable_wom()`/`inv_imu_enable_wom()` in `inv_imu_driver.c` only ever touch
+`WOM_CONFIG`'s enable bit in the sensor — they never route WOM onto an interrupt pin, and
+a TODO wanted that spliced in. Traced where routing actually happens instead:
+`inv_imu_set_config_int1()`/`int2()`, called from `init_hardware_from_ui()` and from
+`enableFifoInterrupt()` in `ICM_42670.c` (see the RESEARCH note above) — and today
+`enableFifoInterrupt()` writes a config that's all-off except `INV_FIFO_THS`, so WOM is
+deliberately not on INT1.
+
+Left it that way rather than wiring it in, because `imu_int1_handler()` (`interrupt.c`)
+just gives a semaphore on every INT1 edge with no demux of `INT_STATUS`/`INT_STATUS2` —
+whatever drains that semaphore today assumes "edge = FIFO watermark." Turning on
+`INV_WOM_X/Y/Z` on INT1 without also adding that demux would just produce spurious
+FIFO-drain wakeups with no consumer reading the WOM bit. This is really the same decision
+as the raise-to-wake options listed above (specifically option 2, "share INT1 between
+FIFO_THS and WOM/TILT") — so it should get decided once, there, not piecemeal via this
+TODO. No code changed; the TODO is now a comment pointing here.
+
+### Deferred (documented, not implemented): register-read caching
+`inv_imu_read_reg()` had a TODO + commented-out sketch for reading from
+`get_register_cache_addr()` (the 4-register shadow: `PWR_MGMT0`, `GYRO_CONFIG0`,
+`ACCEL_CONFIG0`, `TMST_CONFIG1_MREG1`) instead of going to the bus. Checked every caller
+in `inv_imu_driver.c` that touches those registers: all of them already call
+`inv_imu_read_reg()` themselves immediately before using the value — none read the cached
+field directly. So there's no live consumer to speed up today, and the cache is only kept
+in sync by writes that go through `inv_imu_write_reg()` — any other write path, or the part
+changing one of those bits on its own, would make a read-from-cache silently stale. Left
+the read path as real bus reads; the reasoning is now a comment at the call site instead of
+a bare TODO. Revisit only if profiling ever shows these specific reads are a bottleneck.
+
+### Explained, not changed: why `imu_spi_write`/`imu_spi_read` take a `serif` they ignore
+Just a documentation TODO ("why does this thing take in the serif?"). Both functions match
+the fixed `write_reg`/`read_reg` function-pointer signature in `struct inv_imu_serif`
+(`inv_imu_transport.h`) — InvenSense's vendor driver core calls through those pointers so
+it's portable across MCUs/buses without modification. This board only ever has one IMU on
+one hardcoded SPI device (`spi_dev`), so `serif` goes unused here; a port needing multiple
+IMU instances or interface types would pull the device handle from `serif->context`
+instead. Added `ARG_UNUSED(serif)` (matching the pattern already used elsewhere, e.g.
+`imu_bringup.c`, `protocol.c`) plus the explanation as a comment.
+
+---
 
 ## [STALE — does NOT reproduce on nRF52833] IMU Init Fails When NVS Is Enabled
 

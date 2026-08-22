@@ -435,12 +435,12 @@ size_t temp_history_get(int16_t *out, size_t max_count)
  */
 int imu_get_pedo() {
     float step_cadence = 0;
-    const char* activity[20]; // NOTE: I think this thing will be something like "walking, running, etc?"
+    const char *activity = NULL; // set by getPedometer() to "unknown"/"walk"/"run" on a fresh step-detect event
 
     uint32_t count = step_count;  // guard 1: unwritten out-param leaves the total intact
 
     #ifdef USE_DERS_IMU
-        volatile int status = getPedometer(&count, &step_cadence, activity);
+        volatile int status = getPedometer(&count, &step_cadence, &activity);
     #else
         volatile int status = 999;
     #endif
@@ -450,6 +450,15 @@ int imu_get_pedo() {
     }
 
     return step_count;
+}
+
+
+bool imu_check_wom(void) {
+#ifdef USE_DERS_IMU
+    return checkWom();
+#else
+    return false;
+#endif
 }
 
 

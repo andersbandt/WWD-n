@@ -48,6 +48,15 @@ bool get_running_state();
 
 
 /**
+ * @brief This method returns whether we are currently browsing a sub-menu's
+ * item list (as opposed to the top-level main menu list)
+ *
+ * @returns true if browsing a sub-menu list, false if at the main menu list
+ */
+bool get_in_sub_menu_state();
+
+
+/**
  * @brief This method handles updating the UI screen based on a new user action
  *
  * @param Represents what action occurred
@@ -137,6 +146,17 @@ void commenceUIAction(int absolute_position, int sub_menu_position);
  * @returns None (void)
  */
 void ui_menu_force_exit(void);
+
+
+/**
+ * @brief Exits a running sub-menu function back to the sub-menu list it was
+ * launched from (one level up). See ui_menu.c for the full contract - the
+ * caller must still set ui_mode = UI_MODE_MENU itself, directly rather than
+ * via change_ui_mode().
+ *
+ * @returns None (void)
+ */
+void ui_menu_return_to_sub_menu(void);
 
 
 

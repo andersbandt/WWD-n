@@ -167,6 +167,14 @@ int imu_get_pedo();
 
 
 /**
+ * @brief raise-to-wake v1 (WOM only, no tilt confirm — see imu_notes.md
+ * 2026-08-22): true if a WOM (motion) event fired on INT1 since the last
+ * check. Always false when USE_DERS_IMU is not defined.
+ */
+bool imu_check_wom(void);
+
+
+/**
  * @brief prints out pedometer info from the IMU
  */
 int imu_log();

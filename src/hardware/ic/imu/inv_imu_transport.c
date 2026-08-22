@@ -64,8 +64,17 @@ static int      write_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8
 static int read_mclk_reg(struct inv_imu_device *s, uint16_t regaddr, uint8_t rd_cnt, uint8_t *buf);
 
 
-// TODO: why does this thing take in the serif?
+/* imu_spi_write/imu_spi_read take a `struct inv_imu_serif *` because that's the fixed
+ * signature of the `write_reg`/`read_reg` function pointers in `struct inv_imu_serif`
+ * (inv_imu_transport.h) — InvenSense's vendor driver core (write_sreg/read_sreg etc.)
+ * is transport-agnostic and calls through those pointers so it can be ported to any
+ * MCU/bus without changes. `serif` is unused here because this board only ever talks
+ * to one IMU over one hardcoded SPI device (`spi_dev` above); a port that needed to
+ * address multiple IMU instances or interface types would pull the device handle out
+ * of `serif->context` instead. See the "MAIN FUNCTIONS TO EDIT WHEN SWITCHING MCU
+ * VENDORS" bracket in inv_imu_transport.h. */
 int imu_spi_write(struct inv_imu_serif *serif, uint8_t reg, const uint8_t *buf, uint32_t len) {
+    ARG_UNUSED(serif);
     uint8_t tx_data[len+1];
     tx_data[0] = reg;
     memcpy(&tx_data[1], buf, len);
@@ -99,6 +108,7 @@ int imu_spi_read(struct inv_imu_serif *serif,
                  uint8_t *buf,
                  uint32_t len)
 {
+    ARG_UNUSED(serif); // see the comment on imu_spi_write() above
     uint8_t *tx_data = imu_spi_tx_buf;
     uint8_t *rx_data = imu_spi_rx_buf;
 
@@ -169,11 +179,19 @@ int inv_imu_read_reg(struct inv_imu_device *s, uint32_t reg, uint32_t len, uint8
 		return INV_ERROR_BAD_ARG;
 	}
 
-    
-// TODO: evaluate the need for caching regiseter reads
-//		const uint8_t *cache_addr = get_register_cache_addr(s, reg + i);
-//    if (cache_addr) { buf[i] = *cache_addr; }
-    
+	/* Evaluated: the register_cache (get_register_cache_addr(), populated by
+	 * inv_imu_init_transport() and kept current by inv_imu_write_reg() below) is
+	 * currently write-only from this function's point of view — every caller in
+	 * inv_imu_driver.c that cares about PWR_MGMT0/GYRO_CONFIG0/ACCEL_CONFIG0/
+	 * TMST_CONFIG1_MREG1 already calls inv_imu_read_reg() itself right before using
+	 * the value, rather than reading the cached field directly, so there is no
+	 * live consumer to speed up today. Short-circuiting reads of those 4 registers
+	 * to the cache would save a handful of SPI transactions, but only the four
+	 * registers get shadowed, and only writes made through inv_imu_write_reg() keep
+	 * the shadow in sync — any other write path (or the part changing one of these
+	 * bits on its own) would make the cache silently stale. Not worth the risk for
+	 * the current call pattern; revisit only if profiling shows these reads are a
+	 * real bottleneck. */
 
 	if (!(reg & 0x10000)) {
 		for (uint32_t i = 0; i < len; i++) {

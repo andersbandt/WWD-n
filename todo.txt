@@ -2,15 +2,20 @@
 WEARABLE DEVICE - SIMULATION-FRIENDLY TODO LIST
 ===============================================================================
 
-1. IMPLEMENT BATTERY PERCENTAGE CALCULATION (BMS Enhancement)
-   Location: src/hardware/ic/bms/BQ25120A.c
+1. IMPLEMENT BATTERY PERCENTAGE CALCULATION (Power Enhancement)
+   Location: src/power/power.c
+
+   (BQ25120A driver removed 2026-08-22 — not in the current design, which
+   uses a discrete BQ24090 + separate over/undervoltage protection IC, no
+   I2C. Battery percentage still needs computing from the existing ADC
+   voltage read in power.c.)
 
    Tasks:
    - Add battery discharge curve lookup table (typical Li-Po 3.7V)
      * 4.2V = 100%
      * 3.7V = 50%
      * 3.0V = 0%
-   - Implement bms_get_battery_percentage() using voltage interpolation
+   - Implement battery-percentage-from-voltage using interpolation
    - Add battery state tracking (charging/discharging/full)
    - Create helper functions for charge state estimation
    - Add low battery threshold warnings (<20%, <10%, <5%)

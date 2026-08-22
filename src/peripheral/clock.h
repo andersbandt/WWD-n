@@ -47,9 +47,6 @@ typedef enum {
 // set initial time offset
 extern Time time_offset;
 
-// current calendar date — defined in clock.c, updated at midnight
-extern Date current_date;
-
 
 uint8_t increment_second(uint8_t s, direction_t dir);
 uint8_t increment_minute(uint8_t minute, direction_t dir);
@@ -110,22 +107,22 @@ bool is_leap_year(uint16_t year);
 uint8_t days_in_month(uint8_t month, uint16_t year);
 
 /**
- * @brief Pure function: returns the date following d.
- *        Rolls day → month → year as needed.
+ * @brief Set the current calendar date.
+ *
+ * Backed by the RV-3028 hardware RTC (rv3028_set_date()) — persists across
+ * reboots via the chip's coin cell, same as get_current_time()/
+ * set_time_offset() are backed by rv3028_get_time()/rv3028_set_time(). No
+ * software day-advance step is needed: the chip keeps its own calendar
+ * current in hardware.
  */
-Date increment_date(Date d);
-
-/** Set the current calendar date. */
 void set_date(Date d);
 
-/** Get the current calendar date. */
-Date get_date(void);
-
 /**
- * @brief Advance current_date by one day.
- *        Call this from rtc.c when rtc_seconds wraps through midnight.
+ * @brief Get the current calendar date.
+ *
+ * Backed by the RV-3028 hardware RTC (rv3028_get_date()).
  */
-void clock_advance_date(void);
+Date get_date(void);
 
 /**
  * @brief Returns a 3-letter abbreviation ("SUN".."SAT") for the day of week

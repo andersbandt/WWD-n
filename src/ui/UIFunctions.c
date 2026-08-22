@@ -28,6 +28,7 @@
 #include <hardware/button.h>
 #include <imu.h>
 #include <peripheral/clock.h>
+#include <peripheral/rv3028.h>
 #include <memory/nvs.h>
 
 /* UI and display */
@@ -83,7 +84,13 @@ void reset_uifunc_params() {
 }
 
 
-// TODO: need to really eliminate all sleep things in here BECAUSE THEY WILL FUCK UP THE ZEPHYR THREADS
+// RESOLVED 2026-08-22: audited this file — no k_sleep/k_msleep/k_usleep and no blocking
+// while loop left anywhere in it (get_button_event() is a plain non-blocking circular-buffer
+// pop, not a wait). The one that existed (a `while (status)` + k_usleep(10000) loop in
+// system_adjust_brightness_UI_FUNC(), see the comment there for what it actually broke) is
+// already fixed — every _UI_FUNC() here is now a single non-blocking pass per ui_refresh()
+// tick, same shape. Kept as a marker (rather than deleted) because two other comments in
+// this file point back at it by name.
 
 /////////////////////////////////////////////////////
 ////////// MENU 0 - SYSTEM SETTINGS /////////////////
@@ -111,9 +118,14 @@ void reset_uifunc_params() {
  * day-of-month clamping, since increment_day() depends on the month/year
  * shown alongside it.
  *
- * NOTE: the time fields (time_offset) are edited here same as always but were
- * never wired to an actual clock-commit call — see the clock_set_time() TODO
- * in clock.h / CLAUDE.md Known Issues. Only the date is committed on exit.
+ * RESOLVED 2026-08-22: both screens are now seeded from the real RV-3028
+ * hardware RTC on entry (get_current_time()/get_date(), rather than starting
+ * from a zeroed/stale in-memory value) and both are committed back to it on
+ * exit (rv3028_set_time() directly; set_date() already goes through
+ * rv3028_set_date()). Previously only the date half of this actually worked —
+ * time_offset was edited on screen but never written anywhere, so every
+ * "time set" was silently discarded. See imu_notes.md-style history in
+ * CLAUDE.md Known Issues for the old state; that entry is now stale.
  */
 
 #define SET_FIELDS_PER_SCREEN 3
@@ -181,7 +193,8 @@ static void adjust_selected_field(direction_t dir)
 
 void system_prompt_for_time_UI_FUNC() {
     if (first_ui_time) {
-        date_offset = current_date; // seed from the real date, not zeroed
+        date_offset = get_date();          // seed from the real (RTC-backed) date, not zeroed
+        time_offset = get_current_time();  // seed from the real (RTC-backed) time, not zeroed
         set_screen = SET_SCREEN_TIME;
         position = 0;
         /* Wipe whatever the menu left on screen — the two lines this function
@@ -220,7 +233,8 @@ void system_prompt_for_time_UI_FUNC() {
             draw_time_set_screen();
         }
         else {
-            set_date(date_offset);
+            rv3028_set_time(time_offset);  // commit both to the RV-3028 (I2C write)
+            set_date(date_offset);         // (set_date() -> rv3028_set_date(), same chip)
             ui_clock_set_date(date_offset);
             ui_mode = UI_MODE_CLOCK;
         }
@@ -304,7 +318,10 @@ void system_adjust_brightness_UI_FUNC(void) {
 }
 
 void system_clear_faults_UI_FUNC(void) {
-    // bq25120a_mask_faults();
+    // No-op: this board uses a discrete BQ24090 + separate over/undervoltage
+    // protection IC, neither with an I2C fault register to clear (see power.c).
+    // Previously called into the BQ25120A driver, which has been removed —
+    // that part isn't in this design.
 }
 
 

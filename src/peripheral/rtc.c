@@ -24,7 +24,7 @@
 
 /* My headers */
 #include <peripheral/rtc.h>
-#include <peripheral/clock.h>   /* clock_advance_date() */
+#include <peripheral/clock.h>   /* Time struct, used by rtc_get_time()/rtc_set_time() below */
 
 
 LOG_MODULE_REGISTER(rtc, LOG_LEVEL_INF);
@@ -88,10 +88,20 @@ static void second_tick_cb(const struct device *dev, uint8_t chan_id,
     rtc_seconds++;
     if (rtc_seconds >= SECONDS_PER_DAY) {
         rtc_seconds = 0;
-        clock_advance_date();
+        /* Date no longer advanced from here (2026-08-22): get_date()/set_date()
+         * (clock.c) are now backed by the RV-3028 hardware RTC, which keeps its
+         * own calendar current entirely in hardware - no software day-advance
+         * needed, and this counter's "midnight" is time-since-boot, not real
+         * midnight, so it would have been advancing the date at the wrong
+         * moment anyway. This is also unreachable today regardless: nothing
+         * calls rtc_init() to arm this alarm in the first place (rv3028_get_time()
+         * is the live time source - see get_current_time() in clock.c). */
         // TODO: midnight rollover — reset daily variables here:
         //   - step_count (imu.h)
         //   - any other daily accumulators (calories, active minutes, etc.)
+        // (Needs a real-midnight detector once this path is live again - e.g.
+        // comparing rv3028_get_date() across polls - not this boot-relative
+        // counter.)
     }
 
     uint32_t top = counter_get_top_value(dev);

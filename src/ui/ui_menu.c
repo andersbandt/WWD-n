@@ -319,6 +319,20 @@ bool get_running_state()
 }
 
 
+/**
+ * @brief returns whether we are currently browsing a sub-menu's item list
+ * (as opposed to the top-level main menu list)
+ *
+ * @param None
+ *
+ * @returns bool representing state
+ */
+bool get_in_sub_menu_state()
+{
+    return in_sub_menu;
+}
+
+
 /*
  * updateMenuScreen: updates the screen based on new position
  *
@@ -511,6 +525,25 @@ void ui_menu_force_exit(void)
     run_sub_menu = false;
     in_sub_menu = false;
     reset_uifunc_params();
+}
+
+
+/*
+ * ui_menu_return_to_sub_menu: exits a running sub-menu function back to the
+ * sub-menu list it was launched from - one level up, as opposed to
+ * ui_menu_force_exit() which clears all the way back to the main menu list.
+ * Used by the BACK button from within a running leaf screen (see
+ * handle_ui_input() in ui.c). Caller is still responsible for setting
+ * ui_mode = UI_MODE_MENU directly - NOT via change_ui_mode(), which resets
+ * to the top-level main menu (abs_position = 0) whenever its target is
+ * UI_MODE_MENU, which would blow away the sub-menu redraw this function
+ * just did.
+ */
+void ui_menu_return_to_sub_menu(void)
+{
+    run_sub_menu = false;
+    reset_uifunc_params();
+    returnSubMenu();
 }
 
 

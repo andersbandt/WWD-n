@@ -104,6 +104,19 @@ void handle_ui_input();
 
 
 /**
+ * @brief Wakes a sleeping display in response to a non-button wake source.
+ *
+ * Runs the same wake + full clock repaint sequence handle_ui_input() runs for
+ * a button press, factored out so another trigger can share it — currently
+ * the WOM raise-to-wake path in button_handler_thread_entry() (main.c). A
+ * no-op (just takes/releases display_draw_mutex) if the display is already
+ * awake. Must be called from a thread, not an ISR — it takes
+ * display_draw_mutex and touches SPI1.
+ */
+void ui_wake_display_if_asleep(void);
+
+
+/**
  * @brief Records user activity, restarting the display auto-off countdown.
  *
  * Called on every real button press; also called by init_ui() so the screen

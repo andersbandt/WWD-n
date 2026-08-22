@@ -45,8 +45,6 @@ static uint32_t prev_log_ticks = 0;
 
 static uint32_t tick_offset = 0;
 
-Date current_date = {.day = 1, .month = 1, .year = 2026};
-
 /* Days per month for a non-leap year */
 static const uint8_t month_days[12] = {
     31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31
@@ -119,35 +117,14 @@ uint8_t days_in_month(uint8_t month, uint16_t year)
     return month_days[month - 1];
 }
 
-Date increment_date(Date d)
-{
-    d.day++;
-    if (d.day > days_in_month(d.month, d.year)) {
-        d.day = 1;
-        d.month++;
-        if (d.month > 12) {
-            d.month = 1;
-            d.year++;
-        }
-    }
-    return d;
-}
-
 void set_date(Date d)
 {
-    current_date = d;
+    rv3028_set_date(d);
 }
 
 Date get_date(void)
 {
-    return current_date;
-}
-
-void clock_advance_date(void)
-{
-    current_date = increment_date(current_date);
-    LOG_INF("Date advanced: %04u-%02u-%02u",
-            current_date.year, current_date.month, current_date.day);
+    return rv3028_get_date();
 }
 
 const char *get_day_of_week_str(Date d)

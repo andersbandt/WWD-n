@@ -341,11 +341,27 @@ int enableFifoInterrupt(uint8_t fifo_watermark) {
      * Without this the watermark only ever sets a bit in INT_STATUS — the
      * physical pin never moves, so no MCU interrupt can fire. The old board
      * carried FIFO_THS on INT2, but INT2 is not wired on the nRF52833 hardware
-     * (P0.09/INT1 is the only interrupt line), so it has to go to INT1 here. */
+     * (P0.09/INT1 is the only interrupt line), so it has to go to INT1 here.
+     *
+     * WOM_X/Y/Z share this same pin (2026-08-22, raise-to-wake v1 — see
+     * imu_notes.md). This is safe to share because the two conditions land in
+     * different status registers (FIFO cause in INT_STATUS, WOM cause in
+     * INT_STATUS2) and each has exactly one reader: get_fifo_data() ->
+     * inv_imu_get_data_from_fifo() owns INT_STATUS, button_handler_thread_entry()
+     * (main.c) owns INT_STATUS2. Nothing else reads either register, so there's
+     * no clear-on-read race. WOM itself isn't actually armed until
+     * inv_imu_enable_wom() runs in startApex() below — enabling the routing here
+     * just means it's ready the moment WOM_CONFIG's enable bit goes live. Tilt
+     * (INT_STATUS3) is deliberately NOT added here: that register already has an
+     * exclusive reader (updateApex(), polled every 9s from sensor_update_thread)
+     * and adding a second one from the interrupt thread would race it. */
     {
         inv_imu_interrupt_parameter_t it = { 0 };  /* all sources off... */
 
         it.INV_FIFO_THS = INV_IMU_ENABLE;          /* ...except the watermark */
+        it.INV_WOM_X    = INV_IMU_ENABLE;          /* ...and WOM (raise-to-wake v1) */
+        it.INV_WOM_Y    = INV_IMU_ENABLE;
+        it.INV_WOM_Z    = INV_IMU_ENABLE;
         rc |= inv_imu_set_config_int1(&icm_driver, &it);
     }
 
@@ -362,7 +378,7 @@ int enableFifoInterrupt(uint8_t fifo_watermark) {
     data |= (uint8_t)INT_CONFIG_INT1_DRIVE_CIRCUIT_PP;
     data |= (uint8_t)INT_CONFIG_INT1_POLARITY_LOW;
     rc |= inv_imu_write_reg(&icm_driver, INT_CONFIG, 1, &data);
-    LOG_INF("INT1 configured for FIFO_THS: INT_CONFIG = 0x%02x", data);
+    LOG_INF("INT1 configured for FIFO_THS + WOM: INT_CONFIG = 0x%02x", data);
 
 
     // do some Ders verification
@@ -475,7 +491,29 @@ int getDataFromIMUReg(inv_imu_sensor_event_t* evt) {
 void getFifoCount() {
         int data1 = readIMUReg(FIFO_COUNTL);
         int data2 = readIMUReg(FIFO_COUNTH);
-        LOG_INF("FIFO count (high, low) --> (%d, %d)", data1, data2);    
+        LOG_INF("FIFO count (high, low) --> (%d, %d)", data1, data2);
+}
+
+
+/*
+ * checkWom: raise-to-wake v1 (2026-08-22, see imu_notes.md) — reads
+ * INT_STATUS2 to see whether a WOM event has fired on any axis since the last
+ * check. WOM shares INT1 with FIFO_THS (see enableFifoInterrupt()); this
+ * function is the exclusive reader of INT_STATUS2, so there's no clear-on-read
+ * race with anything else in the driver (contrast with INT_STATUS3/tilt,
+ * which already has a reader in updateApex() and is deliberately NOT checked
+ * here — same comment). Returns false (not true, not "unknown") on a read
+ * error, same best-effort style as the rest of this file's INT_STATUS* checks.
+ */
+bool checkWom(void) {
+    uint8_t status2 = 0;
+
+    if (inv_imu_read_reg(&icm_driver, INT_STATUS2, 1, &status2) != 0) {
+        return false;
+    }
+
+    return (status2 & (INT_STATUS2_WOM_X_INT_MASK | INT_STATUS2_WOM_Y_INT_MASK |
+                        INT_STATUS2_WOM_Z_INT_MASK)) != 0;
 }
 
 
@@ -501,10 +539,21 @@ int updateApex(void) {
 }
 
 
+/* Indexed by APEX_DATA3_ACTIVITY_CLASS_t (APEX_DATA3_ACTIVITY_CLASS_MASK = 0x03).
+ * Only 0/1/2 are defined by the part; index 3 is reserved/unused but kept so an
+ * out-of-range read (should never happen given the mask) can't run off the array. */
+static const char *const APEX_ACTIVITY_NAMES[4] = {
+    "unknown", // APEX_DATA3_ACTIVITY_CLASS_OTHER
+    "walk",    // APEX_DATA3_ACTIVITY_CLASS_WALK
+    "run",     // APEX_DATA3_ACTIVITY_CLASS_RUN
+    "unknown", // reserved
+};
+
+
 /*
 * getPedometer: returns info on the pedometer function of the ICM-42670
 */
-int getPedometer(uint32_t * step_count, float * step_cadence, const char* activity) {
+int getPedometer(uint32_t * step_count, float * step_cadence, const char **activity) {
     int rc = 0;
 
     /* Read APEX interrupt status */
@@ -538,9 +587,9 @@ int getPedometer(uint32_t * step_count, float * step_cadence, const char* activi
             step_cadence = 0;
         }
 
-        // TODO: I think I need some char variable containg activities if I want this to return a string?
-        // activity = apex_data0.activity_class;
-        // activity = APEX_ACTIVITY[apex_data0.activity_class];
+        if (activity != NULL) {
+            *activity = APEX_ACTIVITY_NAMES[apex_data0.activity_class & APEX_DATA3_ACTIVITY_CLASS_MASK];
+        }
     } 
     else {
         return -11;

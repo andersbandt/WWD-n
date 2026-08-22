@@ -66,8 +66,8 @@ ui_mode_t ui_mode = UI_MODE_CLOCK; // internal variable
 K_MUTEX_DEFINE(display_draw_mutex);
 
 
-int bat_percent; // defined in BQ25120A.h
-int charging_status; // defined in BQ25120A.h
+int bat_percent;
+int charging_status;
 
 
 // Static clock data with dirty tracking
@@ -378,11 +378,69 @@ void ui_idle_tick(void)
 }
 
 
+/* Common body of "wake the display and repaint it," shared by
+ * handle_ui_input()'s wake branch and ui_wake_display_if_asleep() below.
+ * Callers must already hold display_draw_mutex and must have already
+ * confirmed the display was asleep — this does not check or lock, on purpose,
+ * so it can be dropped into handle_ui_input()'s existing critical section
+ * without changing that function's mutex/return ordering (shaped by a live
+ * GDB-diagnosed crash — see the display_draw_mutex comment above). */
+static void wake_display_and_repaint(void) {
+    switch_display(true);
+
+    /* The ST7735S keeps its GRAM through SLPIN/SLPOUT, so the screen comes
+     * back showing whatever it slept on — no clear_display() here (that
+     * would flash the panel). What is stale is the *content*: everything
+     * ui_refresh() skipped while asleep. Force a full repaint of the clock
+     * face from the current data; other modes are best-effort via
+     * ui_refresh(), same caveat as ui_show_dump_in_progress(). */
+    if (ui_mode == UI_MODE_CLOCK) {
+        display_clock_time_reset();
+        ui_clock_mark_dirty(UI_CLOCK_DIRTY_ALL);
+        draw_clock_title();
+    }
+    ui_refresh();
+    ui_note_activity();
+}
+
+
+/* See doc comment in ui.h. */
+void ui_wake_display_if_asleep(void) {
+    k_mutex_lock(&display_draw_mutex, K_FOREVER);
+
+    if (!display_is_awake()) {
+        wake_display_and_repaint();
+    }
+
+    k_mutex_unlock(&display_draw_mutex);
+}
+
+
+/* Semantic button roles for menu/back navigation, used by handle_ui_input()
+ * below. To swap which physical button performs which role (e.g. swap BACK
+ * and SELECT), edit these four lines only - handle_ui_input() never compares
+ * button_status against a raw BUTTON_n_MASK directly, only these names.
+ *
+ * NOT covered by this mapping: each leaf screen in UIFunctions.c (time/date
+ * setter, brightness, stopwatch) has its own separate, hardcoded button
+ * scheme (increment/decrement/next-field/etc.) - those are a different kind
+ * of action entirely (not up/down/select/back) and are remapped by editing
+ * that screen's own function.
+ *
+ * The SW3+SW4 "always home" combo below is deliberately left as raw physical
+ * masks rather than these roles - it's a two-finger physical gesture tied to
+ * the bottom row, not a semantic action, so it doesn't move if SELECT/BACK
+ * get swapped. */
+#define BUTTON_ACTION_UP     BUTTON_1_MASK   // SW1, top-left
+#define BUTTON_ACTION_DOWN   BUTTON_4_MASK   // SW4, bottom-left
+#define BUTTON_ACTION_SELECT BUTTON_3_MASK   // SW3, bottom-right
+#define BUTTON_ACTION_BACK   BUTTON_2_MASK   // SW2, top-right
+
 /* Physical button layout (SW1-4, clockwise from top-left) — see button.h:
- *   BUTTON_1_MASK = SW1 = top-left     = UP
- *   BUTTON_2_MASK = SW2 = top-right    = open/unassigned
- *   BUTTON_3_MASK = SW3 = bottom-right = SELECT
- *   BUTTON_4_MASK = SW4 = bottom-left  = DOWN
+ *   BUTTON_1_MASK = SW1 = top-left     = UP     (BUTTON_ACTION_UP)
+ *   BUTTON_2_MASK = SW2 = top-right    = BACK   (BUTTON_ACTION_BACK)
+ *   BUTTON_3_MASK = SW3 = bottom-right = SELECT (BUTTON_ACTION_SELECT)
+ *   BUTTON_4_MASK = SW4 = bottom-left  = DOWN   (BUTTON_ACTION_DOWN)
  * SW3+SW4 (the bottom row) together always return to the clock face,
  * regardless of UI mode. */
 void handle_ui_input() {
@@ -402,25 +460,11 @@ void handle_ui_input() {
     /* Any button press wakes a sleeping display first; that press just
      * wakes it and is not also treated as navigation (so waking up doesn't,
      * say, also jump a menu position or fire SELECT). Sleep comes from
-     * ui_idle_tick() above. */
+     * ui_idle_tick() above. Same repaint sequence as the WOM raise-to-wake
+     * path (button_handler_thread_entry() -> ui_wake_display_if_asleep()),
+     * factored into wake_display_and_repaint() above. */
     if (!display_is_awake()) {
-        switch_display(true);
-
-        /* The ST7735S keeps its GRAM through SLPIN/SLPOUT, so the screen
-         * comes back showing whatever it slept on — no clear_display() here
-         * (that would flash the panel). What is stale is the *content*:
-         * everything ui_refresh() skipped while asleep. Force a full repaint
-         * of the clock face from the current data; other modes are
-         * best-effort via ui_refresh(), same caveat as
-         * ui_show_dump_in_progress(). */
-        if (ui_mode == UI_MODE_CLOCK) {
-            display_clock_time_reset();
-            ui_clock_mark_dirty(UI_CLOCK_DIRTY_ALL);
-            draw_clock_title();
-        }
-        ui_refresh();
-
-        ui_note_activity();
+        wake_display_and_repaint();
         k_mutex_unlock(&display_draw_mutex);
         return;
     }
@@ -440,17 +484,28 @@ void handle_ui_input() {
 
     // Handle menu-specific input
     if (ui_mode == UI_MODE_MENU) {
-        if (button_status == BUTTON_1_MASK) {        // SW1 top-left: UP
+        if (button_status == BUTTON_ACTION_UP) {
             updateMenuScreen(-1);
         }
-        else if (button_status == BUTTON_4_MASK) {   // SW4 bottom-left: DOWN
+        else if (button_status == BUTTON_ACTION_DOWN) {
             updateMenuScreen(1);
         }
-        else if (button_status == BUTTON_3_MASK) {   // SW3 bottom-right: SELECT
+        else if (button_status == BUTTON_ACTION_SELECT) {
             updateMenuScreen(2);
         }
-        else if (button_status == BUTTON_2_MASK) {   // SW2 top-right: open/unassigned
-            // TODO: no action defined yet for this button
+        else if (button_status == BUTTON_ACTION_BACK) {
+            if (get_in_sub_menu_state()) {
+                returnMenu();  // step up: sub-menu list -> main menu list
+            }
+            else {
+                // Already at the top level - back exits to the clock face,
+                // same as the SW3+SW4 combo below, just reachable with one
+                // button from here.
+                ui_menu_force_exit();
+                change_ui_mode(UI_MODE_CLOCK);
+                k_mutex_unlock(&display_draw_mutex);
+                return;
+            }
         }
         k_mutex_unlock(&display_draw_mutex);
         return;
@@ -459,6 +514,26 @@ void handle_ui_input() {
         // Any single button from the clock face opens the menu (the bottom-
         // row home combo above already returned before reaching here).
         change_ui_mode(UI_MODE_MENU);
+    }
+    else if (button_status == BUTTON_ACTION_BACK && ui_mode != UI_MODE_PROMPT_TIME) {
+        /* BACK from a running leaf screen (Pedometer, Temp Graph, Data
+         * Stats, Stopwatch, Brightness, Clear Faults, IMU Read/Temp) returns
+         * to the sub-menu list it was launched from - one level up, not all
+         * the way home like the SW3+SW4 combo above.
+         *
+         * Excluded: UI_MODE_PROMPT_TIME. That screen already uses this same
+         * physical button (SW2) for its own purpose - paging TIME -> DATE and
+         * then committing/exiting - see system_prompt_for_time_UI_FUNC() in
+         * UIFunctions.c. If BACK ever gets remapped off SW2, this exclusion
+         * is worth revisiting (the collision that motivates it would be
+         * gone), but today it's the only leaf screen with its own use of
+         * BUTTON_ACTION_BACK's physical button, so it's the only exclusion
+         * needed. */
+        ui_menu_return_to_sub_menu();
+        ui_mode = UI_MODE_MENU;  // direct assignment, not change_ui_mode() - see
+                                  // ui_menu_return_to_sub_menu()'s doc comment
+        k_mutex_unlock(&display_draw_mutex);
+        return;
     }
 
     k_mutex_unlock(&display_draw_mutex);
