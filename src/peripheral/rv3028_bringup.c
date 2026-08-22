@@ -147,11 +147,16 @@ void i2c_bus_scan(void)
         int scl = (p0_in >> 30) & 1;
         int sda = (p1_in >>  9) & 1;
 
+        /* Only editorialise when the scan came up empty — saying "device is
+         * silent" right after listing devices that ACKed is worse than saying
+         * nothing. */
         cdc_printf("  idle lines: SCL(P0.30)=%d SDA(P1.09)=%d -> %s\r\n",
                    scl, sda,
-                   (scl && sda)
-                       ? "bus OK (pull-ups fine) — device is silent, not the bus"
-                       : "BUS FAULT — a line is held LOW, check shorts/stuck device");
+                   !(scl && sda)
+                       ? "BUS FAULT — a line is held LOW, check shorts/stuck device"
+                       : (found == 0)
+                             ? "bus OK (pull-ups fine) — device is silent, not the bus"
+                             : "bus idle-high, as expected");
 
         /* Healthy-but-empty bus is the ambiguous case worth spending time on. */
         if (found == 0 && scl && sda) {
