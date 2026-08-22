@@ -80,6 +80,37 @@ void lfclk_report(void)
  * only IC populated on this bus — the mcp23008@20 node in the DTS is not
  * fitted on any board, so its absence from the scan is expected and there is
  * no second device to use as a bus-health control. */
+/* When the initial scan comes up empty, the useful follow-up question is
+ * "empty forever, or just not yet?". A part that is slow to leave POR, or one
+ * flipping in and out of RV-3028 backup mode as a floating rail drifts, both
+ * look identical to a single scan at t=0 but are very different faults from a
+ * dead chip. Rescan on an interval and report the first address seen and when.
+ * Read-only; only runs when the first scan found nothing. */
+void i2c_rescan_watch(int seconds)
+{
+    uint8_t dummy;
+    int64_t t0 = k_uptime_get();
+
+    cdc_printf("  [rescan] nothing ACKed at t=0 — watching the bus for %ds\r\n",
+               seconds);
+
+    while ((k_uptime_get() - t0) < (seconds * 1000)) {
+        for (uint8_t addr = 0x08; addr <= 0x77; addr++) {
+            if (i2c_read(i2c_dev, &dummy, 1, addr) == 0) {
+                cdc_printf("  [rescan] 0x%02x ACKed at t=%lldms%s\r\n",
+                           addr, k_uptime_get() - t0,
+                           addr == 0x52 ? "  (RV-3028)" : "");
+                return;
+            }
+        }
+        k_msleep(1000);
+    }
+
+    cdc_printf("  [rescan] still silent after %ds — not a slow-POR or an\r\n"
+               "           intermittent rail; the part is not answering at all\r\n",
+               seconds);
+}
+
 void i2c_bus_scan(void)
 {
     uint8_t dummy;
@@ -121,6 +152,11 @@ void i2c_bus_scan(void)
                    (scl && sda)
                        ? "bus OK (pull-ups fine) — device is silent, not the bus"
                        : "BUS FAULT — a line is held LOW, check shorts/stuck device");
+
+        /* Healthy-but-empty bus is the ambiguous case worth spending time on. */
+        if (found == 0 && scl && sda) {
+            i2c_rescan_watch(20);
+        }
     }
 }
 

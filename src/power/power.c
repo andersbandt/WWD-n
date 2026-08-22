@@ -64,11 +64,17 @@ void power_init(void)
         gpio_pin_configure_dt(&vbat_div_en, GPIO_INPUT);
     }
 
+    power_rail_init();
+}
+
+void power_rail_init(void)
+{
     if (!gpio_is_ready_dt(&boost_sel_gpio)) {
         LOG_ERR("BOOST_SEL GPIO not ready");
-    } else {
-        gpio_pin_configure_dt(&boost_sel_gpio, GPIO_OUTPUT_INACTIVE);
+        return;
     }
+
+    gpio_pin_configure_dt(&boost_sel_gpio, GPIO_OUTPUT_INACTIVE);
 }
 
 int battery_voltage_mv(void)

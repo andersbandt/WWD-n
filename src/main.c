@@ -408,6 +408,13 @@ int main(void)
         k_msleep(1000);
     }
 
+    /* Nail down VCC before probing anything on I2C. BOOST_SEL (MCP23008 GP6)
+     * selects the TPS63900 rail, and the expander powers up with all pins as
+     * inputs — so without this the mode select floats and the RV-3028 is
+     * brought up on an undefined supply. power_init() below re-does this
+     * harmlessly; it simply runs far too late to help the RTC. */
+    power_rail_init();
+
     cdc_write("\r\n===== I2C / RV-3028-C7 probe =====\r\n");
     lfclk_report();
     if (!device_is_ready(i2c_dev)) {

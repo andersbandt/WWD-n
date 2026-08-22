@@ -18,6 +18,24 @@
 void power_init(void);
 
 /*
+ * Drive BOOST_SEL (MCP23008 GP6, the TPS63900 mode select) to the higher-rail
+ * setting. Split out of power_init() because it must happen EARLY.
+ *
+ * The MCP23008 comes out of POR with every pin an input, so until something
+ * drives GP6 the TPS63900's mode-select input floats and VCC is indeterminate.
+ * power_init() runs late in main(), well after the RV-3028 bring-up — which
+ * means the RTC was being probed on an undefined rail. A floating CMOS input
+ * settles differently board to board, so this showed up as the RTC binding on
+ * one board and not another with identical firmware (SN1 vs SN3, 2026-08-21).
+ *
+ * Idempotent: power_init() still calls this, so calling it early costs nothing.
+ * Note it can only work once the expander itself answers — on boards where the
+ * MCP23008 RESET/address rework has not been done, those pins float too and the
+ * expander may not be present at all.
+ */
+void power_rail_init(void);
+
+/*
  * Read battery voltage in millivolts.
  * Briefly enables the 1:2 voltage divider on AIN2 (P0.04) via VBAT_DIV_GPIO,
  * samples the SAADC, then disables the divider to save quiescent current.
