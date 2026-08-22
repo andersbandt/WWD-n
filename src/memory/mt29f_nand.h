@@ -57,3 +57,21 @@ void mt29f_chip_erase(void);
  * @brief resets the flash device (unsure what it's actually doing)
  */
 void mt29f_chip_reset(void);
+
+
+/**
+ * @brief Read the ONFI parameter page and return the manufacturer and model
+ *        strings the die reports for itself.
+ *
+ * The READ ID device byte only identifies a part through a lookup table; this
+ * reads the ASCII part number written at the factory, so it can confirm which
+ * chip is physically fitted. Read-only with respect to the array.
+ *
+ * @param manufacturer  buffer, at least 13 bytes
+ * @param man_len       size of @p manufacturer
+ * @param model         buffer, at least 21 bytes
+ * @param model_len     size of @p model
+ * @return 0 on success, -ENOTSUP if the ONFI signature is absent, else -errno
+ */
+int mt29f_read_param_page(char *manufacturer, size_t man_len,
+                          char *model, size_t model_len);

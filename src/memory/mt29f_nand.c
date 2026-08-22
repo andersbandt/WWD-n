@@ -190,6 +190,18 @@ static int spi_nand_check_id(void)
       } else {
         LOG_ERR("  unrecognised Micron device id -- check the part marking");
       }
+
+      /* Settle it from the die rather than the table above. */
+      {
+        char man[16] = {0};
+        char model[24] = {0};
+
+        if (mt29f_read_param_page(man, sizeof(man), model, sizeof(model)) == 0) {
+          LOG_ERR("  ONFI parameter page says: '%s' '%s'", man, model);
+        } else {
+          LOG_ERR("  ONFI parameter page unreadable -- id table above is all we have");
+        }
+      }
     } else {
       LOG_ERR("  manufacturer byte is not Micron (0x%02X) -- bus fault or no chip",
               read_id[0]);
@@ -695,3 +707,78 @@ void mt29f_chip_reset(void) {
   spi_nand_reset();
   k_mutex_unlock(&mt29f_bus_mutex);
 }
+
+#define MT29F_CFG_OTP_EN        0x40
+#define MT29F_PARAM_PAGE_ROW    0x01
+
+/*
+ * Read the ONFI parameter page and print the part number the die itself
+ * reports. The READ ID device byte only identifies the part via a lookup
+ * table; the parameter page carries the manufacturer and model as ASCII
+ * strings written at the factory, so it settles "which chip is actually
+ * fitted" without trusting any table.
+ *
+ * Sequence per the Micron SPI NAND datasheet: set OTP_EN in the configuration
+ * register, PAGE READ from row 0x01, read the cache out, then restore the
+ * configuration register. Read-only with respect to the array.
+ *
+ * ONFI parameter page layout: bytes 0-3 = "ONFI" signature, 32-43 =
+ * manufacturer, 44-63 = device model.
+ */
+
+int mt29f_read_param_page(char *manufacturer, size_t man_len,
+                          char *model, size_t model_len)
+{
+  uint8_t cfg = 0, cfg_saved = 0;
+  uint8_t page[64] = {0};
+  int rc;
+
+  if (manufacturer == NULL || model == NULL ||
+      man_len < 13 || model_len < 21) {
+    return -EINVAL;
+  }
+
+  rc = spi_nand_get_feature(REG_CONFIGURATION, &cfg);
+  if (rc != 0) {
+    return rc;
+  }
+  cfg_saved = cfg;
+
+  rc = spi_nand_set_feature(REG_CONFIGURATION, cfg | MT29F_CFG_OTP_EN);
+  if (rc != 0) {
+    return rc;
+  }
+
+  rc = spi_nand_page_load(MT29F_PARAM_PAGE_ROW);
+  if (rc == 0) {
+    spi_nand_wait_until_ready();
+    rc = spi_nand_page_cache_read(0, page, sizeof(page));
+  }
+
+  /* Always restore the configuration register, even on a failed read. */
+  spi_nand_set_feature(REG_CONFIGURATION, cfg_saved);
+
+  if (rc != 0) {
+    return rc;
+  }
+
+  if (page[0] != 'O' || page[1] != 'N' || page[2] != 'F' || page[3] != 'I') {
+    return -ENOTSUP;
+  }
+
+  memcpy(manufacturer, &page[32], 12);
+  manufacturer[12] = '\0';
+  memcpy(model, &page[44], 20);
+  model[20] = '\0';
+
+  /* The fields are space-padded; trim so the log line is readable. */
+  for (int i = 11; i >= 0 && (manufacturer[i] == ' ' || manufacturer[i] == '\0'); i--) {
+    manufacturer[i] = '\0';
+  }
+  for (int i = 19; i >= 0 && (model[i] == ' ' || model[i] == '\0'); i--) {
+    model[i] = '\0';
+  }
+
+  return 0;
+}
+
