@@ -1,5 +1,55 @@
 # IMU Notes
 
+## [RESEARCH 2026-08-23] Temperature reads ~14 degrees warm: it is self-heating, not the sensor
+
+Anders reports the clock-face temperature consistently high by ~14 degrees (display is
+Fahrenheit, so ~7.8 degC). Researched before touching any calibration code.
+
+**The datasheet rules out sensor error as the cause.** DS-000451 v1.0, TEMPERATURE SENSOR
+spec table:
+
+| Parameter | Value |
+|---|---|
+| 25 degC output | 0 LSB (two's complement) |
+| Room temperature offset @ 25 degC | **-3 to +3 degC** |
+| Sensitivity (trimmed) | 125 / **126.9** / 129 LSB/degC |
+| Sensitivity for FIFO data | 1.95 / 1.983 / 2.01 LSB/degC |
+| Operating range | -40 to +85 degC |
+| Stabilization time | 0.64 s |
+
+Worst-case part-to-part offset is +/-3 degC. The observed error is more than double that,
+so it is not the part being out of spec.
+
+**Checked and ruled out as the cause:** `imu_raw_to_fahrenheit()` uses `(raw / 128.0) + 25.0`,
+but typical trimmed sensitivity is **126.9 LSB/degC**, not 128. That is a 0.9% scale error
+worth about 0.2 degC at 30 degC. It is a real (free) fix, but it is nowhere near 14 degrees
+- do not "fix the formula" and expect the offset to go away.
+
+**The cause is near-certainly self-heating.** `imu_get_temp()` reads TEMP_DATA, which is the
+IMU's own **die** temperature, not ambient. That die sits on a small PCB carrying an
+nRF52833 running a `CONFIG_NO_OPTIMIZATIONS` build, 100 Hz FIFO logging, NAND writes and a
+display, inside an enclosure, on a warm wrist. Several degC of rise is exactly what that
+produces.
+
+**Why that matters for calibration:** a curve fitted against ambient is only valid for one
+power state and one thermal path. Calibrating idle in an oven and then running 100 Hz on a
+wrist makes the curve wrong again. So the first measurement is not a curve at all - it is
+the self-heat delta at two different ambients, at the workload the device actually runs. If
+that delta is constant, a single offset constant is the whole fix. Only if it varies with
+ambient is a curve justified, and even then two points are likely enough: the error model is
+offset + gain, gain is trimmed to +/-1.6%, and the available reference (K-type + MAX31856,
++/-2-3 degC) cannot justify a higher-order fit.
+
+Fit against **raw int16 counts** - `temp_history_push()` and `struct record_temperature.raw`
+already store raw, so logged data is directly usable. Per-unit offset should live in the
+MT29F CONFIG blocks next to the rate config, not as a compile-time constant, since offset is
+part-to-part.
+
+Reference rig: `/home/anders/Code/Arduino/sketches/DersReflowController` (ESP8266 + 1x
+MAX31856 K-type, closed-loop PID that can *hold* a setpoint, 1 Hz CSV `t_s,temp_c,state,sp,
+duty_pct,fault` over serial plus 2 Hz WebSocket telemetry). Heaters only, no cooling - the
+freezer supplies the cold end and the PID can servo anything above freezer ambient.
+
 ## [2026-08-22] Raise-to-wake v1 implemented: WOM shares INT1 with FIFO_THS, no tilt yet
 
 Follow-through on the RESEARCH note above and the TODO-sweep entry below it. First
