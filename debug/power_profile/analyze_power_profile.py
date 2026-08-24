@@ -35,7 +35,14 @@ from pathlib import Path
 
 # Adjust these if the real log_start CSV header differs.
 TIME_COL = "Time"
-VOLTAGE_COL = "DMM_Meas1"
+# Verified against a real log_start CSV 2026-08-24. Header is:
+#   Time,DMM_Meas1,PS_Vset1,PS_Vmeas1,PS_Imeas1,PS_Iset1,PS_Vset2,...,Power_mW
+# NB the "1" suffix means "first logged channel", NOT PS channel 1 -- with
+# log_start(ps_channel=2) the PS_*1 columns carry channel 2.
+# Default to the PS rail voltage rather than DMM_Meas1: in the two-pass
+# method the single DMM is needed in series for current on the low-current
+# pass, so it is not measuring rail voltage. Override with --voltage-col.
+VOLTAGE_COL = "PS_Vmeas1"
 CURRENT_COL = "PS_Imeas1"
 POWER_COL = "Power_mW"
 
@@ -89,10 +96,11 @@ def load_rows(csv_path):
         row["_elapsed_s"] = parse_time_value(row[TIME_COL], first_time)
         row["_voltage"] = float(row[VOLTAGE_COL])
         row["_current"] = float(row[CURRENT_COL])
-        row["_power_mw"] = (
-            float(row[POWER_COL]) if POWER_COL in row and row[POWER_COL]
-            else row["_voltage"] * row["_current"] * 1000.0
-        )
+        # Always recompute rather than trusting the logger's Power_mW column:
+        # that was evaluated from PS_Vmeas1*PS_Imeas1 at capture time and is
+        # wrong whenever --voltage-col/--current-col point somewhere else
+        # (e.g. the DMM-in-series low-current pass).
+        row["_power_mw"] = row["_voltage"] * row["_current"] * 1000.0
 
     return rows
 
@@ -116,6 +124,7 @@ def summarize(rows, start_s, end_s):
 
 
 def main():
+    global VOLTAGE_COL, CURRENT_COL
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("csv_path", type=Path)
     ap.add_argument("--schedule", type=Path,
@@ -123,12 +132,34 @@ def main():
     ap.add_argument("--t0-offset", type=float, default=0.0,
                      help="Seconds to shift the schedule by (positive if "
                           "logging started after reset)")
+    ap.add_argument("--voltage-col", default=VOLTAGE_COL,
+                     help=f"CSV column for voltage (default {VOLTAGE_COL}); "
+                          "use DMM_Meas1 when the DMM is across the rail")
+    ap.add_argument("--current-col", default=CURRENT_COL,
+                     help=f"CSV column for current (default {CURRENT_COL}); "
+                          "use DMM_Meas1 when the DMM is in series")
+    ap.add_argument("--settle-s", type=float, default=None,
+                     help="Override schedule settle_margin_s: seconds to "
+                          "discard from the START of each state. Raise this "
+                          "for the DMM/shunt pass -- the meter's slow sample "
+                          "rate plus genuinely slow settling (IMU states ramp "
+                          "for ~6s) contaminates the head of each window")
+    ap.add_argument("--edge-trim-s", type=float, default=1.0,
+                     help="Seconds to discard from the END of each state "
+                          "window. log_start timestamps have only 1-second "
+                          "resolution even at interval_s=0.2, so samples near "
+                          "a boundary may belong to the neighbouring state "
+                          "(default 1.0)")
     args = ap.parse_args()
+
+    VOLTAGE_COL = args.voltage_col
+    CURRENT_COL = args.current_col
 
     schedule = json.loads(args.schedule.read_text())
     rows = load_rows(args.csv_path)
 
-    settle = schedule.get("settle_margin_s", 1.0)
+    settle = (args.settle_s if args.settle_s is not None
+              else schedule.get("settle_margin_s", 1.0))
     results = {}
 
     print(f"{'state':<20} {'n':>5} {'power_mW':>10} {'±std':>8} "
@@ -138,7 +169,13 @@ def main():
     baseline_power = None
     for st in schedule["states"]:
         start_s = st["start_s"] + args.t0_offset + settle
-        end_s = st["end_s"] + args.t0_offset
+        end_s = st["end_s"] + args.t0_offset - args.edge_trim_s
+
+        if st.get("invalid"):
+            print(f"{st['name']:<20} {'SKIPPED — ' + st.get('invalid_reason', 'marked invalid'):>50}")
+            results[st["name"]] = None
+            continue
+
         summary = summarize(rows, start_s, end_s)
         results[st["name"]] = summary
 
@@ -149,9 +186,11 @@ def main():
         if st["name"] in ("floor_dcdc_on",) and baseline_power is None:
             baseline_power = summary["power_mw_mean"]
 
+        caveat = f"   <-- {st['caveat']}" if st.get("caveat") else ""
         print(f"{st['name']:<20} {summary['n']:>5} "
               f"{summary['power_mw_mean']:>10.2f} {summary['power_mw_std']:>8.2f} "
-              f"{summary['voltage_mean']:>7.3f} {summary['current_ma_mean']:>8.2f}")
+              f"{summary['voltage_mean']:>7.3f} {summary['current_ma_mean']:>8.2f}"
+              f"{caveat}")
 
     if baseline_power is not None:
         print("\ndelta from floor_dcdc_on baseline:")

@@ -114,19 +114,44 @@
       "index": 18,
       "name": "nvs_idle",
       "start_s": 144.0,
-      "end_s": 152.0
+      "end_s": 152.0,
+      "invalid": true,
+      "invalid_reason": "NVS never inits on SN1 (1.8V MT29F2G01ABBGD fitted, driver rejects id 0x25) -- would read as idle, a silently wrong number"
     },
     {
       "index": 19,
       "name": "nvs_writing",
       "start_s": 152.0,
-      "end_s": 160.0
+      "end_s": 160.0,
+      "invalid": true,
+      "invalid_reason": "NVS never inits on SN1 (1.8V MT29F2G01ABBGD fitted, driver rejects id 0x25) -- would read as idle, a silently wrong number"
     },
     {
       "index": 20,
       "name": "combo_realistic",
       "start_s": 160.0,
-      "end_s": 168.0
+      "end_s": 168.0,
+      "caveat": "excludes NVS write power -- wrong NAND on SN1, see nvs_writing"
+    },
+    {
+      "index": 21,
+      "name": "boost_sel_0",
+      "start_s": 168.0,
+      "end_s": 176.0,
+      "caveat": "BOOST_SEL logical level, NOT an assumed VCC -- measure VCC to map 0/1 to 2.7/3.0 V"
+    },
+    {
+      "index": 22,
+      "name": "boost_sel_1",
+      "start_s": 176.0,
+      "end_s": 184.0,
+      "caveat": "BOOST_SEL logical level, NOT an assumed VCC -- measure VCC to map 0/1 to 2.7/3.0 V"
     }
-  ]
+  ],
+  "_notes": {
+    "board": "SN1 5C017BA8601A3781",
+    "ps_channel": 2,
+    "usb": "MUST be detached during measurement -- VBUS->VBAT defect makes the battery-port supply read 0 A while the device runs (2026-08-24)",
+    "t0": "PS power-cycle, not nrfjprog -r -- an attached J-Link keeps the debug domain powered and can block low-power states"
+  }
 }

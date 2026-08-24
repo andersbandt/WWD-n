@@ -16,9 +16,24 @@
 //                    and driving it high injects 3.3V into the divider node instead
 //                    of grounding it, which was silently doubling every reading.
 //   AIN2 (P0.04)   = divider output (VBAT / 2) when VBAT_DIV_GPIO is grounded
-//   BOOST_SEL      = MCP23008 GP6  — TPS63900 mode select
-//                    (active HIGH = LOWER VCC output voltage, i.e. power-save mode;
-//                    LOW = normal/higher output. Previously documented backwards.)
+//   BOOST_SEL      = MCP23008 GP6  — TPS63900 mode select.
+//                    MEASURED 2026-08-24 (VBAT sweep, DMM + 1.6R shunt, idle):
+//                    HIGH (1) draws MORE power than LOW (0) at every supply
+//                    voltage (+14.6% at 3.21 V falling to +2.8% at 4.37 V), so
+//                    HIGH = the HIGHER 3.0 V rail and LOW = the lower 2.7 V rail
+//                    — the opposite of what this comment claimed for a long
+//                    time. Do not "correct" it back without re-measuring.
+//
+//                    CONSEQUENCE: power_save_enable(true) selects the MORE
+//                    expensive rail; the name is backwards w.r.t. the hardware.
+//                    It has no callers today — fix the sense before adding one.
+//
+//                    HAZARD: with BOOST_SEL held HIGH the board browns out at
+//                    ~3.0 V and then will NOT restart until ~4.13 V (vs 3.21 V
+//                    with it LOW) — the MCP23008 keeps GP6 driven after the MCU
+//                    dies, so the converter stays in a mode that cannot start at
+//                    low Vin. On a battery that is a dead-device trap: voltage
+//                    only falls further, so recovery needs a charger.
 //   BMS            = simple/discrete charge-management circuit, no I2C — this board
 //                    does not have a BQ25120A
 //*****************************************************************************
@@ -74,14 +89,24 @@ void power_init(void)
  * two functions that drive the pin. */
 static bool power_save_active;
 
+/* Bring-up readout, mirrored into RAM for `nrfjprog --memrd` on a board with
+ * no USB console attached. The MCP23008 ACKing an I2C scan only proves the
+ * part answers; these say whether its Zephyr driver actually bound and
+ * whether BOOST_SEL could be driven — which is what the TPS63900 mode select
+ * (and so any power measurement) actually depends on. */
+uint8_t boost_sel_ready;      /* gpio_is_ready_dt() result */
+int8_t  boost_sel_cfg_ret;    /* gpio_pin_configure_dt() return */
+
 void power_rail_init(void)
 {
-    if (!gpio_is_ready_dt(&boost_sel_gpio)) {
+    boost_sel_ready = gpio_is_ready_dt(&boost_sel_gpio) ? 1 : 0;
+    if (!boost_sel_ready) {
         LOG_ERR("BOOST_SEL GPIO not ready");
         return;
     }
 
-    gpio_pin_configure_dt(&boost_sel_gpio, GPIO_OUTPUT_INACTIVE);
+    boost_sel_cfg_ret = (int8_t)gpio_pin_configure_dt(&boost_sel_gpio,
+                                                     GPIO_OUTPUT_INACTIVE);
     power_save_active = false;
 }
 

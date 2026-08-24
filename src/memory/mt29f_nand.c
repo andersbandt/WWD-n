@@ -122,6 +122,20 @@ static int spi_nand_set_feature(const uint8_t addr, const uint8_t val)
   return spi_write_dt(&spi_dev, &tx_set);
 }
 
+/* Bring-up mirror, read out over SWD with `nrfjprog --memrd` on a board whose
+ * USB console is unavailable or drops mid-boot. Answers "what exactly is the
+ * NAND not responding to": the raw READ ID bytes, whether GET FEATURE works
+ * at all (does the die answer any SPI command?), and the raw first 64 bytes
+ * of the ONFI parameter page (all-00 / all-FF => nothing driving MISO).
+ * nand_probe_magic is written last. */
+uint8_t  nand_id_raw[2];
+int8_t   nand_id_ret;
+uint8_t  nand_dbg_cfg;
+int8_t   nand_dbg_cfg_ret = -128;
+uint8_t  nand_onfi_page[64];
+int8_t   nand_onfi_ret = -128;
+uint32_t nand_probe_magic;
+
 static int spi_nand_check_id(void)
 {
   uint8_t const expected[2] = {MANUFACTURER_ID, DEVICE_ID};
@@ -151,6 +165,10 @@ static int spi_nand_check_id(void)
 	};
 
   int ret = spi_transceive_dt(&spi_dev, &tx_set, &rx_set);
+
+  nand_id_raw[0] = read_id[0];
+  nand_id_raw[1] = read_id[1];
+  nand_id_ret    = (int8_t)ret;
 
   if (memcmp(expected, read_id, ARRAY_SIZE(read_id)) != 0) {
     LOG_ERR("Wrong ID: %02X %02X , expected: %02X %02X",
@@ -206,6 +224,16 @@ static int spi_nand_check_id(void)
       LOG_ERR("  manufacturer byte is not Micron (0x%02X) -- bus fault or no chip",
               read_id[0]);
     }
+
+    /* Attempt the parameter page even when the manufacturer byte is wrong --
+     * "does the die answer a full PAGE READ at all" is a different question
+     * from "does READ ID return the expected table entry", and on a board
+     * with no console the mirrored raw page is the only way to tell. */
+    {
+      char m[16] = {0}, mo[24] = {0};
+      nand_onfi_ret = (int8_t)mt29f_read_param_page(m, sizeof(m), mo, sizeof(mo));
+    }
+    nand_probe_magic = 0x2C2C2C2C;
     return -ENODEV;
   }
   return ret;
@@ -739,6 +767,8 @@ int mt29f_read_param_page(char *manufacturer, size_t man_len,
   }
 
   rc = spi_nand_get_feature(REG_CONFIGURATION, &cfg);
+  nand_dbg_cfg_ret = (int8_t)rc;
+  nand_dbg_cfg     = cfg;
   if (rc != 0) {
     return rc;
   }
@@ -754,6 +784,8 @@ int mt29f_read_param_page(char *manufacturer, size_t man_len,
     spi_nand_wait_until_ready();
     rc = spi_nand_page_cache_read(0, page, sizeof(page));
   }
+
+  memcpy(nand_onfi_page, page, sizeof(nand_onfi_page));
 
   /* Always restore the configuration register, even on a failed read. */
   spi_nand_set_feature(REG_CONFIGURATION, cfg_saved);

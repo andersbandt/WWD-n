@@ -111,6 +111,17 @@ void i2c_rescan_watch(int seconds)
                seconds);
 }
 
+/* Scan results mirrored into RAM. On a board with no USB console attached
+ * (battery-port power, bench supply) the cdc_printf() output below goes
+ * nowhere, so the same findings are recorded here and can be read out over
+ * SWD with `nrfjprog --memrd`. i2c_scan_magic is written last, so a reader
+ * can tell "scan ran and found nothing" from "scan never completed". */
+uint8_t  i2c_scan_acks[16];
+uint8_t  i2c_scan_count;
+uint8_t  i2c_scan_scl;
+uint8_t  i2c_scan_sda;
+uint32_t i2c_scan_magic;
+
 void i2c_bus_scan(void)
 {
     uint8_t dummy;
@@ -122,6 +133,9 @@ void i2c_bus_scan(void)
         /* 1-byte read rather than a zero-length write — nRF TWIM does not
          * handle zero-length transfers reliably. */
         if (i2c_read(i2c_dev, &dummy, 1, addr) == 0) {
+            if (found < (int)ARRAY_SIZE(i2c_scan_acks)) {
+                i2c_scan_acks[found] = addr;
+            }
             cdc_printf("  ACK 0x%02x%s\r\n", addr,
                        addr == 0x20 ? "  (MCP23008)" :
                        addr == 0x52 ? "  (RV-3028)"  : "");
@@ -146,6 +160,11 @@ void i2c_bus_scan(void)
         uint32_t p1_in = *(volatile uint32_t *)0x50000810;
         int scl = (p0_in >> 30) & 1;
         int sda = (p1_in >>  9) & 1;
+
+        i2c_scan_count = (uint8_t)found;
+        i2c_scan_scl   = (uint8_t)scl;
+        i2c_scan_sda   = (uint8_t)sda;
+        i2c_scan_magic = 0x5CA45CA4;  /* written last: scan completed */
 
         /* Only editorialise when the scan came up empty — saying "device is
          * silent" right after listing devices that ACKed is worse than saying

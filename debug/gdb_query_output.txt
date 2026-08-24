@@ -1,3 +1,8 @@
-0x00049874 in memcpy ()
+__enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
+951	  __ASM volatile ("cpsie i" : : : "memory");
 Expected an decimal digit (0-9)
-Breakpoint 1 at 0x2772: file /home/anders/Documents/NCS/WWD-n/src/main.c, line 369.
+Breakpoint 1 at 0xc616: file /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_bringup.c, line 380.
+
+Breakpoint 1, imu_probe () at /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_bringup.c:380
+380	    int who = -1;
+$1 = (const struct device * const) 0x2000ef40 <z_main_stack+4096>

@@ -61,6 +61,30 @@ static void st_dcdc_off(void)
     nrf_power_dcdcen_set(NRF_POWER, false);
 }
 
+/* BOOST_SEL / TPS63900 mode select (MCP23008 GP6).
+ *
+ * NB the pin is named by its LOGICAL level here, not by an assumed output
+ * voltage. power.c documents active-HIGH as the LOWER VCC (power-save) rail,
+ * but that has been documented backwards before, so these states are named
+ * boost_sel_0 / boost_sel_1 after what is actually driven. Measure VCC to
+ * decide which is 2.7 V and which is 3.0 V -- do not infer it from the name.
+ *
+ * Display is forced off first so the delta is not buried under ~4.8 mA of
+ * panel + backlight. */
+static void st_display_off(void);
+
+static void st_boost_sel_0(void)
+{
+    st_display_off();
+    power_save_enable(false);
+}
+
+static void st_boost_sel_1(void)
+{
+    st_display_off();
+    power_save_enable(true);
+}
+
 static void st_display_off(void)
 {
     if (display_status) {
@@ -173,6 +197,12 @@ static const struct power_state states[] = {
     { "nvs_writing",       st_nvs_writing },  /* blocks for its own dwell */
 
     { "combo_realistic",   st_combo_realistic },  /* blocks for its own dwell */
+
+    /* Appended 2026-08-24 -- deliberately at the END so every pre-existing
+     * state keeps its original start/end time and earlier runs stay
+     * comparable. Item 3: TPS63900 VCC select. */
+    { "boost_sel_0",       st_boost_sel_0 },
+    { "boost_sel_1",       st_boost_sel_1 },
 };
 
 #define NUM_STATES (sizeof(states) / sizeof(states[0]))
@@ -242,6 +272,26 @@ int main(void)
     /* Let everything settle before the timed sequence starts. */
     k_msleep(2000);
 
+#ifdef PP_BOOST_HOLD
+    /* VBAT-sweep hold mode (-DPOWER_PROFILE_BOOST_HOLD=0|1).
+     *
+     * The scripted sequence is useless for a supply sweep: each state lasts
+     * 8 s while a sweep takes minutes. So instead of running it, park the
+     * board in one fixed, quiet state (display off, divider off, internal
+     * DC/DC on) with BOOST_SEL held at a known level, and let the host step
+     * VBAT underneath it. One image per BOOST_SEL level. */
+    st_display_off();
+    power_debug_hold_vbat_div(false);
+    nrf_power_dcdcen_set(NRF_POWER, true);
+    power_save_enable(PP_BOOST_HOLD ? true : false);
+
+    LOG_INF("[power_profile] HOLD BOOST_SEL=%d (power_save_is_enabled=%d)",
+            PP_BOOST_HOLD, (int)power_save_is_enabled());
+
+    while (1) {
+        k_sleep(K_FOREVER);
+    }
+#else
     LOG_INF("[power_profile] BEGIN t=0");
     run_sequence();
 
@@ -253,6 +303,7 @@ int main(void)
     while (1) {
         k_sleep(K_FOREVER);
     }
+#endif
 
     return 0;
 }
