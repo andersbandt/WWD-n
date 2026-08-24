@@ -463,6 +463,189 @@ bool imu_check_wom(void) {
 
 
 /*
+ * ---------------------------------------------------------------------------
+ * Raise-to-wake v2: WOM trigger + firmware posture/settle gate
+ * ---------------------------------------------------------------------------
+ *
+ * v1 woke the display on any WOM event. WOM is a per-axis acceleration
+ * MAGNITUDE threshold (~312 mg here, OR'd across X/Y/Z), with no notion of
+ * orientation or direction, so vigorous arm motion that has nothing to do with
+ * looking at the watch — brushing teeth was the reported case — wakes it every
+ * time. No threshold fixes that: a deliberate, gentle wrist raise generates
+ * LESS acceleration than brushing does, so raising the bar to reject brushing
+ * rejects the raise first.
+ *
+ * The ICM-42670-P has no raise-to-wake feature to fall back on (its APEX list
+ * is Pedometer / Tilt / Low-g / Freefall / WoM / SMD), so the gesture is
+ * recognised here in firmware instead.
+ *
+ * What we check, and why it is a posture test rather than trajectory matching:
+ * the discriminator that actually separates "looking at the watch" from
+ * "brushing teeth" is not the shape of the arc, it is that YOU CANNOT READ A
+ * MOVING DISPLAY. A raise ends with the wrist parked in a readable
+ * orientation; brushing is sustained oscillation that never parks. Matching
+ * the arc itself would need a pre-motion reference orientation, continuous
+ * sampling through the gesture, and per-user tuning, and it fails in the
+ * direction that feels broken (missed wakes). Two cheap conditions, held
+ * together, do the job:
+ *
+ *   1. ORIENTATION - the display normal (+Z, which reads +1 g with the watch
+ *      face up) points meaningfully upward. Arm hanging at your side puts the
+ *      normal roughly horizontal, az ~ 0; hand at your mouth is much the same.
+ *   2. STILLNESS - peak-to-peak over the last RAISE_RING_LEN samples is small
+ *      on all three axes. This is what kills brushing, sawing, clapping, and
+ *      the mid-raise part of the gesture itself.
+ *
+ * Both must hold continuously for RAISE_SETTLE_MS, and the whole thing must
+ * complete within RAISE_WINDOW_MS of the WOM event that armed it, so a slow
+ * drift into a readable pose does not count as a raise.
+ *
+ * Deliberately NOT constrained: the X/Y (in-plane) components of gravity. A
+ * roll limit would tighten this further, but it depends on how the PCB is
+ * rotated inside the enclosure relative to the strap, which is not recorded
+ * anywhere I can check — guessing a sign there would reject correct raises.
+ * That is the first tuning hook to add once the mechanical orientation is
+ * confirmed.
+ *
+ * Timing is driven off the existing INT1 FIFO traffic (~10 Hz at 100 Hz ODR /
+ * watermark 10) — no new timer, no extra SPI. The accel runs continuously
+ * whether or not the user is moving, so the state machine always has a clock.
+ * The settle/window thresholds are in milliseconds via k_uptime_get() rather
+ * than sample counts, so a runtime ODR change (rate_config.c) does not
+ * silently retune the gesture.
+ */
+
+/* 16-bit accel at the configured +/-16 g FSR => 2048 LSB per g. */
+#define ACCEL_LSB_PER_G     2048
+
+#define RAISE_RING_LEN      16    /* ~160 ms of history at 100 Hz */
+#define RAISE_AZ_MIN_LSB    1024  /* 0.5 g: display normal within ~60 deg of straight up */
+#define RAISE_STILL_PP_LSB  512   /* 0.25 g peak-to-peak per axis over the ring */
+#define RAISE_SETTLE_MS     250   /* how long orientation+stillness must hold */
+#define RAISE_WINDOW_MS     1500  /* WOM -> settle must complete inside this */
+
+static int16_t  raise_ring[RAISE_RING_LEN][3];
+static uint8_t  raise_ring_count;   /* saturates at RAISE_RING_LEN */
+static uint8_t  raise_ring_head;
+static bool     raise_armed;
+static int64_t  raise_armed_at;
+static int64_t  raise_settle_start;
+static bool     raise_left_readable = true;  /* must leave the readable pose before re-waking */
+
+/*
+ * imu_gesture_feed: records one accel sample. Called from event_cb() for every
+ * FIFO sample, on button_handler_thread — the same thread that later runs
+ * imu_check_raise_gesture(), so the ring has a single reader and a single
+ * writer and needs no lock.
+ */
+void imu_gesture_feed(const int16_t accel[3]) {
+    raise_ring[raise_ring_head][0] = accel[0];
+    raise_ring[raise_ring_head][1] = accel[1];
+    raise_ring[raise_ring_head][2] = accel[2];
+
+    raise_ring_head = (raise_ring_head + 1) % RAISE_RING_LEN;
+
+    if (raise_ring_count < RAISE_RING_LEN) {
+        raise_ring_count++;
+    }
+}
+
+/* True if the ring is full enough to judge, the display normal is pointing
+ * up, and nothing is moving much. Integer only — no sqrt, no float. */
+static bool raise_pose_is_readable(void) {
+    if (raise_ring_count < RAISE_RING_LEN) {
+        return false;  /* not enough history yet to call it still */
+    }
+
+    int16_t min[3] = { INT16_MAX, INT16_MAX, INT16_MAX };
+    int16_t max[3] = { INT16_MIN, INT16_MIN, INT16_MIN };
+    int32_t sum_z  = 0;
+
+    for (unsigned i = 0; i < RAISE_RING_LEN; i++) {
+        for (unsigned ax = 0; ax < 3; ax++) {
+            if (raise_ring[i][ax] < min[ax]) { min[ax] = raise_ring[i][ax]; }
+            if (raise_ring[i][ax] > max[ax]) { max[ax] = raise_ring[i][ax]; }
+        }
+        sum_z += raise_ring[i][2];
+    }
+
+    /* Stillness: every axis quiet. One noisy axis is enough to disqualify —
+     * that is the whole point, brushing shows up on one or two axes. */
+    for (unsigned ax = 0; ax < 3; ax++) {
+        if ((int32_t)max[ax] - (int32_t)min[ax] > RAISE_STILL_PP_LSB) {
+            return false;
+        }
+    }
+
+    /* Orientation: mean Z over the window, so a single noisy sample can't
+     * decide it. Signed compare — face-down is a large NEGATIVE az and must
+     * not pass. */
+    int32_t mean_z = sum_z / (int32_t)RAISE_RING_LEN;
+
+    return mean_z >= RAISE_AZ_MIN_LSB;
+}
+
+/*
+ * imu_check_raise_gesture: true exactly once per recognised wrist raise.
+ *
+ * Call on every INT1 event, from button_handler_thread only. Consumes the WOM
+ * status internally (it is the arming trigger), so callers should NOT also
+ * call imu_check_wom() — INT_STATUS2 is clear-on-read and the second reader
+ * would eat the event.
+ */
+bool imu_check_raise_gesture(void) {
+    int64_t now = k_uptime_get();
+    bool    readable = raise_pose_is_readable();
+
+    /* Re-arm interlock: after a wake, refuse to fire again until the wrist has
+     * actually left the readable pose. Without this, the display going to
+     * sleep while you are still holding your arm up would immediately re-wake
+     * on the next stray WOM event and sit there flapping. */
+    if (!readable) {
+        raise_left_readable = true;
+    }
+
+    if (imu_check_wom()) {
+        raise_armed        = true;
+        raise_armed_at     = now;
+        raise_settle_start = 0;
+    }
+
+    if (!raise_armed) {
+        return false;
+    }
+
+    if (now - raise_armed_at > RAISE_WINDOW_MS) {
+        raise_armed = false;  /* motion never resolved into a readable pose */
+        return false;
+    }
+
+    if (!readable) {
+        raise_settle_start = 0;  /* still moving, or wrong orientation */
+        return false;
+    }
+
+    if (raise_settle_start == 0) {
+        raise_settle_start = now;
+        return false;
+    }
+
+    if (now - raise_settle_start < RAISE_SETTLE_MS) {
+        return false;
+    }
+
+    raise_armed = false;
+
+    if (!raise_left_readable) {
+        return false;  /* never left the pose since the last wake */
+    }
+
+    raise_left_readable = false;
+    return true;
+}
+
+
+/*
  * imu_process: this function currently processes the circular buffers of raw data
  */
 void imu_process() {

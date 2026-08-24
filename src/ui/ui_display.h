@@ -144,7 +144,11 @@ void display_out_measurement(char * text, int value);
 /**
  * @brief displays NVS log stats (write offset and metadata sequence number)
  */
-void display_out_data_stats(int write_offset, uint32_t meta_seq);
+/* Data -> Log Stats screen. used_bytes is nvs_get_addr_offset(),
+ * capacity_bytes is nvs_get_data_capacity() (0 if NVS never initialised).
+ * full_redraw true only on first entry - see the comment in ui_display.c. */
+void display_out_data_stats(uint64_t used_bytes, uint64_t capacity_bytes,
+                            uint32_t meta_seq, bool full_redraw);
 
 
 /**

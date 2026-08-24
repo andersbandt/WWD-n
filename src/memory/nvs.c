@@ -577,6 +577,24 @@ int nvs_get_addr_offset() {
 
 
 /*
+ * nvs_get_data_capacity: size in bytes of the log region — blocks 0 through
+ * CONFIG_BLOCK_START-1, i.e. the whole chip minus the CONFIG and META blocks
+ * carved off the top end (see nvs_init()). This is the denominator
+ * nvs_get_addr_offset() runs against: both are byte offsets in the same
+ * addressing scheme, which counts the 128 OOB bytes of every 2176-byte page,
+ * so this is larger than the part's nominal 2 Gib of user data. Returns 0
+ * before nvs_init() has run, since the geometry comes from the chip.
+ */
+uint64_t nvs_get_data_capacity(void) {
+    if (cfg == NULL) {
+        return 0;
+    }
+
+    return (uint64_t)CONFIG_BLOCK_START * cfg->pages_per_block * cfg->bytes_per_page;
+}
+
+
+/*
  * nvs_get_metadata_seq: getter for the metadata sequence number.
  * This is the *next* seq to be written; the highest seq on flash is one less.
  */

@@ -104,10 +104,15 @@ void reset_uifunc_params() {
  * spread across all four corners: the left column changes the *value* under
  * the cursor, the right column moves the *cursor*.
  *
- *   SW1 (top-left)     DECREMENT the selected field
- *   SW4 (bottom-left)  INCREMENT the selected field
+ *   SW1 (top-left)     INCREMENT the selected field
+ *   SW4 (bottom-left)  DECREMENT the selected field
  *   SW2 (top-right)    NEXT SCREEN (TIME -> DATE -> commit & exit)
  *   SW3 (bottom-right) NEXT FIELD within the current screen (wraps)
+ *
+ * RESOLVED 2026-08-23: SW1/SW4 were backwards - SW1 (top-left) is UP
+ * everywhere else in the UI (BUTTON_ACTION_UP, menu scroll) but decremented
+ * here, so the "up" button counted down. Same swap applied to the brightness
+ * screen below, which had the identical inversion.
  *
  * Screens:
  *   SET_SCREEN_TIME  "HH:MM:SS"    fields: hours -> minutes -> seconds
@@ -205,39 +210,56 @@ void system_prompt_for_time_UI_FUNC() {
         first_ui_time = false;
     }
 
-    // Get button event from buffer instead of polling directly
-    uint8_t btn_poll = get_button_event();
+    /* Drain every queued press, then redraw ONCE. Each redraw is a full
+     * clearAndPrintLine() + display_out_time() over SPI, far slower than the
+     * arithmetic in adjust_selected_field() - so a burst of presses used to
+     * cost a burst of full repaints, and the screen crawled along behind the
+     * user's thumb one step at a time. Coalescing means a spammed burst
+     * lands as a single jump straight to the final value. */
+    uint8_t btn_poll;
+    bool redraw = false;
 
-    // DECREMENT (SW1, top-left)
-    if (btn_poll == BUTTON_1_MASK) {
-        adjust_selected_field(DIR_DOWN);
-        draw_time_set_screen();
-    }
-    // INCREMENT (SW4, bottom-left)
-    else if (btn_poll == BUTTON_4_MASK) {
-        adjust_selected_field(DIR_UP);
-        draw_time_set_screen();
-    }
-    // NEXT FIELD within this screen (SW3, bottom-right)
-    else if (btn_poll == BUTTON_3_MASK) {
-        position = (position + 1) % SET_FIELDS_PER_SCREEN;
-        draw_time_set_screen();
-    }
-    // NEXT SCREEN (SW2, top-right)
-    else if (btn_poll == BUTTON_2_MASK) {
-        button_buffer_clear();
+    while ((btn_poll = get_button_event()) != 0) {
+        // INCREMENT (SW1, top-left — UP, same as everywhere else in the UI)
+        if (btn_poll == BUTTON_1_MASK) {
+            adjust_selected_field(DIR_UP);
+            redraw = true;
+        }
+        // DECREMENT (SW4, bottom-left)
+        else if (btn_poll == BUTTON_4_MASK) {
+            adjust_selected_field(DIR_DOWN);
+            redraw = true;
+        }
+        // NEXT FIELD within this screen (SW3, bottom-right)
+        else if (btn_poll == BUTTON_3_MASK) {
+            position = (position + 1) % SET_FIELDS_PER_SCREEN;
+            redraw = true;
+        }
+        // NEXT SCREEN (SW2, top-right)
+        else if (btn_poll == BUTTON_2_MASK) {
+            /* Paging/committing ends this drain: anything still queued was
+             * aimed at the screen we're leaving, so it must not be replayed
+             * against the next one. button_buffer_clear() drops it and we
+             * return rather than continuing the loop. */
+            button_buffer_clear();
 
-        if (set_screen == SET_SCREEN_TIME) {
-            set_screen = SET_SCREEN_DATE;
-            position = 0;
-            draw_time_set_screen();
+            if (set_screen == SET_SCREEN_TIME) {
+                set_screen = SET_SCREEN_DATE;
+                position = 0;
+                draw_time_set_screen();
+            }
+            else {
+                rv3028_set_time(time_offset);  // commit both to the RV-3028 (I2C write)
+                set_date(date_offset);         // (set_date() -> rv3028_set_date(), same chip)
+                ui_clock_set_date(date_offset);
+                ui_mode = UI_MODE_CLOCK;
+            }
+            return;
         }
-        else {
-            rv3028_set_time(time_offset);  // commit both to the RV-3028 (I2C write)
-            set_date(date_offset);         // (set_date() -> rv3028_set_date(), same chip)
-            ui_clock_set_date(date_offset);
-            ui_mode = UI_MODE_CLOCK;
-        }
+    }
+
+    if (redraw) {
+        draw_time_set_screen();
     }
 
     return;
@@ -248,8 +270,8 @@ void system_prompt_for_time_UI_FUNC() {
 /*
  * system_adjust_brightness_UI_FUNC: backlight brightness screen.
  *
- *   SW1 (top-left)     DECREMENT brightness
- *   SW4 (bottom-left)  INCREMENT brightness
+ *   SW1 (top-left)     INCREMENT brightness
+ *   SW4 (bottom-left)  DECREMENT brightness
  *   SW3+SW4            exit to the clock face (the global home combo)
  *
  * Same left-column-changes-the-value convention as the time/date setter.
@@ -289,23 +311,28 @@ void system_adjust_brightness_UI_FUNC(void) {
         return;
     }
 
-    uint8_t btn_poll = get_button_event();
+    /* Same drain-then-redraw-once shape as the time/date setter above: step
+     * the value for every queued press, but only push it to the backlight
+     * and repaint the readout once, at the final value. */
+    uint8_t btn_poll;
     bool changed = false;
 
-    // DECREMENT (SW1, top-left)
-    if (btn_poll == BUTTON_1_MASK) {
-        if (brightness > BRIGHTNESS_MIN) {
-            brightness = (brightness - BRIGHTNESS_STEP < BRIGHTNESS_MIN)
-                            ? BRIGHTNESS_MIN : brightness - BRIGHTNESS_STEP;
-            changed = true;
+    while ((btn_poll = get_button_event()) != 0) {
+        // INCREMENT (SW1, top-left — UP, same as everywhere else in the UI)
+        if (btn_poll == BUTTON_1_MASK) {
+            if (brightness < BRIGHTNESS_MAX) {
+                brightness = (brightness + BRIGHTNESS_STEP > BRIGHTNESS_MAX)
+                                ? BRIGHTNESS_MAX : brightness + BRIGHTNESS_STEP;
+                changed = true;
+            }
         }
-    }
-    // INCREMENT (SW4, bottom-left)
-    else if (btn_poll == BUTTON_4_MASK) {
-        if (brightness < BRIGHTNESS_MAX) {
-            brightness = (brightness + BRIGHTNESS_STEP > BRIGHTNESS_MAX)
-                            ? BRIGHTNESS_MAX : brightness + BRIGHTNESS_STEP;
-            changed = true;
+        // DECREMENT (SW4, bottom-left)
+        else if (btn_poll == BUTTON_4_MASK) {
+            if (brightness > BRIGHTNESS_MIN) {
+                brightness = (brightness - BRIGHTNESS_STEP < BRIGHTNESS_MIN)
+                                ? BRIGHTNESS_MIN : brightness - BRIGHTNESS_STEP;
+                changed = true;
+            }
         }
     }
 
@@ -448,7 +475,16 @@ void data_stats_UI_FUNC(void) {
         return;
     }
 
-    display_out_data_stats(nvs_get_addr_offset(), nvs_get_metadata_seq());
+    /* first_ui_time drives the one-shot full redraw (clear + static labels);
+     * every later tick only repaints values that actually changed. Consuming
+     * the flag here is the same pattern the other _UI_FUNC()s use. */
+    bool full_redraw = first_ui_time;
+    first_ui_time = false;
+
+    display_out_data_stats((uint64_t)nvs_get_addr_offset(),
+                           nvs_get_data_capacity(),
+                           nvs_get_metadata_seq(),
+                           full_redraw);
     return;
 }
 

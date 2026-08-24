@@ -433,13 +433,13 @@ void ui_wake_display_if_asleep(void) {
  * get swapped. */
 #define BUTTON_ACTION_UP     BUTTON_1_MASK   // SW1, top-left
 #define BUTTON_ACTION_DOWN   BUTTON_4_MASK   // SW4, bottom-left
-#define BUTTON_ACTION_SELECT BUTTON_3_MASK   // SW3, bottom-right
-#define BUTTON_ACTION_BACK   BUTTON_2_MASK   // SW2, top-right
+#define BUTTON_ACTION_SELECT BUTTON_2_MASK   // SW2, top-right
+#define BUTTON_ACTION_BACK   BUTTON_3_MASK   // SW3, bottom-right
 
 /* Physical button layout (SW1-4, clockwise from top-left) — see button.h:
  *   BUTTON_1_MASK = SW1 = top-left     = UP     (BUTTON_ACTION_UP)
- *   BUTTON_2_MASK = SW2 = top-right    = BACK   (BUTTON_ACTION_BACK)
- *   BUTTON_3_MASK = SW3 = bottom-right = SELECT (BUTTON_ACTION_SELECT)
+ *   BUTTON_2_MASK = SW2 = top-right    = SELECT (BUTTON_ACTION_SELECT)
+ *   BUTTON_3_MASK = SW3 = bottom-right = BACK   (BUTTON_ACTION_BACK)
  *   BUTTON_4_MASK = SW4 = bottom-left  = DOWN   (BUTTON_ACTION_DOWN)
  * SW3+SW4 (the bottom row) together always return to the clock face,
  * regardless of UI mode. */
@@ -522,13 +522,12 @@ void handle_ui_input() {
          * the way home like the SW3+SW4 combo above.
          *
          * Excluded: UI_MODE_PROMPT_TIME. That screen already uses this same
-         * physical button (SW2) for its own purpose - paging TIME -> DATE and
-         * then committing/exiting - see system_prompt_for_time_UI_FUNC() in
-         * UIFunctions.c. If BACK ever gets remapped off SW2, this exclusion
-         * is worth revisiting (the collision that motivates it would be
-         * gone), but today it's the only leaf screen with its own use of
-         * BUTTON_ACTION_BACK's physical button, so it's the only exclusion
-         * needed. */
+         * physical button for its own purpose - since the 2026-08-23
+         * SELECT/BACK swap that's SW3 = NEXT FIELD (it was SW2 = NEXT SCREEN
+         * before), see system_prompt_for_time_UI_FUNC() in UIFunctions.c.
+         * The collision moved buttons but did not go away, so the exclusion
+         * still stands; it remains the only leaf screen with its own use of
+         * BUTTON_ACTION_BACK's physical button. */
         ui_menu_return_to_sub_menu();
         ui_mode = UI_MODE_MENU;  // direct assignment, not change_ui_mode() - see
                                   // ui_menu_return_to_sub_menu()'s doc comment
@@ -542,6 +541,31 @@ void handle_ui_input() {
     if (button_status != 0) {
         button_buffer_push(button_status);
     }
+
+    /* ...and service the screen right now, on this thread, rather than
+     * leaving the event to sit until ui_refresh_thread's next 1 Hz tick.
+     * That tick was the real source of the setter's clunkiness: leaf screens
+     * popped exactly one event per second, so a press could take up to a
+     * second to appear and a burst of ten presses took ten seconds to crawl
+     * through. ui_refresh() still calls the same _UI_FUNC()s on the tick
+     * (the stopwatch needs a time-driven redraw); they find an empty buffer
+     * and no-op.
+     *
+     * Only for leaf screens: CLOCK and MENU are handled inline above and
+     * have already drawn by the time we get here. ui_refresh() takes
+     * display_draw_mutex itself, which is why this sits after the unlock. */
+    if (ui_mode != UI_MODE_CLOCK && ui_mode != UI_MODE_MENU) {
+        ui_refresh();
+    }
+}
+
+
+/* True while the on-screen mode is one where holding a button down should
+ * auto-repeat (the two value-editing screens). Used by
+ * button_handler_thread_entry() in main.c; kept here so the mode list lives
+ * next to ui_mode rather than being duplicated across files. */
+bool ui_autorepeat_active(void) {
+    return ui_mode == UI_MODE_PROMPT_TIME || ui_mode == UI_MODE_ADJUST_BRIGHTNESS;
 }
 
 

@@ -54,6 +54,7 @@ struct inv_imu_device icm_driver;
 
 // declare other various local variables
 uint32_t step_cnt_ovflw;
+static uint16_t last_raw_step_cnt;  /* previous raw APEX step_cnt, for wrap detection in getPedometer() */
 uint8_t int_status3;
 bool apex_tilt_enable;
 bool apex_pedometer_enable;
@@ -111,6 +112,7 @@ void event_print(inv_imu_sensor_event_t *evt) {
 void event_cb(inv_imu_sensor_event_t *evt) {
     circular_buffer_add(imu_data_buffer, evt);
     imu_set_latest_event(evt);
+    imu_gesture_feed(evt->accel);  /* raise-to-wake posture ring, see imu.c */
 }
 
 
@@ -454,6 +456,23 @@ int startApex() {
     // print out final interrupt configuration
     checkInterruptIMU();
 
+    /* Drop whatever INT_STATUS3 latched before/while APEX was being enabled.
+     * INT_STATUS3 is clear-on-read, and updateApex() deliberately ACCUMULATES
+     * it (int_status3 |= data) so no event is lost between polls — which also
+     * means any stale power-on or enable-sequence garbage in that register is
+     * picked up by the very first poll and treated as real. A stale
+     * STEP_CNT_OVF bit in particular used to bump step_cnt_ovflw to 1 before
+     * the user had taken a single step, offsetting every later reading by a
+     * full 16-bit counter (a step count of ~19 reading as 65554). One
+     * throwaway read here starts APEX from a known-clean status. */
+    {
+        uint8_t discard;
+        (void)inv_imu_read_reg(&icm_driver, INT_STATUS3, 1, &discard);
+        int_status3 = 0;
+        step_cnt_ovflw = 0;
+        last_raw_step_cnt = 0;
+    }
+
     return rc;
 }
 
@@ -559,10 +578,11 @@ int getPedometer(uint32_t * step_count, float * step_cadence, const char **activ
     /* Read APEX interrupt status */
     rc |= updateApex();
 
-    // check for overflow
+    /* Consume (and discard) the hardware overflow flag. The wrap is counted
+     * from the raw counter itself below instead of from this bit — see the
+     * comment in the step-detect branch. The bit still has to be cleared here
+     * or it would sit latched in the int_status3 accumulator forever. */
     if (int_status3 & INT_STATUS3_STEP_CNT_OVF_INT_MASK) {
-        step_cnt_ovflw++;
-        /* Reset pedometer overflow internal status */
         int_status3 &= ~INT_STATUS3_STEP_CNT_OVF_INT_MASK;
     }
 
@@ -575,7 +595,32 @@ int getPedometer(uint32_t * step_count, float * step_cadence, const char **activ
         int_status3 &= ~INT_STATUS3_STEP_DET_INT_MASK;
 
         rc |= inv_imu_apex_get_data_activity(&icm_driver, &apex_data0);
-        *step_count = apex_data0.step_cnt + step_cnt_ovflw*(uint32_t)UINT16_MAX;
+
+        /* Overflow accounting, two fixes over the previous
+         *     step_cnt + step_cnt_ovflw * UINT16_MAX
+         *
+         * 1. The scale was off by one. APEX's step counter is 16-bit and
+         *    wraps after 65536 distinct values, not UINT16_MAX (65535), so
+         *    every wrap under-counted by one step and the error accumulated.
+         *
+         * 2. The wrap is now detected from the counter going backwards rather
+         *    than from INT_STATUS3's STEP_CNT_OVF bit. That bit is a
+         *    clear-on-read status OR'd into an accumulator that survives
+         *    across polls, so a single stale or spurious set — e.g. latched
+         *    during the APEX enable sequence — permanently offset the total
+         *    by 65535 with no way to ever walk it back. A backwards step in a
+         *    monotonically increasing counter is unambiguous and self-
+         *    correcting: worst case one spurious wrap is never repeated.
+         *
+         * last_raw_step_cnt is file-static and zeroed on reset, same as
+         * step_cnt_ovflw and imu.c's step_count — the whole total is RAM-only
+         * and restarts at 0 on every boot by design. */
+        if (apex_data0.step_cnt < last_raw_step_cnt) {
+            step_cnt_ovflw++;
+        }
+        last_raw_step_cnt = apex_data0.step_cnt;
+
+        *step_count = (uint32_t)apex_data0.step_cnt + step_cnt_ovflw * 65536U;
         /* Converting u6.2 to float */
         nb_samples = (apex_data0.step_cadence >> 2) + (float)(apex_data0.step_cadence & 0x03) * 0.25f;
 

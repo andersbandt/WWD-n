@@ -138,6 +138,10 @@ void ui_idle_tick(void);
 
 void change_ui_mode(ui_mode_t new_mode);
 
+/* True while the current UI mode is a value-editing screen (time/date setter,
+ * brightness), i.e. one where holding a button should auto-repeat. */
+bool ui_autorepeat_active(void);
+
 
 void ui_fault(int code);
 

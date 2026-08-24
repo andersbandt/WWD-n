@@ -208,6 +208,15 @@ int nvs_log_time_anchor(struct record_time_anchor anchor);
 
 
 /**
+ * @brief size in bytes of the log region (whole chip minus the CONFIG and META
+ *        blocks). Same byte-offset scheme as nvs_get_addr_offset(), so the two
+ *        divide directly into a "how full is the log" fraction. 0 before
+ *        nvs_init().
+ */
+uint64_t nvs_get_data_capacity(void);
+
+
+/**
  * @brief getter for the current metadata sequence number (next seq to be written)
  */
 uint32_t nvs_get_metadata_seq(void);

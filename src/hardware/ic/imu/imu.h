@@ -175,6 +175,26 @@ bool imu_check_wom(void);
 
 
 /**
+ * @brief feeds one accel sample to the raise-to-wake gesture ring. Called from
+ * event_cb() for every FIFO sample, on button_handler_thread. Single
+ * writer/single reader with imu_check_raise_gesture(), so no locking.
+ */
+void imu_gesture_feed(const int16_t accel[3]);
+
+
+/**
+ * @brief raise-to-wake v2: true exactly once per recognised wrist raise —
+ * a WOM event followed by the display normal settling into a readable,
+ * still pose. Call on every INT1 event from button_handler_thread.
+ *
+ * Consumes the WOM status internally, so do NOT also call imu_check_wom():
+ * INT_STATUS2 is clear-on-read and the second reader would eat the event.
+ * See the long comment on the implementation in imu.c for the rationale.
+ */
+bool imu_check_raise_gesture(void);
+
+
+/**
  * @brief prints out pedometer info from the IMU
  */
 int imu_log();

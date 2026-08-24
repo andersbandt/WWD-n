@@ -268,6 +268,91 @@ static void display_timeout_thread_entry(void *p1, void *p2, void *p3)
     }
 }
 
+/* Hold-to-repeat tuning for the value-editing screens. The initial delay has
+ * to be long enough that a normal single tap never repeats; the period is
+ * what the value ramps at once repeating starts. */
+#define BTN_REPEAT_DELAY_MS   450
+#define BTN_REPEAT_PERIOD_MS  120
+
+/* IMU INT1: drain the FIFO, then check whether the same edge was also a WOM
+ * raise-to-wake. Factored out of button_handler_thread_entry()'s poll loop so
+ * the auto-repeat loop below can keep servicing the IMU while a button is
+ * held — see run_button_autorepeat(). */
+static void service_imu_int1(void)
+{
+    if (!imu_alive) {
+        return;
+    }
+
+    get_fifo_data();
+    imu_process();
+
+    /* Raise-to-wake v2: WOM is only the arming trigger now — the gesture is
+     * confirmed in firmware from the accel samples the drain above just fed
+     * into the posture ring (orientation + stillness + dwell), because WOM on
+     * its own is a bare acceleration-magnitude test and woke the display for
+     * anything vigorous, brushing teeth included. imu_check_raise_gesture()
+     * consumes the WOM status itself; INT_STATUS2 has no other reader, so
+     * this still can't race the FIFO drain. See imu.c for the full rationale
+     * and the tuning constants. */
+    if (imu_check_raise_gesture()) {
+        ui_wake_display_if_asleep();
+    }
+}
+
+/* Auto-repeat while a button is held down on a value-editing screen.
+ *
+ * Buttons are edge-driven (MCP23008 interrupt -> buttonN_sem), so without
+ * this a held button is indistinguishable from a single tap and the user has
+ * to click once per minute/hour of adjustment. Here we re-run
+ * handle_ui_input() on a timer for as long as the button reads pressed.
+ *
+ * Deliberately narrow, in two ways:
+ *  - Only on ui_autorepeat_active() modes (time/date setter, brightness).
+ *  - Only for SW1/SW4 alone, the two value-change buttons. Repeating
+ *    SELECT/BACK, or the setter's SW2 (NEXT SCREEN), would page through both
+ *    screens and commit the time on a single long press. A multi-button mask
+ *    (e.g. the SW3+SW4 home combo) also stops the loop rather than repeating.
+ *
+ * Blocking here does not stall IMU logging: the wait is a k_poll on
+ * imu_int1_sem with an absolute deadline, so FIFO watermark interrupts are
+ * serviced during the hold and the repeat still fires on schedule. It does
+ * skip bg_park_if_paused() for the duration of the hold; that check runs
+ * again the moment the button is released, and a hold is bounded by the
+ * user's thumb. */
+static void run_button_autorepeat(void)
+{
+    uint32_t interval = BTN_REPEAT_DELAY_MS;
+
+    while (ui_autorepeat_active()) {
+        uint8_t held = button_poll();
+
+        if (held != BUTTON_1_MASK && held != BUTTON_4_MASK) {
+            return;  /* released, or a mask we refuse to repeat */
+        }
+
+        int64_t deadline = k_uptime_get() + interval;
+        int64_t remaining;
+
+        while ((remaining = deadline - k_uptime_get()) > 0) {
+            struct k_poll_event ev = K_POLL_EVENT_INITIALIZER(
+                K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &imu_int1_sem);
+
+            if (k_poll(&ev, 1, K_MSEC(remaining)) == 0 &&
+                ev.state == K_POLL_STATE_SEM_AVAILABLE) {
+                k_sem_take(&imu_int1_sem, K_NO_WAIT);
+                service_imu_int1();
+            }
+        }
+
+        /* handle_ui_input() re-reads the buttons itself and returns without
+         * doing anything if the user let go during the wait, so a release
+         * mid-interval can't sneak an extra step in. */
+        handle_ui_input();
+        interval = BTN_REPEAT_PERIOD_MS;
+    }
+}
+
 /* Buttons + IMU FIFO watermark (INT1 — this board has no INT2, see
  * IMU_HAS_INT2 in interrupt.c). Buttons live on the MCP23008 expander, not
  * populated on this board yet — their semaphores simply never fire, which is
@@ -308,19 +393,12 @@ static void button_handler_thread_entry(void *p1, void *p2, void *p3)
         }
         if (events[4].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&imu_int1_sem, K_NO_WAIT);
-            if (imu_alive) {
-                get_fifo_data();
-                imu_process();
-
-                /* Raise-to-wake v1 (WOM only, no tilt confirm — see
-                 * imu_notes.md 2026-08-22). WOM shares INT1 with FIFO_THS;
-                 * imu_check_wom() only ever reads INT_STATUS2, which nothing
-                 * else touches, so this can't race the FIFO drain above. */
-                if (imu_check_wom()) {
-                    ui_wake_display_if_asleep();
-                }
-            }
+            service_imu_int1();
         }
+
+        /* No-op unless a value-editing screen is up and a button is still
+         * physically down. */
+        run_button_autorepeat();
     }
 }
 

@@ -19,6 +19,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <string.h>
 #include <unistd.h>
 
 
@@ -83,7 +84,7 @@ void display_out_bms(int charging, int battery_percent) {
 #define CLOCK_STATUS_Y        22
 #define CLOCK_STATUS_FONT     FONT_SMALL
 #define CLOCK_CHG_RIGHT       (WIDTH - 2)
-#define CLOCK_CHG_WIDTH       20   /* "CHG" at FONT_SMALL = 18 px */
+#define CLOCK_CHG_WIDTH       14   /* "CX" at FONT_SMALL = 12 px */
 #define CLOCK_LOWPWR_RIGHT    (CLOCK_CHG_RIGHT - CLOCK_CHG_WIDTH - 4)
 #define CLOCK_LOWPWR_WIDTH    16   /* "LP" at FONT_SMALL = 12 px */
 
@@ -246,12 +247,14 @@ void display_out_battery(int mv) {
  *
  * "LP"  — low-power mode, i.e. BOOST_SEL / the TPS63900 mode select is set to
  *         the power-save rail (power_save_is_enabled(), power.c).
- * "CHG" — charging. This board's BMS is a discrete charge-management circuit
+ * "CX"  — charging. This board's BMS is a discrete charge-management circuit
  *         with no I2C register and no charge-status GPIO wired, so
  *         battery_charging() is stubbed false and this badge reads "not
  *         charging" permanently for now — it is on screen so the layout slot
  *         is reserved and the wiring is a one-line change once there is a
- *         real signal to read (see power.c battery_charging()).
+ *         real signal to read (see power.c battery_charging()). Labelled "CX"
+ *         rather than "CHG" precisely because the feature is not live yet;
+ *         rename it back once battery_charging() reads a real signal.
  *
  * Both are always drawn (never blanked out) so their positions stay stable;
  * inactive is dim, active is accent-colored.
@@ -259,7 +262,7 @@ void display_out_battery(int mv) {
 void display_out_power_indicators(int charging, int low_power) {
     printStatusField("LP", CLOCK_STATUS_Y, CLOCK_LOWPWR_RIGHT,
                      CLOCK_LOWPWR_WIDTH, CLOCK_STATUS_FONT, low_power != 0);
-    printStatusField("CHG", CLOCK_STATUS_Y, CLOCK_CHG_RIGHT,
+    printStatusField("CX", CLOCK_STATUS_Y, CLOCK_CHG_RIGHT,
                      CLOCK_CHG_WIDTH, CLOCK_STATUS_FONT, charging != 0);
 }
 
@@ -279,16 +282,152 @@ void display_out_measurement(char * text, int value)
 }
 
 
-void display_out_data_stats(int write_offset, uint32_t meta_seq)
-{
-    char offset_str[16];
-    char seq_str[16];
-    sprintf(offset_str, "Off:%d", write_offset);
-    sprintf(seq_str, "Seq:%u", meta_seq);
+/*
+ * display_out_data_stats: the Data -> Log Stats screen.
+ *
+ * Layout is a static label column on the left and a right-aligned value
+ * column, one row per stat:
+ *
+ *      LOG STATS
+ *      Used        12.4MB
+ *      Free       271.5MB
+ *      Full            4%
+ *      Off       13012992
+ *      Seq             41
+ *
+ * Redraw discipline, which is the point of the rewrite: the old version did
+ * clear_display() + two printLine()s on EVERY call, and it is called from
+ * ui_refresh() once a second, so the title and the "Off:"/"Seq:" labels —
+ * which never change — were blanked and repainted once a second along with
+ * digits that hadn't moved. That's what made the screen flicker.
+ *
+ * Now the title and the label column are drawn once, on full_redraw only.
+ * Each value gets its own fixed-width right-aligned box and is only touched
+ * when its string actually differs from what was last drawn (same
+ * last-drawn-value diffing as display_out_stopwatch() and the clock face).
+ * On a steady screen that is zero SPI traffic per tick; while logging, only
+ * the Used/Free/Full/Off rows move, and Seq only every 100 records.
+ *
+ * Right-aligned rather than left: these are numbers whose digit count grows
+ * (12.4MB -> 121.7MB, 999 -> 1000), and printFieldRightAligned() clears its
+ * whole fixed box first, so a shorter value can never leave a stale trailing
+ * digit behind — the failure mode clearAndPrintLine() has with a fixed left
+ * origin.
+ *
+ * full_redraw must be true on first entry to the screen; the caller tracks
+ * that (data_stats_UI_FUNC() uses first_ui_time).
+ */
+#define STATS_FONT         FONT_SMALL
+#define STATS_LABEL_X      4
+#define STATS_VALUE_RIGHT  (WIDTH - 4)
+#define STATS_VALUE_WIDTH  72
 
-    clear_display();
-    printLine(offset_str, 2, 12, FONT_LARGE);
-    printLine(seq_str, 3, 12, FONT_LARGE);
+/* format_bytes: human-readable byte count into buf, e.g. "947KB", "12.4MB",
+ * "1.21GB". One decimal place below 100 units and none above, so the string
+ * never outgrows the value box. Integer math throughout — this runs on the
+ * display path and the app already pays for one softfloat printf on the temp
+ * screen; no reason to add another. */
+static void format_bytes(uint64_t bytes, char *buf, size_t buflen)
+{
+    static const char *const units[] = { "B", "KB", "MB", "GB" };
+    unsigned unit = 0;
+    uint64_t scaled = bytes;
+    uint64_t remainder = 0;
+
+    while (scaled >= 1024 && unit < 3) {
+        remainder = scaled % 1024;
+        scaled /= 1024;
+        unit++;
+    }
+
+    if (unit == 0) {
+        snprintf(buf, buflen, "%u%s", (unsigned)scaled, units[unit]);
+        return;
+    }
+
+    if (scaled < 100) {
+        /* One decimal: tenths of the current unit, from the remainder we
+         * divided away on the last step. */
+        unsigned tenths = (unsigned)((remainder * 10) / 1024);
+        snprintf(buf, buflen, "%u.%u%s", (unsigned)scaled, tenths, units[unit]);
+        return;
+    }
+
+    snprintf(buf, buflen, "%u%s", (unsigned)scaled, units[unit]);
+}
+
+/* Draws one value into its box only if the text changed since last time.
+ * last must be a caller-owned buffer of at least STATS_VAL_MAX bytes. */
+#define STATS_VAL_MAX 16
+
+static void printStatValueIfChanged(const char *text, char *last, uint32_t posY)
+{
+    if (strncmp(text, last, STATS_VAL_MAX) == 0) {
+        return;
+    }
+
+    printFieldRightAligned(text, posY, STATS_VALUE_RIGHT, STATS_VALUE_WIDTH, STATS_FONT);
+    strncpy(last, text, STATS_VAL_MAX - 1);
+    last[STATS_VAL_MAX - 1] = '\0';
+}
+
+void display_out_data_stats(uint64_t used_bytes, uint64_t capacity_bytes,
+                            uint32_t meta_seq, bool full_redraw)
+{
+    /* Last-drawn value strings, one per row. Emptied on full_redraw so every
+     * row repaints once after the screen is cleared. */
+    static char last_used[STATS_VAL_MAX];
+    static char last_free[STATS_VAL_MAX];
+    static char last_full[STATS_VAL_MAX];
+    static char last_off[STATS_VAL_MAX];
+    static char last_seq[STATS_VAL_MAX];
+
+    char used_str[STATS_VAL_MAX];
+    char free_str[STATS_VAL_MAX];
+    char full_str[STATS_VAL_MAX];
+    char off_str[STATS_VAL_MAX];
+    char seq_str[STATS_VAL_MAX];
+
+    if (full_redraw) {
+        clear_display();
+        printLine("LOG STATS", 0, STATS_LABEL_X, STATS_FONT);
+        printLine("Used", 1, STATS_LABEL_X, STATS_FONT);
+        printLine("Free", 2, STATS_LABEL_X, STATS_FONT);
+        printLine("Full", 3, STATS_LABEL_X, STATS_FONT);
+        printLine("Off",  4, STATS_LABEL_X, STATS_FONT);
+        printLine("Seq",  5, STATS_LABEL_X, STATS_FONT);
+
+        last_used[0] = last_free[0] = last_full[0] = '\0';
+        last_off[0]  = last_seq[0]  = '\0';
+    }
+
+    /* capacity_bytes is 0 if nvs_init() never ran; don't divide by it, and
+     * don't claim a free figure we can't compute. */
+    uint64_t free_bytes = (capacity_bytes > used_bytes) ? capacity_bytes - used_bytes : 0;
+
+    format_bytes(used_bytes, used_str, sizeof(used_str));
+
+    if (capacity_bytes == 0) {
+        snprintf(free_str, sizeof(free_str), "?");
+        snprintf(full_str, sizeof(full_str), "?");
+    }
+    else {
+        format_bytes(free_bytes, free_str, sizeof(free_str));
+        /* Tenths of a percent: at 285 MB capacity a whole percent is ~2.8 MB,
+         * so an integer percent would read 0% through the first few hours of
+         * logging and hide exactly the progress this screen exists to show. */
+        uint32_t tenths = (uint32_t)((used_bytes * 1000ULL) / capacity_bytes);
+        snprintf(full_str, sizeof(full_str), "%u.%u%%", tenths / 10, tenths % 10);
+    }
+
+    snprintf(off_str, sizeof(off_str), "%u", (unsigned)used_bytes);
+    snprintf(seq_str, sizeof(seq_str), "%u", meta_seq);
+
+    printStatValueIfChanged(used_str, last_used, calculateLineY(1, STATS_FONT));
+    printStatValueIfChanged(free_str, last_free, calculateLineY(2, STATS_FONT));
+    printStatValueIfChanged(full_str, last_full, calculateLineY(3, STATS_FONT));
+    printStatValueIfChanged(off_str,  last_off,  calculateLineY(4, STATS_FONT));
+    printStatValueIfChanged(seq_str,  last_seq,  calculateLineY(5, STATS_FONT));
 }
 
 
