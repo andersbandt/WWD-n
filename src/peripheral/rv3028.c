@@ -115,6 +115,27 @@ void rv3028_set_time(Time t)
     }
 }
 
+/* A cold RV-3028 powers up well before this; anything at or after it means
+ * somebody set the clock. 2025 rather than the current year so the check does
+ * not silently start rejecting correctly-set devices as time passes. */
+#define RV3028_MIN_VALID_YEAR  2025
+
+bool rv3028_time_is_set(void)
+{
+    if (rtc_dev == NULL) {
+        return false;
+    }
+
+    struct rtc_time rt;
+
+    if (rtc_get_time(rtc_dev, &rt) != 0) {
+        return false;
+    }
+
+    return (rt.tm_year + 1900) >= RV3028_MIN_VALID_YEAR;
+}
+
+
 Date rv3028_get_date(void)
 {
     Date d = {.day = 1, .month = 1, .year = 2026};

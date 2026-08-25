@@ -1,6 +1,7 @@
 #ifndef RV3028_H
 #define RV3028_H
 
+#include <stdbool.h>
 #include <peripheral/clock.h>   /* Time struct */
 
 /*
@@ -24,6 +25,25 @@ void rv3028_set_date(Date d);
  * for cheap timestamp/duration math, not display. */
 uint32_t rv3028_get_unix_time(void);
 void rv3028_set_unix_time(uint32_t t);
+
+/**
+ * @brief True if the RV-3028 is bound AND holds a time that has actually been
+ *        set, rather than power-on defaults.
+ *
+ * This is what decides RECORD_TIME_ANCHOR's time_valid flag, so decoders use
+ * it to choose between real wall-clock timestamps and relative-only time.
+ *
+ * The test is a plausible year (>= RV3028_MIN_VALID_YEAR). The part has no
+ * "has been set" bit exposed through Zephyr's RTC API, and a cold RV-3028
+ * comes up at its default epoch, so the year is the available signal.
+ *
+ * NOTE what this does and does not claim. It says the fields came from a real,
+ * running, set RTC — NOT that the RTC is set CORRECTLY. A clock set to the
+ * wrong hour still reports valid, and the decoder will then produce
+ * confidently wrong wall times. Nothing in firmware can detect that; keeping
+ * the device's clock right is a user action.
+ */
+bool rv3028_time_is_set(void);
 
 void rv3028_print_time(void);
 

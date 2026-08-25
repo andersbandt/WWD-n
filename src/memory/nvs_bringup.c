@@ -11,6 +11,7 @@
 #include <ICM_42670.h>          /* getTempDataFromIMUReg() */
 #include <util/cdc_debug.h>
 #include <peripheral/clock.h>   /* get_dt_ticks() */
+#include <peripheral/rv3028.h>       /* rv3028_time_is_set() */
 #include <peripheral/rv3028_bringup.h>
 #include <peripheral/soc_temp.h>
 #include <comm/rate_config.h>
@@ -32,8 +33,8 @@
  *                     where B left it, and the dump must reproduce B's records.
  *   STEP_PIPELINE  D: the real thing. IMU first (0f89f1e order), then NVS;
  *                     FIFO records via imu_process(), temperature every 10 s,
- *                     TIME_ANCHOR at boot + every 5 min. Dummy RTC wall clock
- *                     (time_valid=0) until a battery is fitted.
+ *                     TIME_ANCHOR at boot + every 5 min, carrying the real
+ *                     RV-3028 wall clock (time_valid=1 once the clock is set).
  *
  * Every step re-checks IMU WHO_AM_I immediately after nvs_init() — the shared
  * SPI1 contention from the nRF52832 era ("NAND holds MISO, IMU reads 0x00")
@@ -57,21 +58,59 @@
 
 static bool nvs_alive;
 
-/* Dummy wall clock: RV-3028 runs but was never set (no backup battery), so
- * anchor date fields are fixed placeholders and time_valid=0. The h:m:s from
- * the RTC still go in — they show relative progression between anchors. */
+/* Real wall clock, as of 2026-08-25.
+ *
+ * This used to hardcode placeholder date fields and time_valid=0, from when
+ * the RV-3028 ran but had never been set. It works now (LSM backup mode, keeps
+ * time across power cycles), and get_current_time()/get_date() already read it
+ * directly — so every dump was needlessly relative-time-only. That stops
+ * mattering in the abstract and starts mattering concretely the moment
+ * activity sessions exist and a run has to be tied to a time of day.
+ *
+ * time_valid comes from rv3028_time_is_set(), so a board whose clock was never
+ * set still logs 0 and decoders still fall back to relative time. Read that
+ * function's comment for what "valid" does NOT promise: it means the fields
+ * came from a real set RTC, not that the RTC is set to the RIGHT time. */
+/* Mirror of the last anchor written, readable over SWD — same rationale as
+ * battery_dbg in power.c: the cdc_printf() below goes nowhere with USB
+ * unplugged, and USB has to stay unplugged for battery measurements. */
+volatile struct {
+    uint32_t seq;
+    uint16_t year;
+    uint8_t  month, day, hours, minutes, seconds;
+    uint8_t  time_valid;
+    int32_t  rc;
+} anchor_dbg;
+
 static void nvs_log_boot_anchor(void)
 {
-    int secs = rv3028_seconds();
+    Time t = get_current_time();
+    Date d = get_date();
+    bool valid = rv3028_time_is_set();
+
     struct record_time_anchor a = {
-        .year = 2026, .month = 1, .day = 1,
-        .hours = 0, .minutes = 0,
-        .seconds = (secs >= 0) ? (uint8_t)secs : 0,
-        .time_valid = 0,
+        .year    = d.year,
+        .month   = d.month,
+        .day     = d.day,
+        .hours   = (uint8_t)t.hours,
+        .minutes = (uint8_t)t.minutes,
+        .seconds = (uint8_t)t.seconds,
+        .time_valid = valid ? 1 : 0,
     };
     int rc = nvs_log_time_anchor(a);
 
-    cdc_printf("  TIME_ANCHOR logged -> %d (dummy clock, time_valid=0)\r\n", rc);
+    anchor_dbg.year       = a.year;
+    anchor_dbg.month      = a.month;
+    anchor_dbg.day        = a.day;
+    anchor_dbg.hours      = a.hours;
+    anchor_dbg.minutes    = a.minutes;
+    anchor_dbg.seconds    = a.seconds;
+    anchor_dbg.time_valid = a.time_valid;
+    anchor_dbg.rc         = rc;
+    anchor_dbg.seq++;
+
+    cdc_printf("  TIME_ANCHOR logged -> %d (%04u-%02u-%02u %02u:%02u:%02u, time_valid=%d)\r\n",
+               rc, d.year, d.month, d.day, t.hours, t.minutes, t.seconds, a.time_valid);
 }
 
 /* Direct reader for the 2040/2041 double-entry mystery: both blocks scanned as

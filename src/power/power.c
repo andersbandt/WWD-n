@@ -110,6 +110,32 @@ void power_rail_init(void)
     power_save_active = false;
 }
 
+/* How many conversions to average per call.
+ *
+ * Nearly free: the expensive part of a reading is the 1 ms settle after
+ * grounding the divider leg, which is paid once regardless, while each extra
+ * SAADC conversion is a few microseconds. Averaging 8 drops the sample noise
+ * by ~sqrt(8) for no meaningful time or energy cost. */
+#define BATTERY_ADC_OVERSAMPLE  8
+
+/*
+ * Last-reading mirror, for reading battery behaviour over SWD on a board with
+ * no USB attached.
+ *
+ * This exists because the two obvious alternatives do not work here: the
+ * console is USB CDC, and USB must be UNPLUGGED for any honest battery
+ * measurement (VBUS back-feeds VBAT through a hardware defect, so an attached
+ * cable measures the defect rather than the firmware); and GDB `call` hangs on
+ * this target and wedges the J-Link, so battery_voltage_mv() cannot simply be
+ * invoked from the debugger. What is left is: let the normal 9 s sensor tick
+ * take the reading, mirror it into RAM, and read the RAM over SWD.
+ *
+ * volatile so the compiler cannot optimise away stores nothing on-target
+ * reads. `seq` increments on every completed reading, which is how a reader
+ * tells a fresh sample from a stale one after changing the supply.
+ */
+volatile struct battery_dbg_s battery_dbg;
+
 int battery_voltage_mv(void)
 {
     int16_t raw;
@@ -126,20 +152,49 @@ int battery_voltage_mv(void)
     gpio_pin_configure_dt(&vbat_div_en, GPIO_OUTPUT_ACTIVE);
     k_sleep(K_MSEC(1));
 
-    int err = adc_read_dt(&adc_vbat, &seq);
+    int32_t acc = 0;
+    int16_t rmin = INT16_MAX;
+    int16_t rmax = INT16_MIN;
+    int err = 0;
+    unsigned n = 0;
+
+    for (unsigned i = 0; i < BATTERY_ADC_OVERSAMPLE; i++) {
+        err = adc_read_dt(&adc_vbat, &seq);
+        if (err) {
+            break;
+        }
+        acc += raw;
+        if (raw < rmin) { rmin = raw; }
+        if (raw > rmax) { rmax = raw; }
+        n++;
+    }
 
     /* Back to high-impedance immediately — leaving it driven (either
      * direction) either wastes current or corrupts the next sample. */
     gpio_pin_configure_dt(&vbat_div_en, GPIO_INPUT);
 
-    if (err) {
+    if (err || n == 0) {
         LOG_ERR("adc_read failed: %d", err);
+        battery_dbg.err = err ? err : -EIO;
+        battery_dbg.seq++;
         return 0;
     }
 
+    int16_t raw_avg = (int16_t)(acc / (int32_t)n);
+
     /* Convert raw sample to mV at the ADC pin, then ×2 for the 1:2 divider */
-    int32_t val_mv = raw;
+    int32_t val_mv = raw_avg;
     adc_raw_to_millivolts_dt(&adc_vbat, &val_mv);
+
+    battery_dbg.raw_avg = raw_avg;
+    battery_dbg.raw_min = rmin;
+    battery_dbg.raw_max = rmax;
+    battery_dbg.samples = (uint16_t)n;
+    battery_dbg.mv_pin  = val_mv;
+    battery_dbg.mv_batt = val_mv * 2;
+    battery_dbg.err     = 0;
+    battery_dbg.seq++;
+
     return (int)(val_mv * 2);
 }
 

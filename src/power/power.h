@@ -41,6 +41,28 @@ void power_rail_init(void);
  * samples the SAADC, then disables the divider to save quiescent current.
  * Returns 0 on error.
  */
+/*
+ * Mirror of the most recent battery_voltage_mv() reading, for inspection over
+ * SWD when no USB console is available. See the comment on the definition in
+ * power.c for why this exists rather than calling the function from GDB.
+ *
+ * Read it with the core halted (nrfjprog --memrd, then --run), and use `seq`
+ * to confirm a reading is fresh rather than left over from before the supply
+ * was changed.
+ */
+struct battery_dbg_s {
+    uint32_t seq;      /* increments on every completed reading */
+    int16_t  raw_avg;  /* mean of `samples` raw SAADC counts */
+    int16_t  raw_min;  /* spread of the burst — noise, at a glance */
+    int16_t  raw_max;
+    uint16_t samples;  /* conversions actually averaged */
+    int32_t  mv_pin;   /* millivolts at AIN2 (divider output) */
+    int32_t  mv_batt;  /* mv_pin * 2, i.e. what the function returns */
+    int32_t  err;      /* 0, or the adc_read_dt() errno of the failed burst */
+};
+
+extern volatile struct battery_dbg_s battery_dbg;
+
 int battery_voltage_mv(void);
 
 /*
