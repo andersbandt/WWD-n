@@ -26,6 +26,7 @@
 /* IMU */
 #include <imu.h>
 #include <imu_bringup.h>
+#include <ICM_42670.h>   /* getTempDataFromIMUReg() for the BLE status feed */
 #include <display.h>
 
 /* NVS bring-up phase + pipeline tick */
@@ -36,6 +37,7 @@
 #include "peripheral/rv3028_bringup.h"
 #include "peripheral/soc_temp.h"
 #include <activity/activity.h>
+#include <ble/ble.h>
 #include "peripheral/interrupt.h"
 #include "peripheral/timer.h"
 #include "hardware/led.h"
@@ -210,7 +212,7 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
         /* Independent of imu_alive — the SoC's own die sensor works whether or
          * not the IMU came up, and is worth showing on a board where the IMU
          * is dead. Skipped silently if the driver never bound. */
-        int16_t soc_centi;
+        int16_t soc_centi = 0;   /* 0 if the read below fails; BLE reports it as-is */
         if (soc_temp_read_centi_c(&soc_centi) == 0) {
             ui_clock_set_soc_temp(soc_temp_centi_c_to_f(soc_centi));
         }
@@ -235,6 +237,21 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
          * and which in any case selects the more expensive rail. */
         ui_clock_set_charging(battery_charging() ? 1 : 0);
         ui_clock_set_low_power(low_power_is_active() ? 1 : 0);
+
+        /* Hand BLE the same snapshot the clock face just got. Deliberately
+         * fed from here rather than sampled in the notify work: every value
+         * below comes from SPI1 or I2C, and reading them from the Bluetooth
+         * or system workqueue would put a thread on those buses that neither
+         * the dump-pause handshake nor the measured stack budget knows about.
+         * See ble_publish_status()'s comment. */
+        ble_publish_status((uint16_t)batt_mv,
+                           imu_alive ? getTempDataFromIMUReg() : 0,
+                           soc_centi,
+                           imu_alive ? imu_get_pedo() : 0,
+                           (uint8_t)activity_current(),
+                           activity_current_seq(),
+                           imu_is_worn(),
+                           rv3028_time_is_set());
 
         // battery_percent() (power.c) is implemented and ready to wire in — deliberately
         // not called yet. The clock face currently shows raw divider mV via
@@ -665,6 +682,12 @@ int main(void)
     soc_temp_init();
 
     activity_init();
+
+    /* Last of the subsystem inits: bt_enable() starts its own threads and
+     * claims RTC0/TIMER0, so let everything that might contend for a bus or a
+     * timer be up and settled first. Failure is non-fatal — ble_init() logs
+     * and returns, and the device works exactly as before without it. */
+    ble_init();
 
     init_buttons();       /* no-op-safe if MCP23008 absent, see button.c */
     init_button_buffer();
