@@ -396,13 +396,12 @@ static void run_button_autorepeat(void)
 
 /* Long-press SW2 (top-right) = jump straight to the activity screen.
  *
- * Returns true if the press was consumed as a hold, in which case the caller
- * must NOT also run handle_ui_input() — otherwise the same press would be
- * handled twice, once as a hold and again as a plain SELECT.
- *
- * A press while the display is asleep is a wake, not a shortcut: falling
- * through to handle_ui_input() keeps the existing "first press only wakes"
- * contract intact.
+ * Classifying the press costs time, and that is the whole subtlety here: this
+ * cannot just return a bool and let the caller re-poll, because a SHORT press
+ * is already released by the time we know it was short. Re-polling then reads
+ * 0 and the press vanishes — which broke SELECT across the entire UI on the
+ * first hardware test. Hence the three-way result: the caller dispatches a
+ * short press explicitly via handle_ui_input_latched().
  *
  * The wait services IMU INT1 exactly like run_button_autorepeat() does, rather
  * than just sleeping — this thread is the only FIFO drain, and stalling it for
@@ -410,10 +409,19 @@ static void run_button_autorepeat(void)
 #define ACTIVITY_HOLD_MS   600
 #define ACTIVITY_POLL_MS   20
 
-static bool service_button2_hold(void)
+typedef enum {
+    BTN2_HOLD_CONSUMED,  /* long press: activity screen opened, nothing more to do */
+    BTN2_SHORT,          /* released before the hold threshold — an ordinary SELECT */
+    BTN2_PASSTHROUGH,    /* not classified; let handle_ui_input() poll as usual */
+} btn2_result_t;
+
+static btn2_result_t service_button2_hold(void)
 {
+    /* Display asleep: this press is a wake, not a shortcut. Hand it straight
+     * to handle_ui_input() so its "first press only wakes" branch runs — and
+     * so it polls, since the button is still down at this instant. */
     if (!display_is_awake()) {
-        return false;
+        return BTN2_PASSTHROUGH;
     }
 
     int64_t deadline = k_uptime_get() + ACTIVITY_HOLD_MS;
@@ -432,7 +440,11 @@ static bool service_button2_hold(void)
         }
 
         if ((button_poll() & BUTTON_2_MASK) == 0) {
-            return false;   /* released early — an ordinary SELECT */
+            /* Released inside the window. The press is OVER, so the caller
+             * must dispatch it explicitly — polling again would read 0 and
+             * drop it. This is exactly the bug that broke SELECT everywhere
+             * on first hardware test. */
+            return BTN2_SHORT;
         }
     }
 
@@ -444,7 +456,7 @@ static bool service_button2_hold(void)
     while (button_poll() & BUTTON_2_MASK) {
         k_msleep(ACTIVITY_POLL_MS);
     }
-    return true;
+    return BTN2_HOLD_CONSUMED;
 }
 
 static void button_handler_thread_entry(void *p1, void *p2, void *p3)
@@ -471,8 +483,15 @@ static void button_handler_thread_entry(void *p1, void *p2, void *p3)
         }
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button2_sem, K_NO_WAIT);
-            if (!service_button2_hold()) {
+            switch (service_button2_hold()) {
+            case BTN2_HOLD_CONSUMED:
+                break;
+            case BTN2_SHORT:
+                handle_ui_input_latched(BUTTON_2_MASK);
+                break;
+            case BTN2_PASSTHROUGH:
                 handle_ui_input();
+                break;
             }
         }
         if (events[2].state == K_POLL_STATE_SEM_AVAILABLE) {

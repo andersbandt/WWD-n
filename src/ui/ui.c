@@ -550,7 +550,23 @@ void ui_wake_display_if_asleep(void) {
  * SW3+SW4 (the bottom row) together always return to the clock face,
  * regardless of UI mode. */
 void handle_ui_input() {
-    uint8_t button_status = button_poll();
+    handle_ui_input_latched(0);
+}
+
+
+/*
+ * forced_mask != 0 means "this press was already observed, act on it" rather
+ * than re-reading the buttons.
+ *
+ * That distinction matters because a caller may have spent time deciding what
+ * the press was before getting here. service_button2_hold() (main.c) polls for
+ * up to 600 ms to tell a long press from a short one — by the time it knows,
+ * a short press has been RELEASED, so button_poll() would read 0 and the press
+ * would be silently dropped. That regressed SELECT everywhere until it was
+ * caught on hardware; do not "simplify" this back to an unconditional poll.
+ */
+void handle_ui_input_latched(uint8_t forced_mask) {
+    uint8_t button_status = forced_mask ? forced_mask : button_poll();
 
     if (button_status == 0) {
         return;  /* nothing pressed */

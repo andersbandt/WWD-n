@@ -117,6 +117,19 @@ void handle_ui_input();
 
 
 /**
+ * @brief handle_ui_input() for a press that has already been observed.
+ *
+ * @param forced_mask BUTTON_*_MASK of the press to act on, or 0 to poll the
+ *                    buttons as handle_ui_input() does.
+ *
+ * Needed by callers that spend time classifying a press before dispatching it
+ * — by then a short press has been released and polling would return 0. See
+ * the comment on the implementation.
+ */
+void handle_ui_input_latched(uint8_t forced_mask);
+
+
+/**
  * @brief Wakes a sleeping display in response to a non-button wake source.
  *
  * Runs the same wake + full clock repaint sequence handle_ui_input() runs for
