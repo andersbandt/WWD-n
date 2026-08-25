@@ -16,6 +16,16 @@ option(BUILD_UI_TESTS "Build the UI function test harness instead of the real ap
 # quiet state with BOOST_SEL held at that level, so the host can sweep VBAT
 # underneath it. Empty (default) = run the normal 21-state sequence.
 # Build with: cmake ... -DPOWER_PROFILE_BUILD=ON -DPOWER_PROFILE_BOOST_HOLD=1
+# Additive attribution mode: start with nothing initialised and bring one
+# subsystem up per dwell, to find what owns the idle floor.
+# Build with: cmake ... -DPOWER_PROFILE_BUILD=ON -DPOWER_PROFILE_TEARDOWN=ON
+option(POWER_PROFILE_TEARDOWN "Build the additive teardown/attribution image" OFF)
+
+# Probe image: isolates what owns the idle floor (bare_spin vs bare_idle) and
+# what the IMU gyro costs (accel_only vs accel_plus_gyro).
+# Build with: cmake ... -DPOWER_PROFILE_BUILD=ON -DPOWER_PROFILE_PROBE=ON
+option(POWER_PROFILE_PROBE "Build the idle-floor / gyro probe image" OFF)
+
 set(POWER_PROFILE_BOOST_HOLD "" CACHE STRING
     "0 or 1 to build a BOOST_SEL hold-mode image for VBAT sweeps; empty = normal sequence")
 
@@ -27,6 +37,12 @@ file(GLOB_RECURSE SRC_FILES "${CMAKE_CURRENT_SOURCE_DIR}/src/*.c")
 
 if(POWER_PROFILE_BUILD)
     target_sources(app PRIVATE src/power_profile/power_profile_main.c)
+    if(POWER_PROFILE_PROBE)
+        target_compile_definitions(app PRIVATE PP_PROBE=1)
+    endif()
+    if(POWER_PROFILE_TEARDOWN)
+        target_compile_definitions(app PRIVATE PP_TEARDOWN=1)
+    endif()
     if(NOT POWER_PROFILE_BOOST_HOLD STREQUAL "")
         target_compile_definitions(app PRIVATE PP_BOOST_HOLD=${POWER_PROFILE_BOOST_HOLD})
     endif()
@@ -48,6 +64,7 @@ target_sources(app PRIVATE
     src/hardware/led.c
     src/hardware/button.c
     src/power/power.c
+    src/power/low_power.c
     src/util/cdc_debug.c
 )
 

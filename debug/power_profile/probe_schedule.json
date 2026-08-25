@@ -1,0 +1,19 @@
+{
+  "dwell_s": 8.0,
+  "settle_margin_s": 5.5,
+  "_notes": {
+    "mode": "POWER_PROFILE_PROBE=ON",
+    "q1_floor": "bare_spin vs bare_idle — if spin >> idle the idle path sleeps and the floor is elsewhere; if close, the CPU never sleeps",
+    "q2_gyro": "accel_plus_gyro minus accel_only = the ICM-42670-P gyro's cost in low-noise mode"
+  },
+  "states": [
+    { "index": 0, "name": "bare_idle",       "start_s": 0.0,  "end_s": 8.0 },
+    { "index": 1, "name": "bare_spin",       "start_s": 8.0,  "end_s": 16.0 },
+    { "index": 2, "name": "power_init",      "start_s": 16.0, "end_s": 24.0 },
+    { "index": 3, "name": "icm_init_only",   "start_s": 24.0, "end_s": 32.0 },
+    { "index": 4, "name": "accel_only",      "start_s": 32.0, "end_s": 40.0 },
+    { "index": 5, "name": "accel_plus_gyro", "start_s": 40.0, "end_s": 48.0 },
+    { "index": 6, "name": "both_odr_800",    "start_s": 48.0, "end_s": 56.0 },
+    { "index": 7, "name": "periph_off",      "start_s": 56.0, "end_s": 64.0 }
+  ]
+}

@@ -40,6 +40,7 @@
 #include "hardware/button.h"
 #include "power/power.h"
 #include <ui.h>
+#include <power/low_power.h>
 
 /* Host command protocol (cdc_acm_uart1) */
 #include "comm/protocol.h"
@@ -191,14 +192,26 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
             ui_clock_set_steps(imu_get_pedo());
         }
 
-        ui_clock_set_battery_mv(battery_voltage_mv());
+        int batt_mv = battery_voltage_mv();
+
+        ui_clock_set_battery_mv(batt_mv);
+
+        /* Feed the low-power policy from the same reading rather than taking a
+         * second one: battery_voltage_mv() pulses the divider leg for its
+         * sample, so each extra call costs a little energy of its own. */
+        low_power_battery_update(batt_mv);
 
         /* Clock-face power indicators. battery_charging() is still stubbed
          * false (discrete BMS, no charge-status signal wired — see power.c),
          * so "CHG" reads not-charging until that lands; the badge is on
-         * screen so the slot is reserved. "LP" tracks BOOST_SEL. */
+         * screen so the slot is reserved.
+         *
+         * "LP" now tracks the low-power MODE (user setting OR battery
+         * trigger), not BOOST_SEL. It used to read power_save_is_enabled(),
+         * which was always false — nothing ever called power_save_enable() —
+         * and which in any case selects the more expensive rail. */
         ui_clock_set_charging(battery_charging() ? 1 : 0);
-        ui_clock_set_low_power(power_save_is_enabled() ? 1 : 0);
+        ui_clock_set_low_power(low_power_is_active() ? 1 : 0);
 
         // battery_percent() (power.c) is implemented and ready to wire in — deliberately
         // not called yet. The clock face currently shows raw divider mV via
@@ -546,6 +559,7 @@ int main(void)
 
     led_init();
     power_init();
+    low_power_init();
 
     init_buttons();       /* no-op-safe if MCP23008 absent, see button.c */
     init_button_buffer();

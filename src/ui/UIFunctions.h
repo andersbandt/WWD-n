@@ -41,6 +41,7 @@ void system_adjust_brightness_UI_FUNC(void);
 /**
  * @brief UI function to clear system faults
  */
+void system_low_power_UI_FUNC(void);
 void system_clear_faults_UI_FUNC(void);
 
 

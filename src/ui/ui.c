@@ -27,6 +27,7 @@
 
 /* UI specific header files */
 #include <ui.h>
+#include <power/low_power.h>
 #include <ui_menu.h>
 #include <ui_display.h>
 #include <UIFunctions.h>
@@ -302,6 +303,10 @@ void ui_refresh() {
             system_clear_faults_UI_FUNC();
             break;
 
+        case UI_MODE_LOW_POWER:
+            system_low_power_UI_FUNC();
+            break;
+
         // IMU UI Functions (Menu 1)
         case UI_MODE_IMU_READ:
             imuRead_UI_FUNC();
@@ -363,7 +368,12 @@ void ui_idle_tick(void)
         return;
     }
 
-    if ((k_uptime_get() - last_activity_ms) < UI_DISPLAY_TIMEOUT_MS) {
+    /* Low-power mode shortens the auto-off. The panel costs ~2.1 mA even at
+     * 0% backlight, so sleeping it sooner is the biggest lever the mode has. */
+    uint32_t timeout_ms = low_power_is_active() ? LOW_POWER_TIMEOUT_MS
+                                                : UI_DISPLAY_TIMEOUT_MS;
+
+    if ((k_uptime_get() - last_activity_ms) < timeout_ms) {
         return;
     }
 
@@ -374,7 +384,7 @@ void ui_idle_tick(void)
     switch_display(false);
     k_mutex_unlock(&display_draw_mutex);
 
-    LOG_INF("display asleep after %d ms idle", UI_DISPLAY_TIMEOUT_MS);
+    LOG_INF("display asleep after %u ms idle", timeout_ms);
 }
 
 

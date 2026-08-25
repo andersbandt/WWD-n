@@ -1,0 +1,18 @@
+{
+  "dwell_s": 8.0,
+  "settle_margin_s": 5.0,
+  "_notes": {
+    "mode": "POWER_PROFILE_TEARDOWN=ON — additive attribution of the idle floor",
+    "read_as": "the current STEP between consecutive states is that subsystem's cost",
+    "debugger": "deltas stay valid with J-Link attached; only the absolute floor is inflated"
+  },
+  "states": [
+    { "index": 0, "name": "bare_idle",        "start_s": 0.0,  "end_s": 8.0 },
+    { "index": 1, "name": "add_power_init",   "start_s": 8.0,  "end_s": 16.0 },
+    { "index": 2, "name": "add_display_slp",  "start_s": 16.0, "end_s": 24.0 },
+    { "index": 3, "name": "add_imu",          "start_s": 24.0, "end_s": 32.0 },
+    { "index": 4, "name": "add_nand",         "start_s": 32.0, "end_s": 40.0 },
+    { "index": 5, "name": "add_imu_100hz",    "start_s": 40.0, "end_s": 48.0 },
+    { "index": 6, "name": "display_on_bl100", "start_s": 48.0, "end_s": 56.0 }
+  ]
+}

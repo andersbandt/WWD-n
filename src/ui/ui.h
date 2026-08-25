@@ -32,6 +32,7 @@ typedef enum {
     UI_MODE_PROMPT_TIME,                // Time setting interface
     UI_MODE_ADJUST_BRIGHTNESS,          // Backlight brightness adjustment
     UI_MODE_CLEAR_FAULTS,               // Fault clearing interface
+    UI_MODE_LOW_POWER,                  // Low-power mode toggle (see low_power.h)
 
     // IMU modes (Menu 1)
     UI_MODE_IMU_READ,                   // IMU accelerometer reading display

@@ -30,6 +30,7 @@
 #include <peripheral/clock.h>
 #include <peripheral/rv3028.h>
 #include <memory/nvs.h>
+#include <power/low_power.h>
 
 /* UI and display */
 #include <display.h>
@@ -337,11 +338,58 @@ void system_adjust_brightness_UI_FUNC(void) {
     }
 
     if (changed) {
-        Backlight_Pct(brightness);
-        display_out_measurement("Brightness", brightness);
+        /* Honour the low-power cap: in LP mode the user can still turn the
+         * backlight DOWN, but not back above the cap. Showing the requested
+         * value while driving a capped one would be a lie, so display what is
+         * actually in effect. */
+        uint8_t applied = low_power_cap_backlight(brightness);
+
+        Backlight_Pct(applied);
+        display_out_measurement("Brightness", applied);
     }
 
     return;
+}
+
+/*
+ * system_low_power_UI_FUNC: low-power mode toggle.
+ *
+ *   SW1 (top-left)     turn low-power mode ON
+ *   SW4 (bottom-left)  turn low-power mode OFF
+ *
+ * Reads 1/0 rather than a name because display_out_measurement() renders a
+ * label plus an integer, matching the Brightness screen next to it.
+ *
+ * Note this toggles only the USER setting. The battery trigger
+ * (low_power.h, engages under 3.60 V, releases over 3.90 V) is independent and
+ * can hold the mode on even when the user setting reads 0 — which is why the
+ * readout shows the EFFECTIVE state, not the user bit. Turning it "off" on a
+ * flat battery therefore correctly appears to do nothing.
+ */
+void system_low_power_UI_FUNC(void) {
+    if (first_ui_time) {
+        first_ui_time = false;
+        button_buffer_clear();
+        display_out_measurement("Low Power", low_power_is_active() ? 1 : 0);
+        return;
+    }
+
+    uint8_t btn_poll;
+    bool changed = false;
+
+    while ((btn_poll = get_button_event()) != 0) {
+        if (btn_poll == BUTTON_1_MASK) {
+            low_power_set_user(true);
+            changed = true;
+        } else if (btn_poll == BUTTON_4_MASK) {
+            low_power_set_user(false);
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        display_out_measurement("Low Power", low_power_is_active() ? 1 : 0);
+    }
 }
 
 void system_clear_faults_UI_FUNC(void) {

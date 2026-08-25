@@ -27,6 +27,7 @@
 #include <display.h>
 #include <st7735s.h>
 #include <imu.h>
+#include <ICM_42670.h>
 #include <imu_bringup.h>
 #include <nvs.h>
 #include <power/power.h>
@@ -207,14 +208,6 @@ static const struct power_state states[] = {
 
 #define NUM_STATES (sizeof(states) / sizeof(states[0]))
 
-/* States whose setup function already blocks for the full dwell itself
- * (st_nvs_writing, st_combo_realistic) — run_sequence() must not also sleep
- * DWELL_MS after calling these, or they'd take 2x as long as scheduled. */
-static bool state_self_dwells(state_setup_fn fn)
-{
-    return fn == st_nvs_writing || fn == st_combo_realistic;
-}
-
 static void run_sequence(void)
 {
     int64_t t0 = k_uptime_get();
@@ -225,10 +218,30 @@ static void run_sequence(void)
         LOG_INF("[power_profile] t=%lldms state=%zu/%zu name=%s",
                 elapsed, i + 1, NUM_STATES, states[i].name);
 
+        /* Pad every state to exactly DWELL_MS regardless of how long its
+         * setup blocked for.
+         *
+         * The old form skipped the sleep entirely for "self-dwelling" states
+         * (st_nvs_writing, st_combo_realistic) on the assumption that their
+         * write loops take the full dwell. That assumption breaks whenever
+         * NVS is not up -- on SN1 (wrong NAND) both return immediately, so
+         * the two states lasted ~0 ms instead of 8 s and the whole tail of
+         * the run happened ~16 s earlier than schedule.json says. Every
+         * schedule-sliced number from nvs_idle onward was then garbage, which
+         * is exactly the kind of silent misalignment that is hard to spot in
+         * an averaged table. Measuring the actual elapsed time and sleeping
+         * only the remainder is correct in both cases and needs no special
+         * casing. */
+        int64_t state_start = k_uptime_get();
+
         states[i].setup();
 
-        if (!state_self_dwells(states[i].setup)) {
-            k_msleep(DWELL_MS);
+        int64_t used = k_uptime_get() - state_start;
+        if (used < DWELL_MS) {
+            k_msleep((int32_t)(DWELL_MS - used));
+        } else if (used > DWELL_MS + 100) {
+            LOG_WRN("[power_profile] state %s overran its dwell: %lldms > %dms",
+                    states[i].name, used, DWELL_MS);
         }
     }
 
@@ -236,12 +249,216 @@ static void run_sequence(void)
             k_uptime_get() - t0);
 }
 
+#ifdef PP_TEARDOWN
+/* ---------------------------------------------------------------------------
+ * Teardown / attribution mode (-DPOWER_PROFILE_TEARDOWN=ON).
+ *
+ * The 21-state sequence measures what each subsystem costs while ACTIVE. It
+ * cannot say what owns the ~2.6 mA idle floor, because every driver is already
+ * initialised before state 0 runs. This mode inverts that: start with NOTHING
+ * initialised and bring exactly one subsystem up per dwell, so the current
+ * step between consecutive states is that subsystem's cost.
+ *
+ * Additive rather than subtractive on purpose -- "disabling" a peripheral
+ * rarely returns it to its true pre-init state (the ICM-42670 and MT29F have
+ * no power-down API here at all), so subtracting would under-report.
+ *
+ * Deltas remain valid with a debugger attached (it adds a constant offset to
+ * every state); only the absolute floor is inflated by it.
+ * ------------------------------------------------------------------------- */
+
+static void st_td_nothing(void)      { /* baseline: no driver init at all */ }
+static void st_td_power(void)        { power_init(); }
+
+static void st_td_display_asleep(void)
+{
+    init_display();
+    if (display_status) {
+        /* Panel initialised but immediately put to sleep -- this is exactly
+         * the state the real app's display timeout leaves it in, and the one
+         * the 2.6 mA floor was measured in. */
+        switch_display(false);
+    }
+}
+
+static void st_td_imu(void)
+{
+    int rc = imu_init();
+    imu_alive = (rc == 0);
+}
+
+static void st_td_nand(void)
+{
+    nvs_init();
+    nvs_alive = nvs_ready();
+}
+
+static void st_td_imu_100hz(void)
+{
+    if (imu_alive) {
+        imu_set_odr(100);
+    }
+}
+
+static void st_td_display_on(void)
+{
+    if (display_status) {
+        switch_display(true);
+        Backlight_Pct(100);
+    }
+}
+
+static const struct power_state teardown_states[] = {
+    { "bare_idle",        st_td_nothing },
+    { "add_power_init",   st_td_power },
+    { "add_display_slp",  st_td_display_asleep },
+    { "add_imu",          st_td_imu },
+    { "add_nand",         st_td_nand },
+    { "add_imu_100hz",    st_td_imu_100hz },
+    { "display_on_bl100", st_td_display_on },
+};
+
+static void run_teardown(void)
+{
+    int64_t t0 = k_uptime_get();
+
+    for (size_t i = 0; i < ARRAY_SIZE(teardown_states); i++) {
+        int64_t state_start = k_uptime_get();
+
+        LOG_INF("[teardown] t=%lldms state=%zu/%zu name=%s",
+                state_start - t0, i + 1, ARRAY_SIZE(teardown_states),
+                teardown_states[i].name);
+
+        teardown_states[i].setup();
+
+        int64_t used = k_uptime_get() - state_start;
+        if (used < DWELL_MS) {
+            k_msleep((int32_t)(DWELL_MS - used));
+        }
+    }
+
+    LOG_INF("[teardown] complete, t=%lldms", k_uptime_get() - t0);
+}
+#endif /* PP_TEARDOWN */
+
+#ifdef PP_PROBE
+/* ---------------------------------------------------------------------------
+ * Probe mode (-DPOWER_PROFILE_PROBE=ON) — two open questions in one image.
+ *
+ * (1) What owns the ~2.1 mA floor that is present with NO drivers initialised?
+ *     The debugger was ruled out by measurement (attached vs detached traces are
+ *     identical), so it is real. `bare_spin` is the discriminator: it busy-waits
+ *     so the CPU is 100% awake. If bare_spin >> bare_idle then the idle path IS
+ *     sleeping and the floor lives somewhere else; if they are close, the CPU
+ *     never sleeps and that is the whole story.
+ *     NB do NOT try to infer this from HFCLKSTAT over SWD — reading it requires
+ *     halting the CPU, and a halted CPU is awake, so HFCLK always reads running.
+ *     That reading is an artefact; only current tells the truth here.
+ *
+ * (2) What does the gyro cost? imu_start()/imu_set_odr() enable accel AND gyro
+ *     in low-noise mode. The ICM-42670-P gyro's drive circuit runs continuously
+ *     once enabled, which would explain the measured +0.41 mA that does not
+ *     scale with ODR. Stepping accel-only -> +gyro isolates it.
+ * ------------------------------------------------------------------------- */
+
+static void pr_nothing(void) { }
+
+static void pr_spin(void)
+{
+    /* Busy-wait the whole dwell so the CPU never reaches the idle thread. */
+    int64_t end = k_uptime_get() + DWELL_MS;
+    while (k_uptime_get() < end) {
+        /* deliberately empty */
+    }
+}
+
+static void pr_power_init(void)   { power_init(); }
+static void pr_icm_init(void)     { (void)init_icm(); }
+static void pr_accel_only(void)   { (void)startAccel(100, 16); }
+static void pr_add_gyro(void)     { (void)startGyro(100, 2000); }
+
+static void pr_both_odr_800(void)
+{
+    (void)startAccel(800, 16);
+    (void)startGyro(800, 2000);
+}
+
+static void pr_periph_off(void)
+{
+    /* Blunt-force: disable every EasyDMA peripheral and the analog blocks.
+     * Nothing runs after this state, so breaking the drivers is fine. */
+    *(volatile uint32_t *)0x40002500 = 0;  /* UARTE0        */
+    *(volatile uint32_t *)0x40003500 = 0;  /* SPIM0/TWIM0   */
+    *(volatile uint32_t *)0x40004500 = 0;  /* SPIM1/TWIM1   */
+    *(volatile uint32_t *)0x40023500 = 0;  /* SPIM2         */
+    *(volatile uint32_t *)0x40007500 = 0;  /* SAADC         */
+    *(volatile uint32_t *)0x4001C500 = 0;  /* PWM0          */
+    *(volatile uint32_t *)0x40021500 = 0;  /* PWM1          */
+    *(volatile uint32_t *)0x40022500 = 0;  /* PWM2          */
+    *(volatile uint32_t *)0x40027500 = 0;  /* USBD          */
+}
+
+static const struct power_state probe_states[] = {
+    { "bare_idle",       pr_nothing },
+    { "bare_spin",       pr_spin },
+    { "power_init",      pr_power_init },
+    { "icm_init_only",   pr_icm_init },
+    { "accel_only",      pr_accel_only },
+    { "accel_plus_gyro", pr_add_gyro },
+    { "both_odr_800",    pr_both_odr_800 },
+    { "periph_off",      pr_periph_off },
+};
+
+static void run_probe(void)
+{
+    int64_t t0 = k_uptime_get();
+
+    for (size_t i = 0; i < ARRAY_SIZE(probe_states); i++) {
+        int64_t state_start = k_uptime_get();
+
+        LOG_INF("[probe] t=%lldms state=%zu/%zu name=%s",
+                state_start - t0, i + 1, ARRAY_SIZE(probe_states),
+                probe_states[i].name);
+
+        probe_states[i].setup();
+
+        int64_t used = k_uptime_get() - state_start;
+        if (used < DWELL_MS) {
+            k_msleep((int32_t)(DWELL_MS - used));
+        }
+    }
+
+    LOG_INF("[probe] complete, t=%lldms", k_uptime_get() - t0);
+}
+#endif /* PP_PROBE */
+
 int main(void)
 {
     LOG_INF("=== WWD-n power profiling harness ===");
     LOG_INF("Board must be PS-powered (not direct USB) for a clean measurement.");
-    LOG_INF("%zu states, %d ms dwell each (except self-timed states) -> see schedule",
+    LOG_INF("%zu states, %d ms dwell each (padded to exactly this) -> see schedule",
             NUM_STATES, DWELL_MS);
+
+#ifdef PP_PROBE
+    /* Skip all eager init: run_probe() brings pieces up one dwell at a time. */
+    k_msleep(2000);
+    LOG_INF("[probe] BEGIN t=0");
+    run_probe();
+    while (1) {
+        k_sleep(K_FOREVER);
+    }
+#endif
+
+#ifdef PP_TEARDOWN
+    /* Deliberately skip the eager init below -- run_teardown() brings each
+     * subsystem up one dwell at a time so the deltas attribute the floor. */
+    k_msleep(2000);
+    LOG_INF("[teardown] BEGIN t=0");
+    run_teardown();
+    while (1) {
+        k_sleep(K_FOREVER);
+    }
+#endif
 
     /* One-time init of everything the sequence touches, so init transients
      * (SPI/I2C probing, panel reset pulse, etc.) happen before the timed
