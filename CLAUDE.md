@@ -422,6 +422,16 @@ its own `CLAUDE.md`.
   - **This fix was lost in the port to `nrf52833_ders` and restored 2026-07-26.** P0.10 (NFC2) is the IMU's *chip select* on this board, so losing it broke the IMU entirely, not just the interrupt. On nRF52 the DTS property alone is a no-op — `system_nrf52.c` gates the UICR write on `CONFIG_NFCT_PINS_AS_GPIOS`, which is now set in `nrf52833_ders_defconfig`. Keep both. See `imu_notes.md`.
 - ~~IMU init fails when NVS runs first (SPI bus contention, UNRESOLVED)~~ — **does NOT reproduce on the nRF52833 boards.** That analysis was from the previous nRF52832 BETA board. Re-tested from scratch on SN3 (MT29F populated 2026-07-26): `WHO_AM_I` reads correctly after `nvs_init()` on every boot, including under continuous NAND write load and concurrent USB-protocol-driven flash dumps. See `imu_notes.md` and `src/memory/nvs_notes.md` for the re-test.
 - NVS/NAND logging is implemented (`NVS_LOG_IMU_SAMPLES=1` in nvs.h) and **extensively tested on SN3** (MT29F populated 2026-07-26): full pipeline (IMU FIFO + temperature + metadata rotation through both even and odd META blocks), a MT29F plane-select aliasing bug found and fixed (see `src/memory/nvs_notes.md`), and multi-MB flash dumps verified byte-for-byte over the USB host command protocol (see `src/comm/protocol_notes.md`). Still untested: SN2 (MT29F not populated there).
+- **A full NAND floods the log at the IMU ODR.** Once the data region is exhausted, `nvs.c`
+  emits one `<err> Write would exceed data region` per rejected record — ~100/s at 100 Hz.
+  It starves the Zephyr log buffer (so nothing else is readable), burns CPU/power, and has
+  no diagnostic value past the first. Needs a log-once latch that re-arms on erase. Found
+  2026-08-24 on SN3; full write-up in `src/memory/nvs_notes.md`.
+- **`protocol_thread` draws the UI directly** (`handle_dump_start()` → `ui_show_dump_in_progress()`
+  → `ui_refresh()`), because it parks `ui_refresh_thread` for the duration of a dump. That
+  makes this thread's stack requirement a function of the deepest *UI* draw path, which is
+  invisible to anyone adding a new screen — it is how the thread ended up statically over
+  its stack. See `debug/stack_budget.md`.
 - Display timeout thread code exists but is currently commented out in main.c
 - BMS (battery management) code is stubbed out but not implemented
 - `clock_set_time()` in UIFunctions.c — the "confirm time" UI action needs to be wired to call `clock_set_time(time_offset)` (and ultimately `rv3028_set_time()` once hardware is ready)

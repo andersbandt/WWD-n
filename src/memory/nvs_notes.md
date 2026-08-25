@@ -5,6 +5,42 @@ bring-up session.
 
 ---
 
+## [OPEN BUG 2026-08-24] A full NAND floods the log with one ERR per rejected record
+
+**Symptom:** once `write_addr` reaches the end of the data region, every single
+`nvs_log_record()` call emits
+
+```
+<err> nvs: Write would exceed data region (addr=283820032, limit=283820032)
+```
+
+At the 100 Hz IMU FIFO rate that is ~100 error lines per second, forever. Seen on
+SN3 on 2026-08-24 with a genuinely full chip.
+
+**Site:** `nvs.c`, in the data-region bounds check (~line 811), inside the page-flush
+path. The `-ENOSPC` return is correct — the *logging* is what's wrong.
+
+**Why it matters beyond being noisy:**
+
+- It **starves every other log message**. Zephyr's log buffer (`CONFIG_LOG_BUFFER_SIZE`,
+  default 1024 B) fills with these and drops everything else, so the device becomes
+  effectively undiagnosable in exactly the state you most want to diagnose. This is what
+  made SN3 unmeasurable during the stack-budget work until the flash was erased.
+- It **burns CPU and power** formatting and shipping strings over USB CDC at 100 Hz, on a
+  device whose whole power budget is ~2.6 mA.
+- It carries **zero diagnostic value after the first one** — the condition is static and
+  cannot clear on its own.
+
+**Fix:** a log-once latch (a static `bool` cleared whenever `write_addr` is reset, i.e. in
+`nvs_erase_chip()` and on a successful recovery in `nvs_calc_offset()`), or
+`LOG_ERR_ONCE`-style rate limiting. Prefer the latch, since it should re-arm after an
+erase so a *second* fill still reports once.
+
+Worth pairing with a "log is full" indicator the UI can actually show — right now a full
+chip is silent from the user's point of view and only visible as a log flood over USB.
+
+---
+
 ## [HARDWARE DEFECT 2026-08-21] SN1 has the WRONG NAND part — 1.8 V variant on a 3.3 V board
 
 **SN1 cannot be used for NVS logging until the chip is replaced.** This is a
