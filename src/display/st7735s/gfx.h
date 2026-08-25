@@ -1,6 +1,9 @@
 #ifndef __GFX_H__
 #define __GFX_H__
 
+#include <inttypes.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -11,6 +14,12 @@ void setbgPixel(uint16_t, uint16_t);
 void fillScreen(void);
 /* needs to be the last action when using BUFFER or HVBUFFER */
 void flushBuffer(void);
+/* Off-screen composite band: everything drawn between beginBand() and
+ * endBand() that lands inside the rect goes out as one transfer instead of
+ * appearing progressively. See ST7735S_bandBegin() in st7735s.h for the rules
+ * — in particular, call endBand() if and only if beginBand() returned true. */
+bool beginBand(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+void endBand(void);
 void setFont(const uint8_t *);
 void drawText(uint16_t, uint16_t, const char *);
 void drawCircle(uint16_t, uint16_t, uint16_t);

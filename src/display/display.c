@@ -175,6 +175,34 @@ void printLine(const char * text, const uint32_t lineNum, const uint32_t posX, f
 
 
 /*
+ * beginFieldBand: opens an off-screen composite band covering exactly the same
+ * rect the caller is about to clear with filledRect(), so the clear and the
+ * text that lands on top of it reach the panel as one transfer instead of two
+ * visible passes. That two-pass sequence is what the field flicker actually
+ * is: the panel shows the emptied box for the duration of the glyph rendering.
+ *
+ * Takes filledRect()'s inclusive corner convention and converts to the
+ * width/height the driver wants, clamping at 0 first — the callers below
+ * routinely compute `posX - 2`, which wraps if the field starts at column 0
+ * or 1, and an unsigned wrap here would ask for an absurd rect.
+ *
+ * Returns false when the rect won't fit the band (ST7735S_BAND_ROWS) or the
+ * band is otherwise unavailable; the caller then draws exactly as it did
+ * before, correctly, just unbuffered. Only call endFieldBand() — via
+ * endBand() — when this returned true.
+ */
+static bool beginFieldBand(int32_t x0, int32_t y0, int32_t x1, int32_t y1)
+{
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 < x0 || y1 < y0) {
+        return false;
+    }
+    return beginBand((uint16_t)x0, (uint16_t)y0,
+                     (uint16_t)(x1 - x0 + 1), (uint16_t)(y1 - y0 + 1));
+}
+
+/*
  * clearAndPrintLine: clears the text area with background color, then prints text to the line
  */
 void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t posX, font_size_t fontSize)
@@ -187,6 +215,9 @@ void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t
     uint32_t posY = calculateLineY(lineNum, fontSize);
     uint32_t fontHeight = (uint32_t)fontSize;
 
+    bool banded = beginFieldBand((int32_t)posX - 2, (int32_t)posY - 2,
+                                 127, (int32_t)(posY + fontHeight + 2));
+
     // Clear the area with background color
     setColor(BACK_R, BACK_G, BACK_B);
     filledRect(posX - 2, posY - 2, 127, posY + fontHeight + 2);
@@ -196,6 +227,9 @@ void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t
     printToScreen(text, posY, posX, fontSize);
 
     flushBuffer();
+    if (banded) {
+        endBand();
+    }
 }
 
 
@@ -220,6 +254,10 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
     uint32_t fieldLeft = fieldRight - fieldWidth;
     uint32_t textX = (textWidth < fieldWidth) ? (fieldRight - textWidth) : fieldLeft;
 
+    bool banded = beginFieldBand((int32_t)fieldLeft - 2, (int32_t)posY - 2,
+                                 (int32_t)(fieldRight + 2),
+                                 (int32_t)(posY + fontHeight + 2));
+
     setColor(BACK_R, BACK_G, BACK_B);
     filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
 
@@ -228,6 +266,9 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
     drawText(textX, posY, text);
 
     flushBuffer();
+    if (banded) {
+        endBand();
+    }
 }
 
 
@@ -256,6 +297,10 @@ void printStatusField(const char * text, const uint32_t posY, const uint32_t fie
     uint32_t fieldLeft = fieldRight - fieldWidth;
     uint32_t textX = (textWidth < fieldWidth) ? (fieldRight - textWidth) : fieldLeft;
 
+    bool banded = beginFieldBand((int32_t)fieldLeft - 2, (int32_t)posY - 2,
+                                 (int32_t)(fieldRight + 2),
+                                 (int32_t)(posY + fontHeight + 2));
+
     setColor(BACK_R, BACK_G, BACK_B);
     filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
 
@@ -269,6 +314,9 @@ void printStatusField(const char * text, const uint32_t posY, const uint32_t fie
 
     setColor(FORE_R, FORE_G, FORE_B);
     flushBuffer();
+    if (banded) {
+        endBand();
+    }
 }
 
 
@@ -313,6 +361,10 @@ void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_
 
     uint32_t fontHeight = (uint32_t)fontSize;
 
+    bool banded = beginFieldBand((int32_t)fieldLeft - 2, (int32_t)posY - 2,
+                                 (int32_t)(fieldLeft + fieldWidth + 2),
+                                 (int32_t)(posY + fontHeight + 2));
+
     setColor(BACK_R, BACK_G, BACK_B);
     filledRect(fieldLeft - 2, posY - 2, fieldLeft + fieldWidth + 2, posY + fontHeight + 2);
 
@@ -321,6 +373,9 @@ void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_
     drawText(fieldLeft, posY, text);
 
     flushBuffer();
+    if (banded) {
+        endBand();
+    }
 }
 
 
@@ -355,6 +410,12 @@ void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_ma
     uint16_t plot_h = bottom - top;
     int32_t y_range = (int32_t)y_max - (int32_t)y_min;
 
+    /* Usually taller than the band, in which case this just returns false and
+     * the graph redraws the way it always has. Worth attempting anyway: a
+     * short graph box composites for free, and this is the redraw where the
+     * clear is most visible because the box is large. */
+    bool banded = beginFieldBand(left, top, right, bottom);
+
     setColor(BACK_R, BACK_G, BACK_B);
     filledRect(left, top, right, bottom);
 
@@ -376,6 +437,9 @@ void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_ma
     }
 
     flushBuffer();
+    if (banded) {
+        endBand();
+    }
 }
 
 

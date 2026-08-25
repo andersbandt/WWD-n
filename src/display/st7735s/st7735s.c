@@ -115,10 +115,29 @@ typedef enum {
 #error buffer mode not defined
 #endif
 
+/* Off-screen composite band — see the ST7735S_bandBegin() comment in
+ * st7735s.h. Rows are stored contiguously at stride band_w, so the blit is a
+ * single RAMWR rather than one transfer per row: at 8 MHz a 128x40 band is
+ * 10,240 B, about 10 ms. */
+#if ST7735S_BAND_ROWS > 0
+static color565_t bandbuf[defWIDTH * ST7735S_BAND_ROWS];
+static uint16_t band_x, band_y, band_w, band_h;
+static bool band_on;
+#endif
+
 uint16_t WIDTH = defWIDTH, HEIGHT = defHEIGHT;
 uint16_t XSTART = defXSTART, YSTART = defYSTART;
 
-uint16_t xmin, xmax, ymin, ymax;
+/* Seeded to the same inverted sentinel resetWindow() uses, not to 0. These
+ * live in BSS, so before the first flush they were 0/0/0/0 — a valid-looking
+ * window at the top-left corner rather than an empty one. The result was that
+ * the first pixel drawn after boot got its window from updateWindow() merging
+ * against (0,0), so it flushed to (0,0) instead of where it was asked for.
+ * Invisible in practice (one stray pixel in the corner, on the first draw,
+ * normally overpainted by the initial fillScreen()), but it made the very
+ * first draw of any session subtly wrong. Caught by the native band harness,
+ * which starts from a primed panel and so could see it. */
+uint16_t xmin = defWIDTH - 1, xmax = 0, ymin = defHEIGHT - 1, ymax = 0;
 uint8_t madctl;
 
 // uint8_t backlight_pct;
@@ -267,11 +286,31 @@ int ST7735S_Init(void) {
     // send init sequence
     initCommands();
     k_msleep(150);
+
+    /* Also reset here so a re-init picks up the current orientation's
+     * WIDTH/HEIGHT rather than the compile-time defaults above. */
+    resetWindow();
     return 0;
 }
 
 void ST7735S_flush(void) {
         k_mutex_lock(&hvbuffer_mutex, K_FOREVER);
+
+#if defined(HVBUFFER) && ST7735S_BAND_ROWS > 0
+        /* Inside a band, drawing that lands in the rect never reaches the
+         * run-length state, so hvtype stays NONE and the caller's trailing
+         * flushBuffer() has nothing to send. Emitting it anyway would put an
+         * inverted address window (resetWindow() leaves xmin > xmax) and a
+         * data-less RAMWR on the bus just before bandEnd() sets the real one.
+         * Harmless in practice, but it is two undefined-ordering commands the
+         * panel need not see. set_hvpixel()'s own internal flushes always run
+         * with hvtype != NONE, so they are unaffected. */
+        if (band_on && hvtype == NONE) {
+            k_mutex_unlock(&hvbuffer_mutex);
+            return;
+        }
+#endif
+
         uint16_t xm = xmin + XSTART, ym = ymin + YSTART;
         uint16_t xx = xmax + XSTART, yx = ymax + YSTART;
 
@@ -312,6 +351,87 @@ void ST7735S_flush(void) {
         #endif
             resetWindow();
         k_mutex_unlock(&hvbuffer_mutex);
+}
+
+bool ST7735S_bandActive(void) {
+#if ST7735S_BAND_ROWS > 0
+    return band_on;
+#else
+    return false;
+#endif
+}
+
+bool ST7735S_bandBegin(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+#if ST7735S_BAND_ROWS > 0
+    /* Reject before locking: on false the caller must not call bandEnd(). */
+    if (w == 0 || h == 0 || h > ST7735S_BAND_ROWS ||
+        x >= WIDTH || y >= HEIGHT) {
+        return false;
+    }
+
+    k_mutex_lock(&hvbuffer_mutex, K_FOREVER);
+
+    /* Nesting would mean two rects sharing one buffer. Refuse, and drop the
+     * lock again so the caller's non-band path is unaffected. */
+    if (band_on) {
+        k_mutex_unlock(&hvbuffer_mutex);
+        return false;
+    }
+
+    /* Clip to the panel. Done after the lock because WIDTH/HEIGHT move with
+     * setOrientation(). */
+    if (x + w > WIDTH)  w = WIDTH - x;
+    if (y + h > HEIGHT) h = HEIGHT - y;
+
+    /* Anything the caller doesn't paint reads back as background — the panel
+     * has no readback path on this board. */
+    for (uint32_t i = 0; i < (uint32_t)w * h; i++) {
+        bandbuf[i] = bg_color;
+    }
+
+    band_x = x; band_y = y; band_w = w; band_h = h;
+    band_on = true;
+    /* Lock deliberately held until bandEnd(). */
+    return true;
+#else
+    (void)x; (void)y; (void)w; (void)h;
+    return false;
+#endif
+}
+
+void ST7735S_bandEnd(void) {
+#if ST7735S_BAND_ROWS > 0
+    if (!band_on) {
+        return;
+    }
+
+    /* Any pixel that fell outside the band went to the run-length path and may
+     * still be pending. It has to go out before we move the address window,
+     * and only if there is actually something there — resetWindow() leaves
+     * xmin/xmax inverted, so flushing on NONE would emit a bogus window. */
+#if defined(HVBUFFER)
+    if (hvtype != NONE) {
+        ST7735S_flush();
+    }
+#endif
+
+    band_on = false;
+
+    uint16_t xm = band_x + XSTART, ym = band_y + YSTART;
+    uint16_t xx = band_x + band_w - 1 + XSTART;
+    uint16_t yx = band_y + band_h - 1 + YSTART;
+
+    uint8_t cas[] = { CASET, xm >> 8, xm, xx >> 8, xx };
+    uint8_t ras[] = { RASET, ym >> 8, ym, yx >> 8, yx };
+    uint8_t ram[] = { RAMWR };
+
+    SPI_Transmit(sizeof(cas), cas);
+    SPI_Transmit(sizeof(ras), ras);
+    SPI_TransmitCmd(1, ram);
+    SPI_TransmitData((uint16_t)band_w * band_h * 2, (uint8_t *)bandbuf);
+
+    k_mutex_unlock(&hvbuffer_mutex);
+#endif
 }
 
 #if defined(BUFFER)
@@ -378,10 +498,31 @@ first_pixel:
 	}
 }
 
+/* Returns true if (x,y) was captured into the active band. Caller must hold
+ * hvbuffer_mutex — which, between bandBegin() and bandEnd(), it does by virtue
+ * of the band holding it (Zephyr mutexes are recursive for the owning thread,
+ * so the lock below is just a count bump on the drawing thread and a genuine
+ * block for any other). */
+static inline bool band_capture(uint16_t x, uint16_t y, color565_t c) {
+#if ST7735S_BAND_ROWS > 0
+    if (band_on &&
+        x >= band_x && x < band_x + band_w &&
+        y >= band_y && y < band_y + band_h) {
+        bandbuf[(uint32_t)(y - band_y) * band_w + (x - band_x)] = c;
+        return true;
+    }
+#else
+    (void)x; (void)y; (void)c;
+#endif
+    return false;
+}
+
 void ST7735S_Pixel(uint16_t x, uint16_t y) {
     if ( x < WIDTH && y < HEIGHT) {
         k_mutex_lock(&hvbuffer_mutex, K_FOREVER);
-        set_hvpixel(x, y);
+        if (!band_capture(x, y, color)) {
+            set_hvpixel(x, y);
+        }
         k_mutex_unlock(&hvbuffer_mutex);
     }
 }
@@ -389,10 +530,12 @@ void ST7735S_Pixel(uint16_t x, uint16_t y) {
 void ST7735S_bgPixel(uint16_t x, uint16_t y) {
     if ( x < WIDTH && y < HEIGHT) {
         k_mutex_lock(&hvbuffer_mutex, K_FOREVER);
-        color565_t c = color;
-        color = bg_color;
-        set_hvpixel(x, y);
-        color = c;
+        if (!band_capture(x, y, bg_color)) {
+            color565_t c = color;
+            color = bg_color;
+            set_hvpixel(x, y);
+            color = c;
+        }
         k_mutex_unlock(&hvbuffer_mutex);
     }
 }

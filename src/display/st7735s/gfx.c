@@ -25,6 +25,14 @@ void flushBuffer(void) {
     ST7735S_flush();
 }
 
+bool beginBand(uint16_t x, uint16_t y, uint16_t w, uint16_t h) {
+    return ST7735S_bandBegin(x, y, w, h);
+}
+
+void endBand(void) {
+    ST7735S_bandEnd();
+}
+
 /******************************************************************************
   Line+Circle // Bresenham's algorithm
  ******************************************************************************/

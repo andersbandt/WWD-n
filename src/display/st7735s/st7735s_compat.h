@@ -21,6 +21,21 @@
 /*HVBUFFER: takes advantage of writing adjacent same color pixels*/
 #define HVBUFFER
 
+/* ST7735S_BAND_ROWS: height, in panel rows, of the off-screen composite band
+ * (see ST7735S_bandBegin() in st7735s.h). Costs defWIDTH * ST7735S_BAND_ROWS *
+ * 2 bytes of BSS: 40 rows = 10,240 B. 40 is not arbitrary — it is the tallest
+ * text field the UI can ask for (FONT_HUGE = 32 px plus the +/-2 px clear
+ * margin display.c adds on each side = 36 rows), rounded up. Drop it and the
+ * largest fields silently fall back to the unbuffered path rather than
+ * breaking; a full frame would be 128*160*2 = 40,960 B and does not fit
+ * alongside BLE.
+ *
+ * Set to 0 to compile the band buffer out entirely and get the old behaviour
+ * back — every bandBegin() then reports failure and callers draw direct. */
+#ifndef ST7735S_BAND_ROWS
+#define ST7735S_BAND_ROWS 40
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif

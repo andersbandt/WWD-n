@@ -1,3 +1,6 @@
 build/
 build_*/
 logs/
+
+# host-native display test binary (test/band)
+test/band/band_test
