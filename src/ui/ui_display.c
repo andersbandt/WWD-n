@@ -83,7 +83,7 @@ void display_out_bms(int charging, int battery_percent) {
  * Both temperature badges carry a source label ("M:" here for the MCU die,
  * "I:" on the IMU badge below) — two bare "78.2" values stacked on top of one
  * another are unreadable, and the whole reason both are on screen is to
- * compare them. The Fahrenheit unit is shown on this upper badge only. */
+ * compare them. Both carry the Fahrenheit unit. */
 #define CLOCK_SOC_TEMP_Y_MARGIN 34
 
 /* The two temperature badges get their own field width rather than sharing
@@ -245,9 +245,10 @@ void display_out_pedometer(int steps) {
 void display_out_temp(float temp) {
     char text[12];
     /* "I:" = IMU die. imu_get_temp() (imu.c) already converts the raw Celsius
-     * register value to Fahrenheit — the unit is shown on the "M:" badge
-     * directly above rather than repeated here. */
-    sprintf(text, "I:%.1f", (double)temp);
+     * register value to Fahrenheit before returning it — this was mislabeled
+     * "C" once, so keep the unit visible here rather than relying on the
+     * badge above to imply it. */
+    sprintf(text, "I:%.1f F", (double)temp);
     printFieldLeftAligned(text, HEIGHT - CLOCK_STEPS_Y_MARGIN, CLOCK_TEMP_X,
                            CLOCK_TEMP_FIELD_W, CLOCK_BADGE_FONT);
 }
@@ -255,10 +256,8 @@ void display_out_temp(float temp) {
 
 void display_out_soc_temp(float temp) {
     char text[12];
-    /* "M:" = MCU die. Both temperature badges are labelled so the stacked pair
-     * is readable; the unit is carried on this (upper) one only, since both
-     * are Fahrenheit and repeating it costs a character the field cannot
-     * spare. */
+    /* "M:" = MCU die. Both temperature badges are labelled and both carry the
+     * unit, so neither depends on the other being on screen to be read. */
     sprintf(text, "M:%.1f F", (double)temp);
     printFieldLeftAligned(text, HEIGHT - CLOCK_SOC_TEMP_Y_MARGIN, CLOCK_TEMP_X,
                            CLOCK_TEMP_FIELD_W, CLOCK_BADGE_FONT);
