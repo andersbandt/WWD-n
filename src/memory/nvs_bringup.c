@@ -12,6 +12,7 @@
 #include <util/cdc_debug.h>
 #include <peripheral/clock.h>   /* get_dt_ticks() */
 #include <peripheral/rv3028_bringup.h>
+#include <peripheral/soc_temp.h>
 #include <comm/rate_config.h>
 #include <memory/nvs_bringup.h>
 
@@ -257,6 +258,19 @@ void nvs_pipeline_tick(void)
         struct record_temperature t = { .raw = raw };
         nvs_log_record(RECORD_TEMPERATURE, &t, sizeof(t), get_dt_ticks());
         temp_history_push(raw);  /* RAM copy for the graph screen, see imu.c */
+
+        /* Logged on the same tick as the IMU temperature, immediately after,
+         * so the two land adjacent in the log with the same dt_ticks. Pairing
+         * them is the whole point — one die sensor cannot tell self-heating
+         * from sensor error, two on the same board can (see soc_temp.h and
+         * imu_notes.md). Logging them on separate cadences would force the
+         * decoder to interpolate between mismatched timestamps for the
+         * subtraction that matters. */
+        int16_t soc_centi;
+        if (soc_temp_read_centi_c(&soc_centi) == 0) {
+            struct record_soc_temp s = { .centi_c = soc_centi };
+            nvs_log_record(RECORD_SOC_TEMP, &s, sizeof(s), get_dt_ticks());
+        }
     }
     if (seconds % ANCHOR_INTERVAL_SEC == 0) {
         nvs_log_boot_anchor();

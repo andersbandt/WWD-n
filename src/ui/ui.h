@@ -60,6 +60,7 @@ typedef struct {
     Time time;
     Date date;
     float imu_temp;
+    float soc_temp;         // nRF52833 die temp, degrees F (see soc_temp.h)
     int charging_status;
     int low_power;          // TPS63900 power-save mode, see power_save_is_enabled()
     int bat_percent;
@@ -76,6 +77,7 @@ typedef struct {
 #define UI_CLOCK_DIRTY_STEPS        (1 << 4)
 #define UI_CLOCK_DIRTY_DATE         (1 << 5)
 #define UI_CLOCK_DIRTY_POWER        (1 << 6)   /* charging + low-power indicators */
+#define UI_CLOCK_DIRTY_SOC_TEMP     (1 << 7)   /* nRF52833 die temperature badge */
 #define UI_CLOCK_DIRTY_ALL          0xFFFFFFFF
 
 
@@ -188,6 +190,12 @@ void ui_clock_set_time(Time time);
  * @param temp Temperature value
  */
 void ui_clock_set_temp(float temp);
+
+/**
+ * @brief Set the nRF52833 die temperature and mark dirty
+ * @param temp Temperature in degrees Fahrenheit
+ */
+void ui_clock_set_soc_temp(float temp);
 
 /**
  * @brief Set battery percentage and mark dirty

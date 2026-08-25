@@ -128,6 +128,13 @@ void ui_clock_set_temp(float temp)
     ui_clock_mark_dirty(UI_CLOCK_DIRTY_TEMP);
 }
 
+
+void ui_clock_set_soc_temp(float temp)
+{
+    clock_data.soc_temp = temp;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_SOC_TEMP);
+}
+
 /**
  * @brief Set battery percentage and mark dirty
  */
@@ -259,6 +266,11 @@ void ui_refresh() {
             if (ui_clock_is_dirty(UI_CLOCK_DIRTY_TEMP)) {
                 display_out_temp(clock_data.imu_temp);
                 ui_clock_clear_dirty(UI_CLOCK_DIRTY_TEMP);
+            }
+
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_SOC_TEMP)) {
+                display_out_soc_temp(clock_data.soc_temp);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_SOC_TEMP);
             }
 
             if (ui_clock_is_dirty(UI_CLOCK_DIRTY_BATTERY)) {

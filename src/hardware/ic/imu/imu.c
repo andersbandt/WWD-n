@@ -532,6 +532,10 @@ static int64_t  raise_armed_at;
 static int64_t  raise_settle_start;
 static bool     raise_left_readable = true;  /* must leave the readable pose before re-waking */
 
+/* Defined further down with the rest of the wear-detection block; declared
+ * here because imu_gesture_feed() below drives it. */
+static void wear_evaluate(void);
+
 /*
  * imu_gesture_feed: records one accel sample. Called from event_cb() for every
  * FIFO sample, on button_handler_thread — the same thread that later runs
@@ -547,6 +551,12 @@ void imu_gesture_feed(const int16_t accel[3]) {
 
     if (raise_ring_count < RAISE_RING_LEN) {
         raise_ring_count++;
+    }
+
+    /* Re-evaluate wear once per full window rather than per sample — see
+     * wear_evaluate(). Wrapping to 0 means the ring just turned over. */
+    if (raise_ring_head == 0) {
+        wear_evaluate();
     }
 }
 
@@ -645,6 +655,174 @@ bool imu_check_raise_gesture(void) {
 }
 
 
+/* ---------------------------------------------------------------------------
+ * Wear detection: is the watch actually on a wrist?
+ *
+ * Purpose is NOT power — the FIFO is still drained either way, because the
+ * raise-to-wake path and the pedometer both depend on it, and an undrained
+ * FIFO overflows. What this gates is the NVS *write* (see imu_process()).
+ * That matters because dump time, not flash capacity, is the real ceiling on
+ * a multi-day capture: ~285 MB takes over an hour to pull over USB at the
+ * measured 70 KB/s, and a meaningful fraction of any all-day log is a watch
+ * lying on a desk. Dropping those stretches buys back capture days AND dump
+ * minutes at once, and it removes exactly the data that pollutes any later
+ * analysis.
+ *
+ * The discriminator is deliberately inverted from what you might reach for
+ * first. Do not look for motion: a worn watch can be genuinely still (asleep,
+ * hands on a desk) for long stretches, and gating on "motion seen recently"
+ * would throw away sleep data, which is some of the most interesting data
+ * there is. Look instead for the thing a WRIST never does:
+ *
+ *   a watch on a table is BOTH motionless AND fixed in orientation,
+ *   continuously, for minutes.
+ *
+ * A wrist always drifts. Even asleep, an arm resettles; the mean gravity
+ * vector wanders. A table does not. So the test is two-part and both parts
+ * must hold for WEAR_OFF_AFTER_MS before we call it off-wrist:
+ *
+ *   1. STILLNESS  — per-axis peak-to-peak within the window is tiny.
+ *   2. NO DRIFT   — the mean gravity vector has not moved from the reference
+ *                   captured at the last motion event. This is the part that
+ *                   does the real work over minutes; stillness alone is
+ *                   satisfied by a sleeping wrist.
+ *
+ * Asymmetric by design: entering "not worn" takes minutes of evidence,
+ * leaving it takes one window. A false "not worn" silently loses data; a
+ * false "worn" only costs some flash. Bias hard toward logging.
+ *
+ * THRESHOLDS BELOW ARE UNTUNED — same status as raise-to-wake v2's. They are
+ * reasoned from the +/-16 g scale (2048 LSB/g), not measured on a wrist.
+ * Validate by wearing the device and checking that RECORD_WEAR_STATE
+ * transitions in a dump line up with when it was actually taken off. Expect
+ * WEAR_ORIENT_DELTA_LSB to be the one that needs adjusting.
+ * ------------------------------------------------------------------------- */
+
+/* 96 LSB ~= 47 mg peak-to-peak per axis. Well above the part's noise floor at
+ * this FSR, well below anything a wrist produces. */
+#define WEAR_STILL_PP_LSB      96
+
+/* 128 LSB ~= 62 mg on an axis, i.e. roughly 3.6 degrees of tilt away from the
+ * reference pose. Small enough that a wrist trips it within minutes, large
+ * enough that thermal drift in the part does not. */
+#define WEAR_ORIENT_DELTA_LSB  128
+
+/* How long BOTH conditions must hold continuously before declaring off-wrist.
+ * Three minutes is chosen to be longer than any plausible "holding very still"
+ * episode while still catching a watch set down before a wash. */
+#define WEAR_OFF_AFTER_MS      (3 * 60 * 1000)
+
+static bool    wear_worn = true;        /* fail safe: assume worn until proven otherwise */
+static int64_t wear_last_motion_ms;     /* 0 until the first evaluated window */
+static int32_t wear_ref_mean[3];        /* mean gravity vector at the last motion */
+static bool    wear_ref_valid;
+static bool    wear_transition_pending;
+static uint8_t wear_transition_state;
+
+/*
+ * wear_evaluate: one decision from a full ring window. Called from
+ * imu_gesture_feed() each time the ring wraps (~6 Hz at 100 Hz ODR / 16
+ * samples), not per sample — the min/max scan is 48 comparisons and there is
+ * no value in running it at the full sample rate.
+ *
+ * Same single-threaded contract as the rest of this ring: button_handler_thread
+ * only, so no locking.
+ */
+static void wear_evaluate(void)
+{
+    if (raise_ring_count < RAISE_RING_LEN) {
+        return;  /* not enough history to judge */
+    }
+
+    int16_t min[3] = { INT16_MAX, INT16_MAX, INT16_MAX };
+    int16_t max[3] = { INT16_MIN, INT16_MIN, INT16_MIN };
+    int32_t sum[3] = { 0, 0, 0 };
+
+    for (unsigned i = 0; i < RAISE_RING_LEN; i++) {
+        for (unsigned ax = 0; ax < 3; ax++) {
+            int16_t v = raise_ring[i][ax];
+
+            if (v < min[ax]) { min[ax] = v; }
+            if (v > max[ax]) { max[ax] = v; }
+            sum[ax] += v;
+        }
+    }
+
+    int32_t mean[3];
+    bool    moving = false;
+
+    for (unsigned ax = 0; ax < 3; ax++) {
+        mean[ax] = sum[ax] / (int32_t)RAISE_RING_LEN;
+
+        if ((int32_t)max[ax] - (int32_t)min[ax] > WEAR_STILL_PP_LSB) {
+            moving = true;
+        }
+    }
+
+    /* Drift against the pose held at the last motion event. Deliberately NOT
+     * against the previous window — comparing to the previous window makes
+     * arbitrarily slow drift invisible, since each step is below threshold. */
+    if (wear_ref_valid && !moving) {
+        for (unsigned ax = 0; ax < 3; ax++) {
+            int32_t d = mean[ax] - wear_ref_mean[ax];
+
+            if (d < 0) { d = -d; }
+            if (d > WEAR_ORIENT_DELTA_LSB) {
+                moving = true;
+                break;
+            }
+        }
+    }
+
+    int64_t now = k_uptime_get();
+
+    if (moving || !wear_ref_valid) {
+        wear_last_motion_ms = now;
+        wear_ref_mean[0] = mean[0];
+        wear_ref_mean[1] = mean[1];
+        wear_ref_mean[2] = mean[2];
+        wear_ref_valid   = true;
+
+        if (!wear_worn) {
+            wear_worn = true;                 /* leave off-wrist on one window */
+            wear_transition_state   = 1;
+            wear_transition_pending = true;
+            LOG_INF("wear: on-wrist");
+        }
+        return;
+    }
+
+    if (wear_worn && (now - wear_last_motion_ms) >= WEAR_OFF_AFTER_MS) {
+        wear_worn = false;
+        wear_transition_state   = 0;
+        wear_transition_pending = true;
+        LOG_INF("wear: off-wrist (still + no drift for %d s)",
+                WEAR_OFF_AFTER_MS / 1000);
+    }
+}
+
+
+bool imu_is_worn(void)
+{
+    return wear_worn;
+}
+
+
+bool imu_wear_take_transition(uint8_t *state)
+{
+    if (!wear_transition_pending) {
+        return false;
+    }
+
+    wear_transition_pending = false;
+
+    if (state != NULL) {
+        *state = wear_transition_state;
+    }
+    return true;
+}
+
+
 /*
  * imu_process: this function currently processes the circular buffers of raw data
  */
@@ -665,7 +843,22 @@ void imu_process() {
             .timestamp = event.timestamp_fsync,
         };
 #if NVS_LOG_IMU_SAMPLES
-        nvs_log_record(RECORD_IMU_FIFO, &sample, sizeof(sample), get_dt_ticks());
+        /* Emit the transition before the samples it explains, so a reader
+         * hitting a gap in the log finds the reason immediately above it
+         * rather than having to infer it. Logged regardless of wear state —
+         * the off-wrist edge is exactly the one you need recorded. */
+        uint8_t wear_state;
+        if (imu_wear_take_transition(&wear_state)) {
+            struct record_wear_state w = { .worn = wear_state };
+            nvs_log_record(RECORD_WEAR_STATE, &w, sizeof(w), get_dt_ticks());
+        }
+
+        /* Gate only the WRITE, never the drain — the FIFO is still emptied
+         * above whatever this decides. See the wear-detection block above for
+         * why, and what an off-wrist gap costs if the detector is wrong. */
+        if (imu_is_worn()) {
+            nvs_log_record(RECORD_IMU_FIFO, &sample, sizeof(sample), get_dt_ticks());
+        }
 #endif
     }
 }

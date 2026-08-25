@@ -65,6 +65,14 @@ enum record_type {
     RECORD_TEMPERATURE, /* temperature reading,         payload: struct record_temperature */
     RECORD_STEP_COUNT,  /* pedometer snapshot,          payload: struct record_step_count */
     RECORD_POWER,       /* power mode / battery state,  payload: struct record_power */
+    RECORD_SOC_TEMP,    /* nRF52833 die temperature,    payload: struct record_soc_temp */
+    RECORD_WEAR_STATE,  /* on/off-wrist transition,     payload: struct record_wear_state */
+
+    /* APPEND ONLY. These values are written into every log record's header and
+     * are hand-mirrored by dump_decoder.py in the companion wwd_gui_api repo
+     * (no shared source of truth — see CLAUDE.md). Inserting or reordering
+     * silently misdecodes every dump ever taken, including ones already on
+     * disk. Adding at the end is always safe. */
 };
 
 #define MAGIC_MARKER 0xACACAC
@@ -110,6 +118,30 @@ struct record_temperature {
 /* RECORD_STEP_COUNT: pedometer snapshot */
 struct record_step_count {
     uint32_t steps;
+} __packed;
+
+/* RECORD_SOC_TEMP: nRF52833 on-die temperature, logged on the same cadence as
+ * RECORD_TEMPERATURE so the two can be paired sample-for-sample.
+ *
+ * Stored in hundredths of a degree CELSIUS, unlike RECORD_TEMPERATURE's raw
+ * IMU register value. That asymmetry is deliberate: the IMU's raw counts are
+ * kept raw because the conversion constant is still being calibrated (the
+ * datasheet's typical sensitivity is 126.9 LSB/degC, not the 128 the firmware
+ * currently divides by), so re-deriving from raw later must stay possible.
+ * The SoC reading has no such open question — Zephyr's driver already hands
+ * back real engineering units, and re-encoding those into some raw form would
+ * only lose information. */
+struct record_soc_temp {
+    int16_t centi_c;    /* hundredths of a degree C, e.g. 3125 = 31.25 degC */
+} __packed;
+
+/* RECORD_WEAR_STATE: on/off-wrist transition, written only on a CHANGE (not
+ * periodically). A gap in RECORD_IMU_FIFO coverage should always be preceded
+ * by one of these with worn=0 — if a gap has no marker, the cause was
+ * something else (a reset, a dump pause, a full log) and should be
+ * investigated rather than attributed to wear detection. */
+struct record_wear_state {
+    uint8_t worn;       /* 1 = on-wrist, 0 = off-wrist */
 } __packed;
 
 /* RECORD_POWER: power mode transition or periodic battery snapshot */

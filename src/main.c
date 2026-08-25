@@ -34,6 +34,7 @@
 #include "peripheral/clock.h"   /* get_current_time() */
 #include "peripheral/rv3028.h"
 #include "peripheral/rv3028_bringup.h"
+#include "peripheral/soc_temp.h"
 #include "peripheral/interrupt.h"
 #include "peripheral/timer.h"
 #include "hardware/led.h"
@@ -203,6 +204,14 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
         if (imu_alive) {
             ui_clock_set_temp(imu_get_temp());
             ui_clock_set_steps(imu_get_pedo());
+        }
+
+        /* Independent of imu_alive — the SoC's own die sensor works whether or
+         * not the IMU came up, and is worth showing on a board where the IMU
+         * is dead. Skipped silently if the driver never bound. */
+        int16_t soc_centi;
+        if (soc_temp_read_centi_c(&soc_centi) == 0) {
+            ui_clock_set_soc_temp(soc_temp_centi_c_to_f(soc_centi));
         }
 
         int batt_mv = battery_voltage_mv();
@@ -573,6 +582,11 @@ int main(void)
     led_init();
     power_init();
     low_power_init();
+
+    /* Non-fatal: a failure here only costs the SoC die-temperature reading
+     * (clock-face badge + RECORD_SOC_TEMP), and soc_temp_read_centi_c() then
+     * returns -ENODEV forever, which both call sites already skip on. */
+    soc_temp_init();
 
     init_buttons();       /* no-op-safe if MCP23008 absent, see button.c */
     init_button_buffer();

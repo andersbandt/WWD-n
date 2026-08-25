@@ -108,6 +108,15 @@ void display_out_pedometer(int steps);
  */
 void display_out_temp(float temp);
 
+
+/*
+ * display_out_soc_temp: displays the nRF52833 die temperature (lower-left,
+ * directly above the IMU temp badge). Shown in Fahrenheit to match the badge
+ * below it, prefixed "S" so the two stacked readings are distinguishable.
+ * @param temp  degrees Fahrenheit
+ */
+void display_out_soc_temp(float temp);
+
 /**
  * display_out_battery: displays battery voltage (upper-right corner badge)
  *

@@ -183,6 +183,31 @@ void imu_gesture_feed(const int16_t accel[3]);
 
 
 /**
+ * @brief True while the device is judged to be on a wrist.
+ *
+ * Drives whether RECORD_IMU_FIFO samples are written to NVS (imu_process()).
+ * The FIFO is drained either way — this gates storage, not the sensor. Fails
+ * safe to true: a false negative loses data, a false positive only costs
+ * flash. See the wear-detection block in imu.c for the discriminator and the
+ * (currently untuned) thresholds.
+ */
+bool imu_is_worn(void);
+
+
+/**
+ * @brief Consume-once wear-state change notification.
+ *
+ * Returns true exactly once per transition, so the caller can write a
+ * RECORD_WEAR_STATE marker into the log. Single reader, on
+ * button_handler_thread, same as the rest of the gesture ring.
+ *
+ * @param state Receives 1 for on-wrist, 0 for off-wrist. May be NULL.
+ * @return true if a transition was pending (and has now been consumed).
+ */
+bool imu_wear_take_transition(uint8_t *state);
+
+
+/**
  * @brief raise-to-wake v2: true exactly once per recognised wrist raise —
  * a WOM event followed by the display normal settling into a readable,
  * still pose. Call on every INT1 event from button_handler_thread.

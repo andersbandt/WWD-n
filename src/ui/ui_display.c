@@ -74,6 +74,29 @@ void display_out_bms(int charging, int battery_percent) {
 #define CLOCK_TEMP_X      2       /* bottom-left badge */
 #define CLOCK_STEPS_Y_MARGIN 20  /* from bottom of screen, shared by temp + steps row */
 
+/* SoC die temperature, stacked directly above the IMU temp badge in the
+ * bottom-left. 34 = CLOCK_STEPS_Y_MARGIN (20) + FONT_SMALL height (12) + 2 px
+ * gap, so the two badges sit flush without touching. The band between the big
+ * time display (which ends around y=74) and this row is otherwise empty, so
+ * nothing else needs moving.
+ *
+ * Both temperature badges carry a source label ("M:" here for the MCU die,
+ * "I:" on the IMU badge below) — two bare "78.2" values stacked on top of one
+ * another are unreadable, and the whole reason both are on screen is to
+ * compare them. The Fahrenheit unit is shown on this upper badge only. */
+#define CLOCK_SOC_TEMP_Y_MARGIN 34
+
+/* The two temperature badges get their own field width rather than sharing
+ * CLOCK_BADGE_WIDTH (44 px) with the battery/steps badges: the labelled form
+ * "M:78.2 F" is 8 chars = 48 px at FONT_SMALL's ~6 px/char, which overflows 44
+ * and would clip silently (drawText has no wrap and no warning).
+ *
+ * 56 px is safe on both rows. The SoC badge has its row to itself. The IMU
+ * badge shares its row with the right-aligned step count, which occupies
+ * x 82..126 — so a left-aligned field from x=2 has until x=82 before it
+ * collides, and 2+56 = 58 leaves 24 px of clearance. */
+#define CLOCK_TEMP_FIELD_W 56
+
 /* Power-status indicator row, top-right, tucked between the battery badge
  * (y 4..16) and the big time display (starts at CLOCK_TIME_Y = line 1 of
  * FONT_XXLARGE = y 46). x >= 86 keeps it clear of the weekday/day header,
@@ -220,12 +243,25 @@ void display_out_pedometer(int steps) {
 
 
 void display_out_temp(float temp) {
-    char text[10];
-    /* imu_get_temp() (imu.c) converts the raw Celsius register value to
-     * Fahrenheit before returning it — label accordingly, was mislabeled "C". */
-    sprintf(text, "%.1fF", (double)temp);
+    char text[12];
+    /* "I:" = IMU die. imu_get_temp() (imu.c) already converts the raw Celsius
+     * register value to Fahrenheit — the unit is shown on the "M:" badge
+     * directly above rather than repeated here. */
+    sprintf(text, "I:%.1f", (double)temp);
     printFieldLeftAligned(text, HEIGHT - CLOCK_STEPS_Y_MARGIN, CLOCK_TEMP_X,
-                           CLOCK_BADGE_WIDTH, CLOCK_BADGE_FONT);
+                           CLOCK_TEMP_FIELD_W, CLOCK_BADGE_FONT);
+}
+
+
+void display_out_soc_temp(float temp) {
+    char text[12];
+    /* "M:" = MCU die. Both temperature badges are labelled so the stacked pair
+     * is readable; the unit is carried on this (upper) one only, since both
+     * are Fahrenheit and repeating it costs a character the field cannot
+     * spare. */
+    sprintf(text, "M:%.1f F", (double)temp);
+    printFieldLeftAligned(text, HEIGHT - CLOCK_SOC_TEMP_Y_MARGIN, CLOCK_TEMP_X,
+                           CLOCK_TEMP_FIELD_W, CLOCK_BADGE_FONT);
 }
 
 
