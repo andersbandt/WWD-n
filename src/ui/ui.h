@@ -33,6 +33,7 @@ typedef enum {
     UI_MODE_ADJUST_BRIGHTNESS,          // Backlight brightness adjustment
     UI_MODE_CLEAR_FAULTS,               // Fault clearing interface
     UI_MODE_LOW_POWER,                  // Low-power mode toggle (see low_power.h)
+    UI_MODE_BLE,                        // Bluetooth on/off toggle (see ble.h)
 
     // IMU modes (Menu 1)
     UI_MODE_IMU_READ,                   // IMU accelerometer reading display
@@ -64,6 +65,7 @@ typedef struct {
     Date date;
     float imu_temp;
     float soc_temp;         // nRF52833 die temp, degrees F (see soc_temp.h)
+    int ble_on;             // Bluetooth radio enabled, see ble_is_enabled()
     int charging_status;
     int low_power;          // TPS63900 power-save mode, see power_save_is_enabled()
     int bat_percent;
@@ -81,6 +83,7 @@ typedef struct {
 #define UI_CLOCK_DIRTY_DATE         (1 << 5)
 #define UI_CLOCK_DIRTY_POWER        (1 << 6)   /* charging + low-power indicators */
 #define UI_CLOCK_DIRTY_SOC_TEMP     (1 << 7)   /* nRF52833 die temperature badge */
+#define UI_CLOCK_DIRTY_BLE          (1 << 8)   /* Bluetooth status badge */
 #define UI_CLOCK_DIRTY_ALL          0xFFFFFFFF
 
 
@@ -234,6 +237,12 @@ void ui_clock_set_temp(float temp);
  * @param temp Temperature in degrees Fahrenheit
  */
 void ui_clock_set_soc_temp(float temp);
+
+/**
+ * @brief Set the Bluetooth indicator state and mark dirty
+ * @param on non-zero if the radio is enabled
+ */
+void ui_clock_set_ble(int on);
 
 /**
  * @brief Set battery percentage and mark dirty

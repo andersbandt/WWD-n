@@ -42,6 +42,10 @@ void system_adjust_brightness_UI_FUNC(void);
  * @brief UI function to clear system faults
  */
 void system_low_power_UI_FUNC(void);
+
+
+/** @brief Bluetooth on/off toggle screen (UI_MODE_BLE). UP = on, DOWN = off. */
+void system_ble_UI_FUNC(void);
 void system_clear_faults_UI_FUNC(void);
 
 

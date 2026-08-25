@@ -29,6 +29,23 @@ bool ble_is_ready(void);
 bool ble_is_connected(void);
 
 /**
+ * @brief Turn the radio on or off at runtime (user setting).
+ *
+ * Stops/starts ADVERTISING rather than calling bt_disable(). Advertising is
+ * where the continuous power goes on an idle peripheral, so stopping it gets
+ * the benefit, while leaving the controller up keeps this reversible and
+ * avoids bt_enable()/bt_disable() re-init edge cases on a device that may
+ * toggle this from a menu repeatedly. Disabling also drops any live
+ * connection, so "off" really means off rather than "off once they leave".
+ *
+ * No-op if ble_init() never succeeded.
+ */
+void ble_set_enabled(bool on);
+
+/** @brief The user setting — true if advertising is meant to be running. */
+bool ble_is_enabled(void);
+
+/**
  * @brief Hand BLE a fresh snapshot of device state to publish.
  *
  * Called from sensor_update_thread, which already reads every one of these

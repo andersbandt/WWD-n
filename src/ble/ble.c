@@ -73,6 +73,7 @@ struct __packed wwd_status {
 static struct wwd_status status_cache;
 static struct k_mutex    status_lock;
 static bool              ready;
+static bool              enabled = true;   /* user setting; advertising follows it */
 static struct bt_conn   *current_conn;
 static bool              status_subscribed;
 
@@ -258,7 +259,13 @@ static void disconnected(struct bt_conn *conn, uint8_t reason)
     (void)k_work_cancel_delayable(&notify_work);
 
     /* Zephyr does not restart advertising itself after a disconnect. Without
-     * this the device is invisible until reboot. */
+     * this the device is invisible until reboot. Skipped when the user has
+     * turned BLE off — otherwise disabling while connected would drop the
+     * link and then immediately start advertising again. */
+    if (!enabled) {
+        return;
+    }
+
     int rc = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
     if (rc && rc != -EALREADY) {
         LOG_ERR("re-advertise failed: %d", rc);
@@ -312,6 +319,50 @@ bool ble_is_connected(void)
 {
 #ifdef CONFIG_BT
     return current_conn != NULL;
+#else
+    return false;
+#endif
+}
+
+
+void ble_set_enabled(bool on)
+{
+#ifdef CONFIG_BT
+    if (!ready || on == enabled) {
+        return;
+    }
+
+    enabled = on;
+
+    if (on) {
+        int err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
+        if (err && err != -EALREADY) {
+            LOG_ERR("bt_le_adv_start failed: %d", err);
+            enabled = false;   /* report what is actually true, not what was asked */
+            return;
+        }
+        LOG_INF("BLE on");
+    } else {
+        (void)bt_le_adv_stop();
+
+        /* Drop any live link too. Without this, "off" only takes effect once
+         * the central happens to leave, which is not what a user toggling a
+         * radio off expects. */
+        if (current_conn) {
+            bt_conn_disconnect(current_conn, BT_HCI_ERR_REMOTE_USER_TERM_CONN);
+        }
+        LOG_INF("BLE off");
+    }
+#else
+    ARG_UNUSED(on);
+#endif
+}
+
+
+bool ble_is_enabled(void)
+{
+#ifdef CONFIG_BT
+    return ready && enabled;
 #else
     return false;
 #endif

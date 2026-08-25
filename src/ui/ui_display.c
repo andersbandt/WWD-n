@@ -98,6 +98,25 @@ void display_out_bms(int charging, int battery_percent) {
  * collides, and 2+56 = 58 leaves 24 px of clearance. */
 #define CLOCK_TEMP_FIELD_W 56
 
+/* Bluetooth indicator: right-hand end of the SoC-temp row.
+ *
+ * Deliberately NOT on the LP/CX status row — that row's own comment records
+ * that x must stay >= 86 to clear the weekday/day header, and LP already
+ * starts at 92, leaving only ~6 px. This row is empty from the temp badge
+ * (ends x=58) all the way to the right edge, so it costs nothing to place
+ * here and disturbs no existing element.
+ *
+ * Text rather than the Bluetooth rune, for now. The rune is genuinely free to
+ * draw — it is five straight segments and gfx.c already has drawLine():
+ *     (cx-r, .25h) -> (cx+r, .75h) -> (cx, h) -> (cx, 0)
+ *                  -> (cx+r, .25h) -> (cx-r, .75h)
+ * The blocker is not flash (221 KB spare) but that the palette constants
+ * (ACCENT_R/DIM_R/BACK_R) and beginFieldBand() are static inside display.c.
+ * Drawing the glyph means either editing that file or duplicating the palette
+ * across a module boundary. Swap this for the rune when display.c is free. */
+#define CLOCK_BLE_RIGHT   (WIDTH - 2)
+#define CLOCK_BLE_WIDTH   16
+
 /* Power-status indicator row, top-right, tucked between the battery badge
  * (y 4..16) and the big time display (starts at CLOCK_TIME_Y = line 1 of
  * FONT_XXLARGE = y 46). x >= 86 keeps it clear of the weekday/day header,
@@ -355,6 +374,15 @@ void display_out_activity(size_t cursor, bool full_redraw)
         strncpy(last_status, status, ACT_ROW_MAX - 1);
         last_status[ACT_ROW_MAX - 1] = '\0';
     }
+}
+
+
+void display_out_ble_indicator(int on) {
+    /* Same accent/dim convention as LP and CX: the label is constant and the
+     * STATE is carried by colour, so the badge never changes width and cannot
+     * leave stale pixels behind. */
+    printStatusField("BT", HEIGHT - CLOCK_SOC_TEMP_Y_MARGIN, CLOCK_BLE_RIGHT,
+                     CLOCK_BLE_WIDTH, CLOCK_STATUS_FONT, on != 0);
 }
 
 

@@ -36,6 +36,7 @@
 #include <display.h>
 #include <ui.h>
 #include <activity/activity.h>
+#include <ble/ble.h>
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -373,6 +374,38 @@ void system_adjust_brightness_UI_FUNC(void) {
  * readout shows the EFFECTIVE state, not the user bit. Turning it "off" on a
  * flat battery therefore correctly appears to do nothing.
  */
+/* Same shape as system_low_power_UI_FUNC below: UP enables, DOWN disables,
+ * and the screen only repaints when something actually changed. */
+void system_ble_UI_FUNC(void) {
+    if (first_ui_time) {
+        first_ui_time = false;
+        button_buffer_clear();
+        display_out_measurement("Bluetooth", ble_is_enabled() ? 1 : 0);
+        return;
+    }
+
+    uint8_t btn_poll;
+    bool changed = false;
+
+    while ((btn_poll = get_button_event()) != 0) {
+        if (btn_poll == BUTTON_1_MASK) {
+            ble_set_enabled(true);
+            changed = true;
+        } else if (btn_poll == BUTTON_4_MASK) {
+            ble_set_enabled(false);
+            changed = true;
+        }
+    }
+
+    if (changed) {
+        /* Reads back ble_is_enabled() rather than echoing the request —
+         * ble_set_enabled() refuses if the stack never came up, and the screen
+         * should show what is true, not what was asked for. */
+        display_out_measurement("Bluetooth", ble_is_enabled() ? 1 : 0);
+    }
+}
+
+
 void system_low_power_UI_FUNC(void) {
     if (first_ui_time) {
         first_ui_time = false;

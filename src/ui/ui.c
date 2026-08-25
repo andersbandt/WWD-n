@@ -135,6 +135,13 @@ void ui_clock_set_soc_temp(float temp)
     ui_clock_mark_dirty(UI_CLOCK_DIRTY_SOC_TEMP);
 }
 
+
+void ui_clock_set_ble(int on)
+{
+    clock_data.ble_on = on;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_BLE);
+}
+
 /**
  * @brief Set battery percentage and mark dirty
  */
@@ -273,6 +280,11 @@ void ui_refresh() {
                 ui_clock_clear_dirty(UI_CLOCK_DIRTY_SOC_TEMP);
             }
 
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_BLE)) {
+                display_out_ble_indicator(clock_data.ble_on);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_BLE);
+            }
+
             if (ui_clock_is_dirty(UI_CLOCK_DIRTY_BATTERY)) {
                 display_out_battery(clock_data.bat_mv);
                 ui_clock_clear_dirty(UI_CLOCK_DIRTY_BATTERY);
@@ -313,6 +325,10 @@ void ui_refresh() {
 
         case UI_MODE_CLEAR_FAULTS:
             system_clear_faults_UI_FUNC();
+            break;
+
+        case UI_MODE_BLE:
+            system_ble_UI_FUNC();
             break;
 
         case UI_MODE_LOW_POWER:

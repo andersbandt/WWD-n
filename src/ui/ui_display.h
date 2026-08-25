@@ -131,6 +131,14 @@ void display_out_soc_temp(float temp);
  */
 void display_out_activity(size_t cursor, bool full_redraw);
 
+
+/*
+ * display_out_ble_indicator: "BT" badge on the clock face, accent when the
+ * radio is enabled and dim when it is off — same convention as LP/CX.
+ * @param on non-zero if BLE is enabled (ble_is_enabled())
+ */
+void display_out_ble_indicator(int on);
+
 /**
  * display_out_battery: displays battery voltage (upper-right corner badge)
  *
