@@ -29,7 +29,21 @@ LOG_MODULE_REGISTER(protocol, CONFIG_LOG_DEFAULT_LEVEL);
 
 #define RX_RINGBUF_SIZE   256
 
-#define PROTOCOL_THREAD_STACK_SIZE 2048
+/* 2048 -> 4096 on 2026-08-24, during the -Os production-build changeover.
+ * This one was statically OVER its stack under the old NO_OPTIMIZATIONS build:
+ * 2448 B of worst case against a 2048 B stack (119.5%). The chain is
+ *   protocol_thread_fn -> rx_byte -> dispatch -> handle_dump_start
+ *     -> ui_show_dump_in_progress -> ui_refresh -> data_stats_UI_FUNC
+ * and it is genuinely reachable, not a phantom: ui_show_dump_in_progress(false)
+ * (the end-of-dump restore path, ui.c) calls ui_refresh(), which dispatches on
+ * whatever ui_mode currently is. So running a USB dump *while the Data Stats
+ * screen is up* redraws that screen on this thread's stack rather than
+ * ui_refresh_thread's 4096 B one. Any UI mode with a deep draw path does the
+ * same; Data Stats is just the deepest.
+ * At -Os the same chain is 432 B (21.1%). Bumped anyway so debug.conf stays
+ * safe, and because the coupling itself (a protocol thread reaching into UI
+ * drawing) is the real smell — worth decoupling later, see stack_budget.md. */
+#define PROTOCOL_THREAD_STACK_SIZE 4096
 #define PROTOCOL_THREAD_PRIORITY   7
 
 static const struct device *cmd_uart;

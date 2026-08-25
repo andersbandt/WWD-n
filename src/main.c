@@ -94,7 +94,20 @@ static void display_phase(void)
  * project_thread_bringup_crash memory) — these threads do considerably more
  * per tick and had never actually been runtime-exercised with this real
  * logic before, so don't assume 1024B was ever validated for it. */
-#define SENSOR_UPDATE_STACK_SIZE  2048
+/* 2048 -> 4096 on 2026-08-24, during the -Os production-build changeover.
+ * Static worst-case call-depth analysis (-fstack-usage frames walked over the
+ * objdump call graph — see debug/stack_budget.md) put this thread at 1976 B of
+ * its 2048 B stack under the OLD NO_OPTIMIZATIONS build: 96.5% used, ~72 B of
+ * margin, via
+ *   sensor_update_thread_entry -> imu_get_pedo -> getPedometer
+ *     -> inv_imu_apex_get_data_activity -> inv_imu_read_reg
+ *     -> read_mclk_reg -> inv_imu_switch_on_mclk
+ * That is the 9 s pedometer tick — a path that runs constantly, so this was
+ * live the whole time and simply never quite tipped over.
+ * At -Os the same chain is 288 B (14.1%), so production has enormous margin
+ * and this bump is not needed there. It is kept because debug.conf is still a
+ * supported configuration and 72 B is not a margin. */
+#define SENSOR_UPDATE_STACK_SIZE  4096
 /* 4096 rather than 2048, same reasoning as BUTTON_HANDLER_STACK_SIZE below:
  * this thread's own draw path (draw_clock_title() -> printLine() ->
  * drawText()/drawGlyph() -> SPI_Transmit()) is the same font/SPI depth as

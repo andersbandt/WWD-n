@@ -40,6 +40,27 @@ The VS Code nRF Connect extension also works — set board to `nrf52833_ders/nrf
 
 **Always do a pristine build** after any CMake, DTS, or board config changes.
 
+### Build variants
+
+`prj.conf` is the **production** baseline as of 2026-08-24: `CONFIG_SIZE_OPTIMIZATIONS=y`,
+190,560 B flash (36.4% of the part). Three overlays layer on top of it via
+`-DEXTRA_CONF_FILE=`:
+
+| Overlay | Purpose | Flash |
+|---|---|---|
+| *(none)* | production | 190,560 B / 36.4% |
+| `debug.conf` | restores `NO_OPTIMIZATIONS` for single-stepping | 403,464 B / 77.0% |
+| `stackcheck.conf` | Zephyr thread analyzer — live stack high-water marks | 192,692 B / 36.8% |
+| `debug/stack_usage.conf` | `-fstack-usage` for static depth analysis | n/a |
+
+Use a **separate build directory per variant** — the pristine-build rule applies.
+
+**Optimization level is load-bearing, not a preference.** The unoptimized build costs
+212 KB of flash, and Bluetooth (+136 KB) will not link on top of it — 403K + 136K
+overflows the 512 KB part. Anything BLE-related must be built from the production
+baseline. See `debug/stack_budget.md` before changing optimization level or any thread
+stack size.
+
 ### Debugging
 The project includes debug scripts in `debug/`:
 - `launch_all.sh` - Automated J-Link GDB server + GDB launch (interactive)
@@ -242,7 +263,9 @@ Pinctrl: `boards/wwd/wwd_n/boards/Flavo/nrf52833_ders/nrf52833_ders-pinctrl.dtsi
 ## Configuration
 
 Key configuration in `prj.conf`:
-- `CONFIG_DEBUG_OPTIMIZATIONS=y` and `CONFIG_NO_OPTIMIZATIONS=y` for debugging
+- `CONFIG_SIZE_OPTIMIZATIONS=y` — production default since 2026-08-24. Build with
+  `-DEXTRA_CONF_FILE=debug.conf` to get the old `NO_OPTIMIZATIONS` build for stepping
+  (see Build variants above)
 - `CONFIG_SENSOR=y` for IMU support
 - `CONFIG_DISPLAY=n` (display is manually driven, not using Zephyr display API)
 - Stack debugging enabled: `CONFIG_STACK_SENTINEL`, `CONFIG_THREAD_STACK_INFO`, `CONFIG_INIT_STACKS`
