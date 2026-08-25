@@ -14,7 +14,7 @@
 #include <ui.h>  // for ui_mode_t
 
 // define some menu constants
-#define UI_MAIN_MENU_ITEMS    4  // total amount of items in the menu (for tracking absolute position)
+#define UI_MAIN_MENU_ITEMS    5  // total amount of items in the menu (for tracking absolute position)
 #define UI_MENU_ITEMS_PAGE    4  // total amount of items per page
 #define SUB_MENU_MAX_LENGTH    5  // bumped for menu 1's 5th item (Temp Graph); see sub_menu_1
 #define SUB_MENU_CHAR_LENGTH  22

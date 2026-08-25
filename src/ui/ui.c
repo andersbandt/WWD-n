@@ -340,6 +340,10 @@ void ui_refresh() {
             data_stats_UI_FUNC();
             break;
 
+        case UI_MODE_ACTIVITY:
+            activity_UI_FUNC();
+            break;
+
         case UI_MODE_STOPWATCH:
             stopwatch_UI_FUNC();
             break;
@@ -369,9 +373,51 @@ void ui_refresh() {
  * ------------------------------------------------------------------------- */
 static int64_t last_activity_ms;
 
+/* Defined below, alongside the display auto-off state it touches. Declared
+ * here because ui_open_activity_screen() is the one caller that sits above it
+ * in the file. (display_is_awake() needs no forward decl — it is public, in
+ * display.h.) */
+static void wake_display_and_repaint(void);
+
+void ui_open_activity_screen(void)
+{
+    k_mutex_lock(&display_draw_mutex, K_FOREVER);
+
+    /* A hold also counts as user activity — otherwise the display could time
+     * out mid-session-start, since the hold itself is not a normal press. */
+    ui_note_activity();
+
+    if (!display_is_awake()) {
+        wake_display_and_repaint();
+    }
+
+    ui_menu_force_exit();
+    change_ui_mode(UI_MODE_ACTIVITY);
+
+    k_mutex_unlock(&display_draw_mutex);
+}
+
+
 void ui_note_activity(void)
 {
     last_activity_ms = k_uptime_get();
+}
+
+/* Activity timestamp sampled when the fade starts, so idle_fade_cancelled()
+ * can spot ui_note_activity() landing mid-fade. */
+static int64_t fade_start_activity_ms;
+
+/* Polled once per fade step. A button press (or any other wake source) calls
+ * ui_note_activity() from another thread, which moves last_activity_ms; that
+ * is the abort signal.
+ *
+ * The read is not atomic — last_activity_ms is 64-bit and this is a Cortex-M4
+ * — but all this asks is "did the value change". A torn read differs from the
+ * sampled value just as a clean one does, so it still cancels; the failure
+ * mode is a spurious cancel, which merely keeps the screen on one more tick. */
+static bool idle_fade_cancelled(void)
+{
+    return last_activity_ms != fade_start_activity_ms;
 }
 
 void ui_idle_tick(void)
@@ -389,14 +435,52 @@ void ui_idle_tick(void)
         return;
     }
 
+    /* Fade the backlight down before sleeping, so the screen dims away
+     * instead of snapping off.
+     *
+     * Deliberately outside display_draw_mutex: the fade takes
+     * UI_DISPLAY_FADE_MS and only touches the backlight PWM, so holding the
+     * draw lock across it would stall button_handler_thread and
+     * protocol_thread for a full second for no reason. It also has to be
+     * interruptible — otherwise a button pressed 100 ms into the fade would
+     * sit unhandled while the screen kept dimming, then wake a display the
+     * user never actually saw go out.
+     *
+     * This does block ui_refresh_thread for the duration, which delays that
+     * tick's nvs_pipeline_tick() by ~1 s. Harmless for record timestamps
+     * (those come from get_dt_ticks(), i.e. real time) and for the IMU ring
+     * (drained by button_handler_thread on INT1, not from here), but
+     * nvs_pipeline_tick() paces temperature logging by counting *calls*, so
+     * its cadence slips one second per timeout event. If that ever matters,
+     * move nvs_pipeline_tick() ahead of ui_idle_tick() in
+     * ui_refresh_thread_entry(). */
+    fade_start_activity_ms = last_activity_ms;
+
+    if (!display_fade_out(UI_DISPLAY_FADE_MS, idle_fade_cancelled)) {
+        /* Woken mid-fade; display_fade_out() already restored the backlight. */
+        return;
+    }
+
     /* switch_display() drives the panel over SPI1 (backlight PWM + SLPIN),
      * so it needs the same serialization as every other draw path — see
      * display_draw_mutex above. */
     k_mutex_lock(&display_draw_mutex, K_FOREVER);
+
+    /* Re-check under the lock. handle_ui_input() can have run between the
+     * fade's last poll and here, in which case it already treated the display
+     * as awake and drew to it — sleeping now would drop the frame the user is
+     * looking at. */
+    if (idle_fade_cancelled()) {
+        ST7735S_backlightRestore();
+        k_mutex_unlock(&display_draw_mutex);
+        return;
+    }
+
     switch_display(false);
     k_mutex_unlock(&display_draw_mutex);
 
-    LOG_INF("display asleep after %u ms idle", timeout_ms);
+    LOG_INF("display asleep after %u ms idle (+%u ms fade)",
+            timeout_ms, UI_DISPLAY_FADE_MS);
 }
 
 

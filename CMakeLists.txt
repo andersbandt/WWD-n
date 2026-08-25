@@ -62,6 +62,7 @@ target_sources(app PRIVATE
     src/peripheral/rv3028.c
     src/peripheral/rv3028_bringup.c
     src/peripheral/soc_temp.c
+    src/activity/activity.c
     src/hardware/led.c
     src/hardware/button.c
     src/power/power.c

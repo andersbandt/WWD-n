@@ -48,7 +48,8 @@ char * main_menu_options[UI_MAIN_MENU_ITEMS] = {
     "System Settings",
     "IMU",
     "Data",
-    "Timer"
+    "Timer",
+    "Activity"
 };
 
 
@@ -90,8 +91,20 @@ char sub_menu_3[SUB_MENU_3_LENGTH][SUB_MENU_CHAR_LENGTH] = {
                      };
 
 
+// menu 4 sub-menu options: Activity
+// Deliberately NOT a list of the activities themselves — the catalogue lives
+// in activity.c and is rendered by the UI_MODE_ACTIVITY screen, which grows on
+// its own as activities are added. Listing them here too would mean updating
+// two tables (and this one's rows are a fixed-stride char array) every time.
+#define SUB_MENU_4_LENGTH     2
+char sub_menu_4[SUB_MENU_4_LENGTH][SUB_MENU_CHAR_LENGTH] = {
+    "Track Activity",
+    "Return"
+                     };
+
+
 // creating array of sub menu text items
-char * sub_menu[UI_MAIN_MENU_ITEMS] = {*sub_menu_0, *sub_menu_1, *sub_menu_2, *sub_menu_3};
+char * sub_menu[UI_MAIN_MENU_ITEMS] = {*sub_menu_0, *sub_menu_1, *sub_menu_2, *sub_menu_3, *sub_menu_4};
 
 
 // Sub-menu UI mode mappings
@@ -125,6 +138,12 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
     // Timer (Menu 3)
     {
         UI_MODE_STOPWATCH,          // Stopwatch
+        UI_MODE_MENU                // Return
+    },
+
+    // Activity (Menu 4)
+    {
+        UI_MODE_ACTIVITY,           // Track Activity
         UI_MODE_MENU                // Return
     },
 };
@@ -239,6 +258,9 @@ static int getSubMenuLength(int menu_number)
     }
     else if (menu_number == 3) {
         return sizeof(sub_menu_3)/sizeof(sub_menu_3[0]);
+    }
+    else if (menu_number == 4) {
+        return sizeof(sub_menu_4)/sizeof(sub_menu_4[0]);
     }
 
     return -1;

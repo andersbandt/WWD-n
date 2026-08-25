@@ -46,6 +46,9 @@ typedef enum {
     // Timer modes (Menu 3)
     UI_MODE_STOPWATCH,                  // Stopwatch (start/pause/reset)
 
+    // Activity modes (Menu 4)
+    UI_MODE_ACTIVITY,                   // Activity session start/stop (see activity.h)
+
     // Add more modes as needed for future UI functions
 } ui_mode_t;
 
@@ -90,6 +93,13 @@ typedef struct {
  * across at least one full temp/step-count update after any interaction. */
 #define UI_DISPLAY_TIMEOUT_MS 9000
 
+/* How long the screen takes to fade to black once the timeout fires. The
+ * panel actually sleeps at UI_DISPLAY_TIMEOUT_MS + UI_DISPLAY_FADE_MS, i.e.
+ * the fade is added after the timeout rather than run up to it, so the screen
+ * stays fully readable for the whole timeout. Costs one extra second of panel
+ * wake time (~2.1 mA) per timeout event. */
+#define UI_DISPLAY_FADE_MS 1000
+
 
 extern ui_mode_t ui_mode;
 
@@ -117,6 +127,21 @@ void handle_ui_input();
  * display_draw_mutex and touches SPI1.
  */
 void ui_wake_display_if_asleep(void);
+
+
+/**
+ * @brief Jumps straight to the activity screen from anywhere.
+ *
+ * Bound to a long press of SW2 (top-right) so starting or stopping a session
+ * never costs a walk through the menu — the whole point of a session marker is
+ * that it lands when the activity actually starts, and a four-press detour
+ * makes the timestamp wrong.
+ *
+ * Clears any latched sub-menu run state first, since change_ui_mode() refuses
+ * the transition otherwise (see ui_menu_force_exit()). Must be called from a
+ * thread, not an ISR — it takes display_draw_mutex and touches SPI1.
+ */
+void ui_open_activity_screen(void);
 
 
 /**

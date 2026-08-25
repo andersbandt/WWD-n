@@ -21,6 +21,7 @@
 /* C99 header files */
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>   /* size_t, for display_out_activity() */
 
 
 /* My header files */
@@ -111,11 +112,24 @@ void display_out_temp(float temp);
 
 /*
  * display_out_soc_temp: displays the nRF52833 die temperature (lower-left,
- * directly above the IMU temp badge). Shown in Fahrenheit to match the badge
- * below it, prefixed "S" so the two stacked readings are distinguishable.
+ * directly above the IMU temp badge). Rendered "M:<value> F"; the IMU badge
+ * below it is "I:<value> F".
  * @param temp  degrees Fahrenheit
  */
 void display_out_soc_temp(float temp);
+
+
+/*
+ * display_out_activity: activity session list (UI_MODE_ACTIVITY).
+ *
+ * Reads the catalogue and running state from activity.c directly rather than
+ * taking them as parameters — see the note above the implementation.
+ *
+ * @param cursor       index of the highlighted activity
+ * @param full_redraw  clear and repaint everything (screen was just entered
+ *                     or cleared); otherwise only changed rows are touched
+ */
+void display_out_activity(size_t cursor, bool full_redraw);
 
 /**
  * display_out_battery: displays battery voltage (upper-right corner badge)

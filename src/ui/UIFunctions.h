@@ -95,4 +95,14 @@ void data_stats_UI_FUNC(void);
 void stopwatch_UI_FUNC(void);
 
 
+/**
+ * @brief Activity session screen (UI_MODE_ACTIVITY).
+ *
+ * Lists the activity catalogue from activity.c. UP/DOWN move the cursor,
+ * SELECT starts or stops the highlighted activity, writing a RECORD_ACTIVITY
+ * marker into the log. BACK is handled generically by handle_ui_input().
+ */
+void activity_UI_FUNC(void);
+
+
 #endif /* SRC_UI_UIFUNCTIONS_H_ */

@@ -67,6 +67,7 @@ enum record_type {
     RECORD_POWER,       /* power mode / battery state,  payload: struct record_power */
     RECORD_SOC_TEMP,    /* nRF52833 die temperature,    payload: struct record_soc_temp */
     RECORD_WEAR_STATE,  /* on/off-wrist transition,     payload: struct record_wear_state */
+    RECORD_ACTIVITY,    /* activity session marker,     payload: struct record_activity */
 
     /* APPEND ONLY. These values are written into every log record's header and
      * are hand-mirrored by dump_decoder.py in the companion wwd_gui_api repo
@@ -142,6 +143,29 @@ struct record_soc_temp {
  * investigated rather than attributed to wear detection. */
 struct record_wear_state {
     uint8_t worn;       /* 1 = on-wrist, 0 = off-wrist */
+} __packed;
+
+/* RECORD_ACTIVITY: an activity session boundary — the user declaring what
+ * they are doing. Written only on a start or a stop, never periodically.
+ *
+ * Two things read this. A time-allocation report pairs START/STOP by
+ * session_seq and sums the spans. Per-activity analysis (run form, say) uses
+ * the pair as BOUNDS: every RECORD_IMU_FIFO between a START and its matching
+ * STOP belongs to that session, so session_seq is effectively the run index.
+ *
+ * session_seq is unique only WITHIN A BOOT SEGMENT — it is RAM-only and
+ * restarts at 0 after a reset. Scope it by the surrounding RESET_MARKER /
+ * TIME_ANCHOR, which decoders already track for the time axis.
+ *
+ * nand_offset is where the marker itself lands, as a seek hint so analysis
+ * can jump to a session instead of walking from zero. Advisory only: records
+ * are buffered a page at a time, so it is exact to the page, and the marker's
+ * position in the decoded stream stays the ground truth. */
+struct record_activity {
+    uint8_t  event;        /* 0 = stop, 1 = start */
+    uint8_t  activity_id;  /* activity_id_t — see src/activity/activity.h */
+    uint16_t session_seq;  /* pairs a START with its STOP; the run index */
+    uint32_t nand_offset;  /* write offset at the marker (advisory) */
 } __packed;
 
 /* RECORD_POWER: power mode transition or periodic battery snapshot */

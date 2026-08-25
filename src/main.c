@@ -35,6 +35,7 @@
 #include "peripheral/rv3028.h"
 #include "peripheral/rv3028_bringup.h"
 #include "peripheral/soc_temp.h"
+#include <activity/activity.h>
 #include "peripheral/interrupt.h"
 #include "peripheral/timer.h"
 #include "hardware/led.h"
@@ -392,6 +393,60 @@ static void run_button_autorepeat(void)
  * IMU_HAS_INT2 in interrupt.c). Buttons live on the MCP23008 expander, not
  * populated on this board yet — their semaphores simply never fire, which is
  * harmless; k_poll blocks on whichever events remain live. */
+
+/* Long-press SW2 (top-right) = jump straight to the activity screen.
+ *
+ * Returns true if the press was consumed as a hold, in which case the caller
+ * must NOT also run handle_ui_input() — otherwise the same press would be
+ * handled twice, once as a hold and again as a plain SELECT.
+ *
+ * A press while the display is asleep is a wake, not a shortcut: falling
+ * through to handle_ui_input() keeps the existing "first press only wakes"
+ * contract intact.
+ *
+ * The wait services IMU INT1 exactly like run_button_autorepeat() does, rather
+ * than just sleeping — this thread is the only FIFO drain, and stalling it for
+ * the whole hold window would let the FIFO run away. */
+#define ACTIVITY_HOLD_MS   600
+#define ACTIVITY_POLL_MS   20
+
+static bool service_button2_hold(void)
+{
+    if (!display_is_awake()) {
+        return false;
+    }
+
+    int64_t deadline = k_uptime_get() + ACTIVITY_HOLD_MS;
+
+    while (k_uptime_get() < deadline) {
+        int64_t remaining = deadline - k_uptime_get();
+        int64_t slice = remaining < ACTIVITY_POLL_MS ? remaining : ACTIVITY_POLL_MS;
+
+        struct k_poll_event ev = K_POLL_EVENT_INITIALIZER(
+            K_POLL_TYPE_SEM_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &imu_int1_sem);
+
+        if (k_poll(&ev, 1, K_MSEC(slice)) == 0 &&
+            ev.state == K_POLL_STATE_SEM_AVAILABLE) {
+            k_sem_take(&imu_int1_sem, K_NO_WAIT);
+            service_imu_int1();
+        }
+
+        if ((button_poll() & BUTTON_2_MASK) == 0) {
+            return false;   /* released early — an ordinary SELECT */
+        }
+    }
+
+    ui_open_activity_screen();
+
+    /* Swallow the rest of the hold so the release does not immediately read
+     * as a fresh SELECT on the screen we just opened (which would toggle a
+     * session the user never asked for). */
+    while (button_poll() & BUTTON_2_MASK) {
+        k_msleep(ACTIVITY_POLL_MS);
+    }
+    return true;
+}
+
 static void button_handler_thread_entry(void *p1, void *p2, void *p3)
 {
     while (1) {
@@ -416,7 +471,9 @@ static void button_handler_thread_entry(void *p1, void *p2, void *p3)
         }
         if (events[1].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button2_sem, K_NO_WAIT);
-            handle_ui_input();
+            if (!service_button2_hold()) {
+                handle_ui_input();
+            }
         }
         if (events[2].state == K_POLL_STATE_SEM_AVAILABLE) {
             k_sem_take(&button3_sem, K_NO_WAIT);
@@ -587,6 +644,8 @@ int main(void)
      * (clock-face badge + RECORD_SOC_TEMP), and soc_temp_read_centi_c() then
      * returns -ENODEV forever, which both call sites already skip on. */
     soc_temp_init();
+
+    activity_init();
 
     init_buttons();       /* no-op-safe if MCP23008 absent, see button.c */
     init_button_buffer();

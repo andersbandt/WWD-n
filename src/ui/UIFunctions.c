@@ -35,6 +35,7 @@
 /* UI and display */
 #include <display.h>
 #include <ui.h>
+#include <activity/activity.h>
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,6 +71,10 @@ static set_screen_t set_screen = SET_SCREEN_TIME;
  * on entry, so it's safe to reset on every reset_uifunc_params() call
  * without disturbing the actual timer state. */
 static bool stopwatch_screen_dirty = true;
+/* Same contract as stopwatch_screen_dirty: set whenever the screen needs a
+ * full repaint (entered fresh, or the cursor moved). */
+static bool activity_screen_dirty = true;
+static size_t activity_cursor;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -82,6 +87,8 @@ void reset_uifunc_params() {
     set_screen = SET_SCREEN_TIME;
     first_ui_time = true;
     stopwatch_screen_dirty = true;
+    activity_screen_dirty = true;
+    activity_cursor = 0;
 }
 
 
@@ -596,4 +603,44 @@ void stopwatch_UI_FUNC(void) {
 /* } */
 
 
+/*
+ * activity_UI_FUNC: the activity session screen.
+ *
+ * UP/DOWN move the cursor, SELECT toggles the highlighted activity. BACK is
+ * not handled here — handle_ui_input() already treats it generically as
+ * "return to the sub-menu list" for every leaf screen.
+ *
+ * Toggle rather than separate start/stop entries: with the catalogue meant to
+ * grow to a dozen-plus activities, two rows each would double the list for no
+ * information gain. The running one is marked "*" in the list, so what SELECT
+ * will do is always visible.
+ */
+void activity_UI_FUNC(void) {
+    uint8_t btn = get_button_event();
+    size_t  count = activity_count();
 
+    if (count > 0) {
+        if (btn == BUTTON_1_MASK) {            /* SW1 top-left = UP */
+            if (activity_cursor > 0) {
+                activity_cursor--;
+                activity_screen_dirty = true;  /* cursor moved: repaint rows */
+            }
+        }
+        else if (btn == BUTTON_4_MASK) {       /* SW4 bottom-left = DOWN */
+            if (activity_cursor + 1 < count) {
+                activity_cursor++;
+                activity_screen_dirty = true;
+            }
+        }
+        else if (btn == BUTTON_2_MASK) {       /* SW2 top-right = SELECT */
+            activity_toggle(activity_id_at(activity_cursor));
+        }
+    }
+
+    if (activity_cursor >= count) {
+        activity_cursor = 0;   /* catalogue shrank under us; stay in range */
+    }
+
+    display_out_activity(activity_cursor, activity_screen_dirty);
+    activity_screen_dirty = false;
+}

@@ -27,6 +27,7 @@
 #include <display.h>
 #include <peripheral/clock.h>
 #include <ui_display.h>
+#include <activity/activity.h>
 
 
 
@@ -261,6 +262,99 @@ void display_out_soc_temp(float temp) {
     sprintf(text, "M:%.1f F", (double)temp);
     printFieldLeftAligned(text, HEIGHT - CLOCK_SOC_TEMP_Y_MARGIN, CLOCK_TEMP_X,
                            CLOCK_TEMP_FIELD_W, CLOCK_BADGE_FONT);
+}
+
+
+
+/* ---- Activity screen ------------------------------------------------------
+ *
+ * A list, because the activity catalogue is meant to grow (eating, driving,
+ * phone, TV, working...). It reads the catalogue from activity.c rather than
+ * taking the rows as parameters — a variable-length list is awkward to pass,
+ * and the alternative is every caller re-deriving the same table.
+ *
+ * The running session's elapsed time gets its own bottom row rather than
+ * being appended to its list row: at FONT_MEDIUM the screen fits ~16
+ * characters, and "> Running  1:23:45" does not, so inlining it would clip
+ * silently the moment a session ran past an hour.
+ */
+#define ACT_FONT          FONT_MEDIUM
+#define ACT_X             4
+#define ACT_ROWS_PER_PAGE 5     /* rows 1..5; row 0 is the title, row 6 status */
+#define ACT_STATUS_ROW    6
+#define ACT_ROW_MAX       20    /* "> Running        *" + NUL */
+
+static void act_fmt_elapsed(char *out, size_t out_len, uint32_t sec)
+{
+    uint32_t h = sec / 3600;
+    uint32_t m = (sec % 3600) / 60;
+    uint32_t s = sec % 60;
+
+    if (h > 0) {
+        snprintf(out, out_len, "%u:%02u:%02u", h, m, s);
+    } else {
+        snprintf(out, out_len, "%02u:%02u", m, s);
+    }
+}
+
+void display_out_activity(size_t cursor, bool full_redraw)
+{
+    static char last_row[ACT_ROWS_PER_PAGE][ACT_ROW_MAX];
+    static char last_status[ACT_ROW_MAX];
+
+    size_t count = activity_count();
+    size_t page  = cursor / ACT_ROWS_PER_PAGE;
+    size_t start = page * ACT_ROWS_PER_PAGE;
+
+    if (full_redraw) {
+        clear_display();
+        printLine("ACTIVITY", 0, ACT_X, ACT_FONT);
+
+        for (int i = 0; i < ACT_ROWS_PER_PAGE; i++) {
+            last_row[i][0] = '\0';
+        }
+        last_status[0] = '\0';
+    }
+
+    for (size_t i = 0; i < ACT_ROWS_PER_PAGE; i++) {
+        size_t idx = start + i;
+        char   row[ACT_ROW_MAX];
+
+        if (idx < count) {
+            activity_id_t id = activity_id_at(idx);
+
+            /* "*" marks the running session so the list alone answers "am I
+             * tracking anything right now" without reading the status row. */
+            snprintf(row, sizeof(row), "%c%s%s",
+                     idx == cursor ? '>' : ' ',
+                     activity_name_at(idx),
+                     (activity_is_active() && activity_current() == id) ? " *" : "");
+        } else {
+            row[0] = '\0';   /* blank the unused rows on the last page */
+        }
+
+        if (strcmp(row, last_row[i]) != 0) {
+            clearAndPrintLine(row, i + 1, ACT_X, ACT_FONT);
+            strncpy(last_row[i], row, ACT_ROW_MAX - 1);
+            last_row[i][ACT_ROW_MAX - 1] = '\0';
+        }
+    }
+
+    char status[ACT_ROW_MAX];
+
+    if (activity_is_active()) {
+        char elapsed[16];
+        act_fmt_elapsed(elapsed, sizeof(elapsed), activity_elapsed_sec());
+        snprintf(status, sizeof(status), "ON %s", elapsed);
+    } else {
+        snprintf(status, sizeof(status), "-- idle --");
+    }
+
+    if (strcmp(status, last_status) != 0) {
+        clearAndPrintLine(status, ACT_STATUS_ROW, ACT_X, ACT_FONT);
+        strncpy(last_status, status, ACT_ROW_MAX - 1);
+        last_status[ACT_ROW_MAX - 1] = '\0';
+    }
 }
 
 
