@@ -1,0 +1,20 @@
+# WWD-n battery ADC characterisation — SN1, 2026-08-25
+# Supply: SPD3303X ch2 into the battery port, NO cell fitted, USB DISCONNECTED
+#   (USB must be off: VBUS back-feeds VBAT through a hardware defect, so an
+#    attached cable characterises the defect, not the firmware)
+# Truth : OWON XDM1041 across the battery terminals
+# Meas  : firmware battery_voltage_mv(), read over SWD from `battery_dbg`
+# Sweep : DOWNWARD only, per debug/power_profile/REPORT.md
+# Fit over 3254-4202 mV: raw = 0.57242 * true_mv - 10.81
+#   slope 572.42 counts/V vs 568.89 ideal -> +0.62% gain error
+#   max fit residual 7.8 counts = 13.7 mV
+true_mv,raw_avg,raw_min,raw_max,samples,meas_mv,error_mv,in_spec
+3254,1844,1791,1889,8,3240,-14,yes
+3304,1883,1876,1893,8,3308,4,yes
+3504,1998,1991,2012,8,3512,8,yes
+3704,2113,2102,2149,8,3714,10,yes
+3902,2227,2215,2259,8,3914,12,yes
+4002,2280,2265,2305,8,4006,4,yes
+4202,2389,2323,2428,8,4198,-4,yes
+4352,2159,2101,2186,8,3794,-558,no
+4502,2239,2187,2268,8,3934,-568,no
