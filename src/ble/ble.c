@@ -146,6 +146,24 @@ static ssize_t write_time(struct bt_conn *conn, const struct bt_gatt_attr *attr,
         return BT_GATT_ERR(BT_ATT_ERR_VALUE_NOT_ALLOWED);
     }
 
+    /* gmtime_r, not localtime_r, and that is deliberate.
+     *
+     * This device has no timezone. The RV-3028 stores plain calendar fields
+     * and nothing downstream (the clock face, TIME_ANCHOR, dump_decoder.py)
+     * applies any conversion. So the value on the wire is not a moment in
+     * time — it is a WALL CLOCK, and the host is responsible for sending the
+     * one the user should see. common/ble_client.py in the wwd_gui_api repo
+     * does that in local_wallclock_epoch(): it takes the host's LOCAL time and
+     * runs it through timegm(), producing a number that gmtime_r() here turns
+     * back into those same local calendar fields.
+     *
+     * Swapping this to localtime_r() would double-shift the result (and Zephyr
+     * has no timezone database to do it with anyway). If the clock reads wrong,
+     * the bug is on the host side, not here.
+     *
+     * This is load-bearing beyond the clock face: steps_today() in main.c
+     * rolls the step badge over when the calendar day changes, so a UTC wall
+     * clock rolled the day in the local evening. */
     time_t     t = (time_t)unix_s;
     struct tm  tm_buf;
 

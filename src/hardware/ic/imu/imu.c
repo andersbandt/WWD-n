@@ -410,44 +410,98 @@ size_t temp_history_get(int16_t *out, size_t max_count)
 /*
  * imu_get_pedo: refreshes the cached step_count from the IMU's APEX pedometer.
  *
- * getPedometer() only writes through to its out-param when the APEX step-detect
- * status bit is set - i.e. when the IMU has actually seen new steps since the
- * last read. In between (the common case: the device is sitting still, and this
- * is polled every 9s by sensor_update_thread) it leaves the out-param alone.
- * This function used to pass in a zeroed local and then assign it to step_count
- * unconditionally, so every poll without fresh step activity clobbered a
- * perfectly good running total back to 0 - which is what the clock face's
- * bottom-right badge was showing. The count would then "come back" as soon as
- * the user walked again, because the next detect interrupt refilled it with the
- * IMU's own cumulative total.
+ * getPedometer() reports the SENSOR's cumulative counter, and only writes
+ * through to its out-param when the APEX step-detect status bit is set — i.e.
+ * when the IMU has actually seen new steps since the last read. In between
+ * (the common case: the device is sitting still, polled every 9 s by
+ * sensor_update_thread) it leaves the out-param alone.
  *
- * Two guards, so a stale/absent reading can never destroy the total:
- *   1. `count` is seeded with the current step_count rather than 0, so a
- *      getPedometer() call that writes nothing is a no-op instead of a reset.
- *   2. The APEX step counter is cumulative (step_cnt plus the step_cnt_ovflw
- *      accumulator in ICM_42670.c), so it must never decrease - a lower reading
- *      is spurious and is rejected.
+ * This accumulates DELTAS of that sensor counter rather than adopting its
+ * absolute value. The difference matters:
+ *
+ *   The old form was `if (count > step_count) step_count = count;` — accept
+ *   any larger reading, reject any smaller one. Two ways that goes wrong, both
+ *   silent and both permanent:
+ *
+ *   1. ONE bad large read is latched forever. SPI1 is shared with the MT29F
+ *      and the ST7735S on this board, so a garbled APEX read is not
+ *      hypothetical, and nothing in the old rule bounded how big a jump it
+ *      would swallow. There was no path that could ever lower the total again.
+ *      This is the shape of the 2304-steps-on-a-stationary-bench-board report:
+ *      the count jumped once and then sat exactly still.
+ *   2. If the sensor counter ever restarts (startApex() zeroes it), every
+ *      later reading is smaller than the running total and is rejected, so the
+ *      step count freezes at its old value and never moves again.
+ *
+ * Accumulating deltas fixes both. A bad reading costs at most one poll's worth
+ * of steps and is never latched, and a sensor-side restart just resynchronises.
+ *
+ * The plausibility bound is deliberately generous — this is here to catch
+ * corruption, not to second-guess the pedometer. Sprint cadence tops out around
+ * 5 steps/s; PEDO_MAX_STEPS_PER_SEC is 6, plus a fixed slack so a late poll or
+ * a burst straddling two reads is never clipped. Anything above that is not a
+ * human walking, it is a bad read.
  *
  * Consequence worth knowing: there is deliberately no path here that resets the
- * total to 0. Nothing needs one today (the counter only restarts on reboot,
- * where step_count starts at 0 anyway); a future "reset steps" UI action would
- * have to clear step_count directly rather than expect a poll to do it.
+ * total to 0. The clock face's midnight rollover is done by subtracting a daily
+ * baseline in main.c, NOT by clearing this — the log and the BLE status keep
+ * reporting the cumulative figure, from which a daily one can always be
+ * derived. The reverse is not true.
  */
+#define PEDO_MAX_STEPS_PER_SEC 6u
+#define PEDO_JUMP_SLACK        20u   /* absorbs poll jitter and boundary bursts */
+
+static uint32_t pedo_last_sensor_total;  /* last sensor cumulative we saw */
+static int64_t  pedo_last_ms;            /* uptime at that reading */
+
 int imu_get_pedo() {
     float step_cadence = 0;
     const char *activity = NULL; // set by getPedometer() to "unknown"/"walk"/"run" on a fresh step-detect event
 
-    uint32_t count = step_count;  // guard 1: unwritten out-param leaves the total intact
+    /* Seeded with the last sensor total, so a getPedometer() call that writes
+     * nothing yields a delta of zero rather than a spurious jump. */
+    uint32_t sensor_total = pedo_last_sensor_total;
 
     #ifdef USE_DERS_IMU
-        volatile int status = getPedometer(&count, &step_cadence, &activity);
+        volatile int status = getPedometer(&sensor_total, &step_cadence, &activity);
     #else
         volatile int status = 999;
     #endif
 
-    if (status == 0 && count > step_count) {  // guard 2: cumulative, so never accept a decrease
-        step_count = count;
+    if (status != 0) {
+        /* Includes the ordinary "no step-detect event since last poll" case
+         * (-11), and any transport error — in which case apex_data0 may hold
+         * stack garbage, so nothing here may be trusted. */
+        return step_count;
     }
+
+    int64_t now = k_uptime_get();
+
+    if (sensor_total >= pedo_last_sensor_total) {
+        uint32_t delta     = sensor_total - pedo_last_sensor_total;
+        uint32_t elapsed_s = (uint32_t)(((now - pedo_last_ms) + 999) / 1000);
+        uint32_t max_steps = PEDO_MAX_STEPS_PER_SEC * elapsed_s + PEDO_JUMP_SLACK;
+
+        if (delta <= max_steps) {
+            step_count += delta;
+        } else {
+            LOG_WRN("pedometer: implausible jump of %u steps in %u s "
+                    "(sensor total %u, cap %u) — dropped, not latched",
+                    delta, elapsed_s, sensor_total, max_steps);
+        }
+    } else {
+        /* Sensor counter went backwards. getPedometer() already treats a
+         * backwards raw counter as a 16-bit wrap and adds 65536, so reaching
+         * here means the whole cumulative figure fell — a restart or a bad
+         * read, never a wrap. Resynchronise rather than accumulate anything. */
+        LOG_WRN("pedometer: sensor total went backwards (%u -> %u) — resyncing",
+                pedo_last_sensor_total, sensor_total);
+    }
+
+    /* Always resync, on every path, so one bad reading can never wedge the
+     * comparison permanently the way the old accept-if-larger rule could. */
+    pedo_last_sensor_total = sensor_total;
+    pedo_last_ms           = now;
 
     return step_count;
 }
