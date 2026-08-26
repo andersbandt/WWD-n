@@ -731,7 +731,7 @@ bool ui_autorepeat_active(void) {
  * of them goes through change_ui_mode(): the time-setter commits and assigns
  * ui_mode directly (UIFunctions.c), and ui_refresh() falls back here on an
  * unknown mode. Each of those has to put the background back, or the clock
- * face draws on the menu's pink and stays that way until the next real mode
+ * face draws on the menu's light ground and stays that way until the next real mode
  * change.
  *
  * Does NOT call ui_refresh() — callers differ on whether they want the repaint

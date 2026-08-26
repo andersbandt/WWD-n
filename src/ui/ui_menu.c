@@ -573,6 +573,17 @@ void ui_menu_return_to_sub_menu(void)
 {
     run_sub_menu = false;
     reset_uifunc_params();
+
+    /* Wipe the leaf screen first. render_sub_menu_items() only repaints the
+     * UI_MENU_ITEMS_PAGE (4) menu rows, so anything the leaf drew outside
+     * them - the title row, and every row below the fourth - survived into
+     * the sub-menu list. Most visible on the temperature log, which fills
+     * the screen top to bottom: backing out of it left the readings sitting
+     * around the menu. Same wipe change_ui_mode() already does on its own
+     * UI_MODE_MENU path; this path bypasses that function by design (see the
+     * doc comment above), so it has to do it itself. */
+    clear_display();
+
     returnSubMenu();
 }
 

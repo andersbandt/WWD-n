@@ -271,7 +271,7 @@ void system_prompt_for_time_UI_FUNC() {
                 ui_mode = UI_MODE_CLOCK;
                 /* Direct assignment bypasses change_ui_mode(), so the menu
                  * background and the leftover setter screen have to be cleared
-                 * here or the clock face draws on pink over the old text. */
+                 * here or the clock face draws on the menu theme over the old text. */
                 ui_enter_clock_face();
             }
             return;

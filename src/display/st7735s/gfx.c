@@ -396,12 +396,24 @@ void setbgColorC(color565_t c) {
     bg_color.u[1] = c.u[0];
 }
 
+/* *** The r/b crossover below is deliberate — do not "fix" it. ***
+ *
+ * color565_t (st7735s.h) declares its bitfields `r:5, g:6, b:5`. On this
+ * little-endian target the first-declared field takes the LOW bits, so the
+ * field named `.r` lands in bits 0..4 — which, after setColorC()'s byte swap,
+ * is where the panel expects BLUE. The struct is therefore BGR in effect.
+ *
+ * That used to leak out to every caller: the whole UI palette was written in
+ * struct order, so a constant documented as orange rendered blue, and call
+ * sites that wanted a true colour had to hand-swap (2026-08-25). Now the swap
+ * lives here, once, and these four functions take honest RGB: setColor(31,0,0)
+ * is red on the glass. */
 void setColor(uint8_t r, uint8_t g, uint8_t b) {
-    setColorC((color565_t){ .r = r, .g = g, .b = b });
+    setColorC((color565_t){ .r = b, .g = g, .b = r });
 }
 
 void setbgColor(uint8_t r, uint8_t g, uint8_t b) {
-    setbgColorC((color565_t){ .r = r, .g = g, .b = b });
+    setbgColorC((color565_t){ .r = b, .g = g, .b = r });
 }
 
 struct s_color {
@@ -411,13 +423,15 @@ struct s_color {
           uint8_t  :8;
 };
 
+/* Same crossover as setColor() above: the 24-bit red byte has to reach the
+ * struct field named `.b` to come out red on the panel. */
 void setColor24(uint32_t _color) {
     struct s_color *c = (struct s_color *)&_color;
-    setColorC((color565_t){ .r = c->r*32/256, .g = c->g*64/256, .b = c->b*32/256 });
+    setColorC((color565_t){ .r = c->b*32/256, .g = c->g*64/256, .b = c->r*32/256 });
 }
 
 void setbgColor24(uint32_t _color) {
     struct s_color *c = (struct s_color *)&_color;
-    setbgColorC((color565_t){ .r = c->r*32/256, .g = c->g*64/256, .b = c->b*32/256 });
+    setbgColorC((color565_t){ .r = c->b*32/256, .g = c->g*64/256, .b = c->r*32/256 });
 }
 

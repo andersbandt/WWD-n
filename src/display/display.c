@@ -37,18 +37,53 @@
 LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 
 
-/* Darcula palette, raw RGB565 fields (r:5 g:6 b:5) — see color-hex.com/color-palette/93326 */
-#define BACK_R 5    // background   #2B2B2B
+/* ---- palette -------------------------------------------------------------
+ *
+ * All constants below are TRUE RGB565 channel values (r 0..31, g 0..63,
+ * b 0..31) in setColor()/setbgColor() argument order. As of 2026-08-25 that
+ * is honest: gfx.c's setColor() does the r/b crossover the packed struct
+ * needs, once, so setColor(31,0,0) is red on the glass. The palette used to
+ * be written in struct order and hand-swapped at individual call sites — if
+ * you are reading an old comment that says a constant "renders as" some other
+ * colour, it is stale.
+ *
+ * Two themes, switched by display_set_menu_background() /
+ * display_set_default_background():
+ *
+ *   clock face  - dark Darcula grey ground, light text  (glanceable indoors,
+ *                 and the badges' accent/dim colours are tuned for it)
+ *   menu + leaf - light ground, BLACK text              (sunlight)
+ *
+ * Why the menu is a light theme: this is a transmissive TFT with no
+ * transflective layer, so in direct sun a roughly constant veiling glare sits
+ * on top of every pixel and swamps the backlight. What survives is the
+ * absolute luminance *difference* between ink and ground, so the ground wants
+ * to be as bright as the panel can make it and the ink as dark as possible —
+ * i.e. black on near-white, not light-on-dark. (Unlike an OLED, a white
+ * ground costs no extra power here: the backlight is on regardless.)
+ */
+
+/* Clock-face ground: Darcula background #2B2B2B */
+#define BACK_R 5
 #define BACK_G 10
 #define BACK_B 5
 
-#define FORE_R 21   // primary text #A9B7C6
+/* Clock-face text: #C6B4AD.
+ *
+ * NOT the Darcula #A9B7C6 the old comment claimed. That constant was written
+ * in struct order, so the panel has been showing its r/b mirror — this warm
+ * light lilac — for the whole life of the project. It is what Anders means by
+ * "our original main display light purple", so it is kept exactly as it
+ * appears on the glass and simply written down honestly. */
+#define FORE_R 24
 #define FORE_G 45
-#define FORE_B 24
+#define FORE_B 21
 
-#define ACCENT_R 25 // accent (selection/highlight) #CC7832
+/* Clock-face badge states (charging / low-power indicators). Only ever drawn
+ * on the dark ground, so these do not need light-theme variants. */
+#define ACCENT_R 25 // accent (selection/highlight) — Darcula orange #CC7832
 #define ACCENT_G 30
-#define ACCENT_B 6
+#define ACCENT_B  6
 
 #define DIM_R 11    // dim/secondary text #5C6773
 #define DIM_G 25
@@ -58,25 +93,7 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
  * the wear indicator is the one badge whose meaning is carried by hue rather
  * than by a label — a check and a cross are only legible as "good" and "bad"
  * if they are actually green and red. Kept adjacent to the palette so it is
- * obvious these two are the exception, not a second theme.
- *
- * *** These are TRUE red/green/blue, and printWearField() passes them to
- * setColor() with red and blue SWAPPED. That is not a typo. ***
- *
- * color565_t (st7735s.h) declares its bitfields `r:5, g:6, b:5`. On a
- * little-endian target the first-declared field takes the LOW bits, so `.r`
- * ends up in bits 0..4 — and after setColorC()'s byte swap in gfx.c that
- * reaches the panel where RGB565 expects BLUE. The struct is therefore BGR in
- * effect: the field named `r` is displayed as blue, and `b` as red.
- *
- * Every constant in the Darcula block above is written in struct order and so
- * inherits the swap — which is why ACCENT, documented as orange #CC7832,
- * actually renders blue on the panel. Correcting that is a whole-UI change and
- * is deliberately NOT done here; this badge just declares its colours honestly
- * and swaps at the one call site, where the swap is visible.
- *
- * Found the hard way: the cross shipped blue. Green hid it — 11/47/11 is
- * symmetric in red and blue, so the check looked correct either way. */
+ * obvious these two are the exception, not a second theme. */
 #define GOOD_RED 11   // wear: on-wrist  #58BC58
 #define GOOD_GRN 47
 #define GOOD_BLU 11
@@ -85,34 +102,40 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 #define BAD_GRN  21
 #define BAD_BLU  10
 
-/* Menu background — #F52091, as asked for.
- *
- * Written as TRUE red/green/blue; the swap into the panel's field order
- * happens in one place, in ui_back[] below. See the GOOD_/BAD_ note above for
- * why a swap is needed at all. */
-#define MENU_BACK_RED 30   /* 0xF5 >> 3 */
-#define MENU_BACK_GRN  8   /* 0x20 >> 2 */
-#define MENU_BACK_BLU 18   /* 0x91 >> 3 */
+/* Menu / leaf-screen ground: the clock face's light lilac, per Anders'
+ * suggestion — black on it instead of the #F52091 pink, which put low-contrast
+ * light text on a mid-luminance ground and would have been unreadable outside.
+ * Push this closer to white (e.g. 28/58/28) if the sun still wins; the green
+ * channel carries most of the luminance, so brightening g buys the most. */
+#define MENU_BACK_R FORE_R
+#define MENU_BACK_G FORE_G
+#define MENU_BACK_B FORE_B
 
-/* The CURRENT background, in setColor()/setbgColor() ARGUMENT order — which on
- * this panel is blue-first.
+#define MENU_FORE_R 0   /* black ink — maximum luminance difference */
+#define MENU_FORE_G 0
+#define MENU_FORE_B 0
+
+/* The CURRENT ground and ink.
  *
- * Everything that erases before drawing paints with this rather than with
- * BACK_* directly. That is the whole point: it is not enough to fill the
- * screen once on entering a mode, because every printLine()/printField*()/
- * printStatusField() clears its own box first, and each of those would punch a
- * dark-grey rectangle through a pink screen the moment it redrew.
- *
- * The Darcula grey is unaffected by the field swap (its red and blue are both
- * 5), which is why the initialiser can use BACK_* in argument order without
- * looking wrong. */
+ * Everything that erases before drawing paints with ui_back[] rather than with
+ * BACK_* directly, and every text draw uses ui_fore[] rather than FORE_*. That
+ * is the whole point: it is not enough to fill the screen once on entering a
+ * mode, because every printLine()/printField*()/printStatusField() clears its
+ * own box first and then draws its own text — each of those would otherwise
+ * punch a clock-face-coloured rectangle, in clock-face-coloured text, through
+ * a menu screen the moment it redrew. */
 static uint8_t ui_back[3] = { BACK_R, BACK_G, BACK_B };
+static uint8_t ui_fore[3] = { FORE_R, FORE_G, FORE_B };
 
 void display_set_menu_background(void)
 {
-    ui_back[0] = MENU_BACK_BLU;   /* first argument lands in the panel's blue */
-    ui_back[1] = MENU_BACK_GRN;
-    ui_back[2] = MENU_BACK_RED;
+    ui_back[0] = MENU_BACK_R;
+    ui_back[1] = MENU_BACK_G;
+    ui_back[2] = MENU_BACK_B;
+
+    ui_fore[0] = MENU_FORE_R;
+    ui_fore[1] = MENU_FORE_G;
+    ui_fore[2] = MENU_FORE_B;
 }
 
 void display_set_default_background(void)
@@ -120,6 +143,10 @@ void display_set_default_background(void)
     ui_back[0] = BACK_R;
     ui_back[1] = BACK_G;
     ui_back[2] = BACK_B;
+
+    ui_fore[0] = FORE_R;
+    ui_fore[1] = FORE_G;
+    ui_fore[2] = FORE_B;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -206,7 +233,7 @@ void init_display() {
     }
     // setOrientation(R90);
 
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     setbgColor(ui_back[0], ui_back[1], ui_back[2]);
     // fillScreen();
 
@@ -292,7 +319,7 @@ void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t
     filledRect(posX - 2, posY - 2, 127, posY + fontHeight + 2);
 
     // Draw the text in white
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     printToScreen(text, posY, posX, fontSize);
 
     flushBuffer();
@@ -330,7 +357,7 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
     setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
 
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     setFont(getFontPointer(fontSize));
     drawText(textX, posY, text);
 
@@ -381,7 +408,7 @@ void printStatusField(const char * text, const uint32_t posY, const uint32_t fie
     setFont(getFontPointer(fontSize));
     drawText(textX, posY, text);
 
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     flushBuffer();
     if (banded) {
         endBand();
@@ -431,15 +458,13 @@ void printWearField(const uint32_t posY, const uint32_t fieldRight,
     uint32_t x1   = fieldRight - 1;
     uint32_t x0   = (x1 > fieldLeft + side) ? (x1 - side) : fieldLeft;
 
-    /* Red and blue swapped on purpose — see the GOOD_ / BAD_ block above.
-     * setColor()'s first argument lands in the panel's blue channel. */
-    setColor(worn ? GOOD_BLU : BAD_BLU,
+    setColor(worn ? GOOD_RED : BAD_RED,
              worn ? GOOD_GRN : BAD_GRN,
-             worn ? GOOD_RED : BAD_RED);
+             worn ? GOOD_BLU : BAD_BLU);
 
     wear_glyph_strokes(x0, posY, side, worn, drawLine);
 
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     flushBuffer();
     if (banded) {
         endBand();
@@ -495,7 +520,7 @@ void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_
     setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(fieldLeft - 2, posY - 2, fieldLeft + fieldWidth + 2, posY + fontHeight + 2);
 
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     setFont(getFontPointer(fontSize));
     drawText(fieldLeft, posY, text);
 
@@ -546,7 +571,7 @@ void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_ma
     setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(left, top, right, bottom);
 
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     drawRect(left, top, right, bottom);
 
     for (size_t i = 0; i + 1 < num_data; i++) {
@@ -606,14 +631,14 @@ void printToScreenInverted(const char * text, const uint32_t lineNum, const uint
 
     // set colors INVERTED
     setColor(ui_back[0], ui_back[1], ui_back[2]);
-    setbgColor(FORE_R, FORE_G, FORE_B);
+    setbgColor(ui_fore[0], ui_fore[1], ui_fore[2]);
 
     // draw text after calculating Y position
     uint32_t posY = calculateLineY(lineNum, fontSize);
     printToScreen(text, posY, posX, fontSize);
 
     // set colors back to normal
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
 
@@ -657,7 +682,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
 
     // Print text before inversion (if any)
     if (invertStart > 0) {
-        setColor(FORE_R, FORE_G, FORE_B);
+        setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
         setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
         strncpy(segment, text, invertStart);
@@ -668,7 +693,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
 
     // Print inverted text
     setColor(ui_back[0], ui_back[1], ui_back[2]);
-    setbgColor(FORE_R, FORE_G, FORE_B);
+    setbgColor(ui_fore[0], ui_fore[1], ui_fore[2]);
 
     int invertLen = invertEnd - invertStart + 1;
     strncpy(segment, text + invertStart, invertLen);
@@ -678,7 +703,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
 
     // Print text after inversion (if any)
     if (invertEnd < textLen - 1) {
-        setColor(FORE_R, FORE_G, FORE_B);
+        setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
         setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
         strcpy(segment, text + invertEnd + 1);
@@ -686,7 +711,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
     }
 
     // Restore normal colors
-    setColor(FORE_R, FORE_G, FORE_B);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
     setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
     flushBuffer();

@@ -65,12 +65,13 @@ void SPI_TransmitData(uint16_t l, uint8_t *d){ Pin_DC_High(); SPI_send(l, d); }
 void SPI_Transmit(uint16_t l, uint8_t *d){ SPI_TransmitCmd(1, d); d++; if (--l) SPI_TransmitData(l, d); }
 
 
-/* Mirrors display.c. BACK_* is in struct-field order (the whole Darcula block
- * there is); the wear colours are TRUE red/green/blue and get swapped at the
- * setColor() call, because color565_t's fields are effectively BGR — see the
- * long comment in display.c. That swap is the entire reason this harness now
- * decodes and prints the colour the PANEL sees: the cross shipped blue, and
- * ASCII art cannot show that. */
+/* Mirrors display.c's palette. Every constant here is TRUE red/green/blue and
+ * is passed to setColor() in that order: since 2026-08-25 gfx.c's setColor()
+ * does the r/b crossover that color565_t's effectively-BGR fields need, so
+ * call sites no longer swap by hand (they used to, and the cross still shipped
+ * blue once anyway). This harness keeps decoding and printing the colour the
+ * PANEL sees, because that is the only way to catch a regression there —
+ * ASCII art cannot show a wrong hue. */
 #define BACK_R 5
 #define BACK_G 10
 #define BACK_B 5
@@ -107,9 +108,9 @@ static void wear_field(uint32_t posY, uint32_t fieldRight,
     uint32_t x1   = fieldRight - 1;
     uint32_t x0   = (x1 > fieldLeft + side) ? (x1 - side) : fieldLeft;
 
-    setColor(worn ? GOOD_BLU : BAD_BLU,
+    setColor(worn ? GOOD_RED : BAD_RED,
              worn ? GOOD_GRN : BAD_GRN,
-             worn ? GOOD_RED : BAD_RED);
+             worn ? GOOD_BLU : BAD_BLU);
     wear_glyph_strokes(x0, posY, side, worn, drawLine);
     flushBuffer();
 }

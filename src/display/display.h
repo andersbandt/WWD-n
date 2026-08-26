@@ -59,17 +59,17 @@ void clear_display();
 
 
 /**
- * @brief Switch the screen's background colour.
+ * @brief Switch the screen's theme — ground AND ink together.
  *
  * Affects clear_display() AND every subsequent draw, because each
- * printLine()/printField*()/printStatusField() clears its own box before
- * drawing — filling the screen alone would leave those punching the old
- * colour back through on the next redraw.
+ * printLine()/printField*()/printStatusField() clears its own box and then
+ * draws its own text — filling the screen alone would leave those punching the
+ * old colours back through on the next redraw.
  *
- * Two fixed states rather than an arbitrary colour on purpose: the palette's
- * red and blue channels are swapped relative to what the field names suggest
- * (see the note by GOOD_/BAD_ in display.c), so keeping the choice inside
- * display.c keeps that trap out of every caller.
+ * Two fixed themes rather than an arbitrary colour on purpose: ground and ink
+ * have to move as a pair, and the menu theme is deliberately black-on-light
+ * for sunlight legibility while the clock face stays light-on-dark. Keeping
+ * both inside display.c keeps every caller out of the palette.
  *
  * Call display_set_default_background() when returning to the clock face.
  */
