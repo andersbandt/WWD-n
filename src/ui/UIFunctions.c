@@ -262,6 +262,10 @@ void system_prompt_for_time_UI_FUNC() {
                 set_date(date_offset);         // (set_date() -> rv3028_set_date(), same chip)
                 ui_clock_set_date(date_offset);
                 ui_mode = UI_MODE_CLOCK;
+                /* Direct assignment bypasses change_ui_mode(), so the menu
+                 * background and the leftover setter screen have to be cleared
+                 * here or the clock face draws on pink over the old text. */
+                ui_enter_clock_face();
             }
             return;
         }

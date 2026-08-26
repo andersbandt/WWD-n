@@ -379,6 +379,7 @@ void ui_refresh() {
         default:
             LOG_ERR("Unknown UI mode: %d", ui_mode);
             ui_mode = UI_MODE_CLOCK; // Fallback to clock mode
+            ui_enter_clock_face();   // ...and put the background back with it
             break;
     }
     k_mutex_unlock(&display_draw_mutex);
@@ -719,6 +720,30 @@ bool ui_autorepeat_active(void) {
 }
 
 
+/*
+ * ui_enter_clock_face: restore the clock face's chrome and force a full repaint.
+ *
+ * Factored out because three separate paths return to the clock and only one
+ * of them goes through change_ui_mode(): the time-setter commits and assigns
+ * ui_mode directly (UIFunctions.c), and ui_refresh() falls back here on an
+ * unknown mode. Each of those has to put the background back, or the clock
+ * face draws on the menu's pink and stays that way until the next real mode
+ * change.
+ *
+ * Does NOT call ui_refresh() — callers differ on whether they want the repaint
+ * now or on the next tick, and ui_refresh() takes display_draw_mutex, which
+ * some callers already hold.
+ */
+void ui_enter_clock_face(void)
+{
+    display_set_default_background();
+    clear_display();
+    draw_clock_title();
+    display_clock_time_reset();               /* screen was just cleared */
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_ALL);  /* badges repaint too */
+}
+
+
 void change_ui_mode(ui_mode_t new_mode) {
     // conduct some checks on if we want to change UI mode
     if (ui_mode == new_mode) {
@@ -731,16 +756,31 @@ void change_ui_mode(ui_mode_t new_mode) {
     }
 
     ui_mode = new_mode;
+
+    /* Background follows the mode. Set BEFORE anything draws, so the wipe
+     * below and every box-clear afterwards use the right colour.
+     *
+     * The leaf screens (activity, log stats, stopwatch, ...) do not need a
+     * wipe here — each already clears itself via its full_redraw path, which
+     * now picks up whichever background is current. Only the menu did not,
+     * which is why the clock face's badges used to show through behind it. */
+    if (ui_mode != UI_MODE_CLOCK) {
+        display_set_menu_background();
+    }
+    /* The clock case is handled by ui_enter_clock_face() below, which owns
+     * restoring the default background along with the rest of the chrome. */
+
     // update screen based on new mode
     if (ui_mode == UI_MODE_CLOCK) {
         initMenu();
-        clear_display();
-        draw_clock_title();
-        display_clock_time_reset();  /* screen was just cleared — full redraw next time */
-        ui_clock_mark_dirty(UI_CLOCK_DIRTY_ALL);  /* force temp/step badges to redraw too */
+        ui_enter_clock_face();
         ui_refresh();
     }
     else if (ui_mode == UI_MODE_MENU) {
+        /* Wipe the clock face first. Without this the menu drew ON TOP of it
+         * and the battery voltage, both temperature badges, the step count
+         * and the status badges stayed visible around the menu list. */
+        clear_display();
         abs_position = 0;
         updateMainMenuScreen(0, 1);
     }

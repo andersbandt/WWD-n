@@ -184,6 +184,16 @@ void ui_idle_tick(void);
 
 void change_ui_mode(ui_mode_t new_mode);
 
+/**
+ * @brief Restore the clock face: default background, wipe, full repaint.
+ *
+ * For the paths that return to UI_MODE_CLOCK WITHOUT going through
+ * change_ui_mode() (the time-setter's commit, ui_refresh()'s unknown-mode
+ * fallback). Without it those land on the menu's background and keep it.
+ * Does not call ui_refresh(); the caller decides when to repaint.
+ */
+void ui_enter_clock_face(void);
+
 /* True while the current UI mode is a value-editing screen (time/date setter,
  * brightness), i.e. one where holding a button should auto-repeat. */
 bool ui_autorepeat_active(void);

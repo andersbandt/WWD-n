@@ -85,6 +85,43 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 #define BAD_GRN  21
 #define BAD_BLU  10
 
+/* Menu background — #F52091, as asked for.
+ *
+ * Written as TRUE red/green/blue; the swap into the panel's field order
+ * happens in one place, in ui_back[] below. See the GOOD_/BAD_ note above for
+ * why a swap is needed at all. */
+#define MENU_BACK_RED 30   /* 0xF5 >> 3 */
+#define MENU_BACK_GRN  8   /* 0x20 >> 2 */
+#define MENU_BACK_BLU 18   /* 0x91 >> 3 */
+
+/* The CURRENT background, in setColor()/setbgColor() ARGUMENT order — which on
+ * this panel is blue-first.
+ *
+ * Everything that erases before drawing paints with this rather than with
+ * BACK_* directly. That is the whole point: it is not enough to fill the
+ * screen once on entering a mode, because every printLine()/printField*()/
+ * printStatusField() clears its own box first, and each of those would punch a
+ * dark-grey rectangle through a pink screen the moment it redrew.
+ *
+ * The Darcula grey is unaffected by the field swap (its red and blue are both
+ * 5), which is why the initialiser can use BACK_* in argument order without
+ * looking wrong. */
+static uint8_t ui_back[3] = { BACK_R, BACK_G, BACK_B };
+
+void display_set_menu_background(void)
+{
+    ui_back[0] = MENU_BACK_BLU;   /* first argument lands in the panel's blue */
+    ui_back[1] = MENU_BACK_GRN;
+    ui_back[2] = MENU_BACK_RED;
+}
+
+void display_set_default_background(void)
+{
+    ui_back[0] = BACK_R;
+    ui_back[1] = BACK_G;
+    ui_back[2] = BACK_B;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
 //! GLOBAL VARIABLES ------------------------------------------------------------------------------------------------------//
@@ -170,7 +207,7 @@ void init_display() {
     // setOrientation(R90);
 
     setColor(FORE_R, FORE_G, FORE_B);
-    setbgColor(BACK_R, BACK_G, BACK_B);
+    setbgColor(ui_back[0], ui_back[1], ui_back[2]);
     // fillScreen();
 
     display_status = 1;
@@ -183,7 +220,7 @@ void init_display() {
  */
 void clear_display()
 {
-    setbgColor(BACK_R, BACK_G, BACK_B);
+    setbgColor(ui_back[0], ui_back[1], ui_back[2]);
     fillScreen();
     flushBuffer();
 }
@@ -251,7 +288,7 @@ void clearAndPrintLine(const char * text, const uint32_t lineNum, const uint32_t
                                  127, (int32_t)(posY + fontHeight + 2));
 
     // Clear the area with background color
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(posX - 2, posY - 2, 127, posY + fontHeight + 2);
 
     // Draw the text in white
@@ -290,7 +327,7 @@ void printFieldRightAligned(const char * text, const uint32_t posY, const uint32
                                  (int32_t)(fieldRight + 2),
                                  (int32_t)(posY + fontHeight + 2));
 
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
 
     setColor(FORE_R, FORE_G, FORE_B);
@@ -333,7 +370,7 @@ void printStatusField(const char * text, const uint32_t posY, const uint32_t fie
                                  (int32_t)(fieldRight + 2),
                                  (int32_t)(posY + fontHeight + 2));
 
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
 
     if (active) {
@@ -385,7 +422,7 @@ void printWearField(const uint32_t posY, const uint32_t fieldRight,
                                  (int32_t)(fieldRight + 2),
                                  (int32_t)(posY + fontHeight + 2));
 
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
 
     /* Square glyph box, right-aligned in the field and inset by 1 px so the
@@ -455,7 +492,7 @@ void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_
                                  (int32_t)(fieldLeft + fieldWidth + 2),
                                  (int32_t)(posY + fontHeight + 2));
 
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(fieldLeft - 2, posY - 2, fieldLeft + fieldWidth + 2, posY + fontHeight + 2);
 
     setColor(FORE_R, FORE_G, FORE_B);
@@ -506,7 +543,7 @@ void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_ma
      * clear is most visible because the box is large. */
     bool banded = beginFieldBand(left, top, right, bottom);
 
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     filledRect(left, top, right, bottom);
 
     setColor(FORE_R, FORE_G, FORE_B);
@@ -568,7 +605,7 @@ void printToScreenInverted(const char * text, const uint32_t lineNum, const uint
     }
 
     // set colors INVERTED
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     setbgColor(FORE_R, FORE_G, FORE_B);
 
     // draw text after calculating Y position
@@ -577,7 +614,7 @@ void printToScreenInverted(const char * text, const uint32_t lineNum, const uint
 
     // set colors back to normal
     setColor(FORE_R, FORE_G, FORE_B);
-    setbgColor(BACK_R, BACK_G, BACK_B);
+    setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
 
     flushBuffer();
@@ -621,7 +658,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
     // Print text before inversion (if any)
     if (invertStart > 0) {
         setColor(FORE_R, FORE_G, FORE_B);
-        setbgColor(BACK_R, BACK_G, BACK_B);
+        setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
         strncpy(segment, text, invertStart);
         segment[invertStart] = '\0';
@@ -630,7 +667,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
     }
 
     // Print inverted text
-    setColor(BACK_R, BACK_G, BACK_B);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
     setbgColor(FORE_R, FORE_G, FORE_B);
 
     int invertLen = invertEnd - invertStart + 1;
@@ -642,7 +679,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
     // Print text after inversion (if any)
     if (invertEnd < textLen - 1) {
         setColor(FORE_R, FORE_G, FORE_B);
-        setbgColor(BACK_R, BACK_G, BACK_B);
+        setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
         strcpy(segment, text + invertEnd + 1);
         drawText(currentX, posY, segment);
@@ -650,7 +687,7 @@ void printLineWithInversion(const char * text, const uint32_t lineNum, const uin
 
     // Restore normal colors
     setColor(FORE_R, FORE_G, FORE_B);
-    setbgColor(BACK_R, BACK_G, BACK_B);
+    setbgColor(ui_back[0], ui_back[1], ui_back[2]);
 
     flushBuffer();
 }
