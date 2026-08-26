@@ -89,6 +89,14 @@ K_MUTEX_DEFINE(latest_imu_event_mutex);
  * temp_history_get() will run from whichever thread draws the graph. */
 #define TEMP_HISTORY_LEN 60
 static int16_t temp_history_buf[TEMP_HISTORY_LEN];
+/* MCU die temperature, in hundredths of a degree C, captured on the SAME push
+ * as the IMU value beside it. Kept in this ring rather than in a second one in
+ * soc_temp.c specifically so the two can never drift out of alignment: one
+ * ring, one head, one revision counter, one mutex, and a single producer that
+ * has both numbers in hand. imu.c does not read the SoC sensor -- the value is
+ * handed in. Pairing is the whole point of showing both (one die sensor cannot
+ * separate self-heating from sensor error; two on one board can). */
+static int16_t soc_history_buf[TEMP_HISTORY_LEN];
 static size_t temp_history_head = 0;   /* next write index */
 static size_t temp_history_count = 0;  /* valid entries so far, caps at TEMP_HISTORY_LEN */
 static uint32_t temp_history_rev = 0;  /* bumped on every push - lets a redraw-on-change
@@ -353,11 +361,12 @@ float imu_raw_to_fahrenheit(int16_t raw) {
  * history ring, overwriting the oldest entry once full. See the comment on
  * temp_history_buf above for why this is RAM-only rather than flash-backed.
  */
-void temp_history_push(int16_t raw)
+void temp_history_push(int16_t raw, int16_t soc_centi_c)
 {
     k_mutex_lock(&temp_history_mutex, K_FOREVER);
 
     temp_history_buf[temp_history_head] = raw;
+    soc_history_buf[temp_history_head]  = soc_centi_c;
     temp_history_head = (temp_history_head + 1) % TEMP_HISTORY_LEN;
     if (temp_history_count < TEMP_HISTORY_LEN) {
         temp_history_count++;
@@ -400,6 +409,38 @@ size_t temp_history_get(int16_t *out, size_t max_count)
 
     for (size_t i = 0; i < n; i++) {
         out[i] = temp_history_buf[(start + i) % TEMP_HISTORY_LEN];
+    }
+
+    k_mutex_unlock(&temp_history_mutex);
+    return n;
+}
+
+
+/*
+ * temp_history_get_pairs: like temp_history_get(), but copies the MCU die
+ * temperature alongside each IMU sample and returns them NEWEST FIRST.
+ *
+ * Newest-first because the only caller is a scrolling list where the reader's
+ * eye starts at the top and the most recent reading is the one they came to
+ * see -- the opposite of temp_history_get(), which returns oldest-first so it
+ * can be fed straight into drawGraph() left-to-right. Two orders on one ring
+ * is deliberate; do not "unify" them without changing both callers.
+ *
+ * out_soc may be NULL if only the IMU side is wanted.
+ */
+size_t temp_history_get_pairs(int16_t *out_imu, int16_t *out_soc, size_t max_count)
+{
+    k_mutex_lock(&temp_history_mutex, K_FOREVER);
+
+    size_t n = (temp_history_count < max_count) ? temp_history_count : max_count;
+
+    for (size_t i = 0; i < n; i++) {
+        /* head points at the NEXT write slot, so head-1 is the newest. */
+        size_t idx = (temp_history_head + TEMP_HISTORY_LEN - 1 - i) % TEMP_HISTORY_LEN;
+        out_imu[i] = temp_history_buf[idx];
+        if (out_soc != NULL) {
+            out_soc[i] = soc_history_buf[idx];
+        }
     }
 
     k_mutex_unlock(&temp_history_mutex);

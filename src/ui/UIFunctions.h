@@ -88,6 +88,15 @@ void tempGraph_UI_FUNC(void);
 void data_stats_UI_FUNC(void);
 
 
+/*
+ * erase_flash_UI_FUNC: on-device chip erase, behind a confirm screen whose
+ * cursor starts on Cancel. Committing requires UP/DOWN then SELECT, so no
+ * repeated press on a single button can trigger it. Also wipes the rate
+ * config, which lives on the same chip.
+ */
+void erase_flash_UI_FUNC(void);
+
+
 /////////////////////////////////////////////////////
 ////////// MENU 3 - TIMER ///////////////////////////
 /////////////////////////////////////////////////////

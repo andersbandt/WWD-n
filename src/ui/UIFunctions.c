@@ -24,9 +24,15 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 
+/* Shares ui.c's log module rather than registering a second one — these are
+ * the same subsystem, and the erase path below needs to leave a record that a
+ * destructive action was taken from the device UI. */
+LOG_MODULE_DECLARE(ui, LOG_LEVEL_INF);
+
 /* My header files */
 #include <hardware/button.h>
 #include <imu.h>
+#include <imu_bringup.h>   /* imu_alive — lets the empty-state screens say WHY */
 #include <peripheral/clock.h>
 #include <peripheral/rv3028.h>
 #include <memory/nvs.h>
@@ -35,6 +41,7 @@
 /* UI and display */
 #include <display.h>
 #include <ui.h>
+#include <ui_menu.h>       /* ui_menu_return_to_sub_menu() for Cancel */
 #include <activity/activity.h>
 #include <ble/ble.h>
 
@@ -459,10 +466,43 @@ void imuRead_UI_FUNC(void) {
 }
 
 
+/* 8 rows fit under the title and column header at FONT_SMALL -- see
+ * display_out_temp_list() for the line arithmetic. */
+#define TEMP_LIST_SAMPLES 8
+
+/*
+ * The old version of this screen called display_out_measurement("IMU temp",
+ * imu_get_temp()) -- and imu_get_temp() returns a FLOAT, which was being
+ * passed to an int parameter, so every reading was truncated to whole degrees
+ * before it ever reached the screen. One number, no history, no precision, and
+ * no way to see the MCU die beside it.
+ *
+ * Now: the last N samples, newest first, IMU next to MCU.
+ */
 void imutempRead_UI_FUNC() {
-    int16_t imu_temp = imu_get_temp();
-    display_out_measurement("IMU temp", imu_temp);
-    return;
+    static uint32_t last_drawn_rev;
+
+    /* Same redraw-on-change guard as the graph: the ring only advances on the
+     * sensor tick (~9 s), so repainting on every 1 Hz ui_refresh() would be
+     * eight wasted full-screen repaints out of nine. */
+    uint32_t rev = temp_history_get_rev();
+    if (!first_ui_time && rev == last_drawn_rev) {
+        return;
+    }
+    first_ui_time = false;
+    last_drawn_rev = rev;
+
+    int16_t imu_raw[TEMP_LIST_SAMPLES];
+    int16_t soc_centi[TEMP_LIST_SAMPLES];
+    size_t  n = temp_history_get_pairs(imu_raw, soc_centi, TEMP_LIST_SAMPLES);
+
+    if (n == 0) {
+        display_out_notice("TEMP LOG", "No samples yet.",
+                           imu_alive ? "Wait ~9s." : "IMU is not up.");
+        return;
+    }
+
+    display_out_temp_list(imu_raw, soc_centi, n);
 }
 
 
@@ -504,7 +544,20 @@ void tempGraph_UI_FUNC(void) {
     size_t n = temp_history_get(samples, TEMP_GRAPH_SAMPLES);
 
     if (n < 2) {
-        display_out_measurement("Temp Graph", 0);  // not enough history yet
+        /* This used to be display_out_measurement("Temp Graph", 0), which
+         * draws a title over a big "0" -- visually identical to a real reading
+         * and the reason this screen looked broken rather than empty. Say what
+         * is actually wrong instead.
+         *
+         * The distinction matters: an IMU that never came up will NEVER fill
+         * this ring, so "wait" would be a lie on that board. */
+        if (!imu_alive) {
+            display_out_notice("TEMP GRAPH", "No data: IMU is", "not running.");
+        } else if (n == 0) {
+            display_out_notice("TEMP GRAPH", "No samples yet.", "Wait ~9s.");
+        } else {
+            display_out_notice("TEMP GRAPH", "Need 2 samples", "to plot. Have 1.");
+        }
         return;
     }
 
@@ -563,7 +616,9 @@ void tempGraph_UI_FUNC(void) {
 
 void data_stats_UI_FUNC(void) {
     if (!nvs_ready()) {
-        display_out_measurement("NVS", -1);
+        /* Was display_out_measurement("NVS", -1) — a bare "-1" under a title,
+         * which reads as a value rather than as a failure. */
+        display_out_notice("LOG STATS", "NVS not ready.", "No flash log.");
         return;
     }
 
@@ -578,6 +633,81 @@ void data_stats_UI_FUNC(void) {
                            nvs_get_metadata_seq(),
                            full_redraw);
     return;
+}
+
+
+/*
+ * erase_flash_UI_FUNC: wipe the NAND from the watch itself.
+ *
+ * The risk here is not the code path, it is a stray press landing on a
+ * destructive menu item. So the guard is a SHAPE, not a warning:
+ *
+ *   - The cursor opens on Cancel, which is also listed first. The first
+ *     SELECT after entering can only cancel.
+ *   - Committing needs UP or DOWN (a DIFFERENT physical button) and then
+ *     SELECT. No amount of repeated or bouncing presses on one button can
+ *     reach the erase, and the two-press sequence SELECT,SELECT exits.
+ *   - The screen states how much data dies, so a wrong confirm looks wrong.
+ *
+ * The erase itself is synchronous and takes a while; the screen says so
+ * before it starts, because the UI is frozen for the duration.
+ */
+void erase_flash_UI_FUNC(void) {
+    static int cursor;
+
+    if (!nvs_ready()) {
+        display_out_notice("ERASE FLASH", "NVS not ready.", "Nothing to erase.");
+        return;
+    }
+
+    if (first_ui_time) {
+        first_ui_time = false;
+        /* Drop the SELECT that opened this screen — otherwise it is still
+         * sitting in the buffer and gets applied to the cursor below, which
+         * would defeat the whole point of starting on Cancel. */
+        button_buffer_clear();
+        cursor = 0;
+        display_out_erase_confirm((uint64_t)nvs_get_addr_offset(), cursor, true);
+        return;
+    }
+
+    uint8_t btn_poll;
+    bool changed = false;
+
+    while ((btn_poll = get_button_event()) != 0) {
+        if (btn_poll == BUTTON_1_MASK || btn_poll == BUTTON_4_MASK) {
+            cursor = (cursor == 0) ? 1 : 0;
+            changed = true;
+        }
+        else if (btn_poll == BUTTON_2_MASK) {   /* SELECT */
+            if (cursor != 1) {
+                /* Cancel — back to the sub-menu we came from, same as BACK. */
+                button_buffer_clear();
+                ui_menu_return_to_sub_menu();
+                ui_mode = UI_MODE_MENU;
+                return;
+            }
+
+            /* Committed. Say so before blocking — nvs_erase_chip() is a
+             * synchronous full-chip erase and nothing will repaint until it
+             * returns. A frozen screen with no explanation looks like a
+             * crash, which is the last thing you want a user to see while
+             * their flash is mid-erase. */
+            display_out_notice("ERASING...", "Do not power off.", NULL);
+
+            LOG_WRN("erase: chip erase requested from the device UI");
+            nvs_erase_chip();
+            LOG_INF("erase: complete");
+
+            button_buffer_clear();
+            display_out_notice("ERASED", "Log cleared.", "Rate cfg reset.");
+            return;
+        }
+    }
+
+    if (changed) {
+        display_out_erase_confirm((uint64_t)nvs_get_addr_offset(), cursor, false);
+    }
 }
 
 

@@ -126,7 +126,20 @@ float imu_raw_to_fahrenheit(int16_t raw);
  *
  * @param raw: raw register encoding, same as struct record_temperature.raw
  */
-void temp_history_push(int16_t raw);
+void temp_history_push(int16_t raw, int16_t soc_centi_c);
+
+/**
+ * @brief Recent IMU + MCU die temperatures, NEWEST FIRST.
+ *
+ * Counterpart to temp_history_get(), which returns oldest-first for the graph.
+ * Both read the same ring; the two orders suit their two callers.
+ *
+ * @param out_imu raw IMU values, (raw/128)+25 = degrees C
+ * @param out_soc MCU die, hundredths of a degree C; may be NULL
+ * @param max_count capacity of the output arrays
+ * @return how many samples were copied
+ */
+size_t temp_history_get_pairs(int16_t *out_imu, int16_t *out_soc, size_t max_count);
 
 
 /**

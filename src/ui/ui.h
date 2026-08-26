@@ -43,6 +43,7 @@ typedef enum {
 
     // Data modes (Menu 2)
     UI_MODE_DATA_STATS,                 // NVS log stats (write offset, meta seq)
+    UI_MODE_ERASE_FLASH,                // On-device NAND chip erase (confirm screen)
 
     // Timer modes (Menu 3)
     UI_MODE_STOPWATCH,                  // Stopwatch (start/pause/reset)

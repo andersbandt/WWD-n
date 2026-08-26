@@ -28,6 +28,8 @@
 #include <peripheral/clock.h>
 #include <ui_display.h>
 #include <activity/activity.h>
+#include <imu.h>              /* imu_raw_to_fahrenheit() */
+#include <peripheral/soc_temp.h>  /* soc_temp_centi_c_to_f() */
 
 
 
@@ -807,3 +809,127 @@ void display_out_fault(int error_code)
 
 
 
+
+
+/* ---------------------------------------------------------------------------
+ * Temperature list + explicit "nothing to show" notice
+ * ------------------------------------------------------------------------- */
+
+/* FONT_SMALL pitch is 15 px (12 px glyph + 30% spacing) on a 10 px top margin,
+ * so line 9 sits at y=145 and ends at 157 -- the last one that fits in 160.
+ * Line 0 is the title, line 1 the column header, leaving 8 sample rows. */
+#define TEMP_LIST_FONT      FONT_SMALL
+#define TEMP_LIST_X         4
+#define TEMP_LIST_FIRST_ROW 2
+#define TEMP_LIST_LAST_ROW  9
+
+/* 21 chars fit across 128 px at FONT_SMALL (6 px/char) and there is no wrap or
+ * warning if that is exceeded -- text is silently clipped. The rows below are
+ * 14 chars, the header 13. */
+#define TEMP_LIST_ROW_MAX 24
+
+/*
+ * display_out_notice: a screen that says, in words, that there is nothing to
+ * draw and why.
+ *
+ * Exists because the failure looked like data. Both temperature screens used
+ * to fall back to display_out_measurement("Temp Graph", 0) when the history
+ * ring was empty, which renders as a title and a big "0" -- indistinguishable
+ * from a genuine reading of zero, and it is what sent Anders looking for a
+ * broken graph when the real problem was that nothing was feeding the ring.
+ * An empty state should never be able to masquerade as a measurement.
+ */
+void display_out_notice(const char *title, const char *line1, const char *line2)
+{
+    clear_display();
+    printLine(title, 0, TEMP_LIST_X, FONT_MEDIUM);
+    if (line1 != NULL) {
+        printLine(line1, 2, TEMP_LIST_X, TEMP_LIST_FONT);
+    }
+    if (line2 != NULL) {
+        printLine(line2, 3, TEMP_LIST_X, TEMP_LIST_FONT);
+    }
+}
+
+/*
+ * display_out_temp_list: the most recent temperature samples, newest at the
+ * top, IMU die beside MCU die.
+ *
+ * Both columns on purpose: a single die temperature cannot tell self-heating
+ * from sensor error, and the IMU reads several degrees warm (see
+ * imu_notes.md). Side by side, the difference between the two is readable at a
+ * glance, which is the entire diagnostic value.
+ *
+ * Redrawn wholesale rather than diffed per row. Unlike the clock face, every
+ * row here SHIFTS when a new sample lands, so a per-row diff would repaint
+ * almost all of them anyway; the caller already skips the redraw entirely
+ * unless the ring's revision changed (once per sensor tick, ~9 s).
+ */
+void display_out_temp_list(const int16_t *imu_raw, const int16_t *soc_centi, size_t n)
+{
+    char row[TEMP_LIST_ROW_MAX];
+
+    clear_display();
+    printLine("TEMP LOG", 0, TEMP_LIST_X, FONT_MEDIUM);
+    printLine(" #   IMU   MCU", 1, TEMP_LIST_X, TEMP_LIST_FONT);
+
+    size_t rows = TEMP_LIST_LAST_ROW - TEMP_LIST_FIRST_ROW + 1;
+    if (n < rows) {
+        rows = n;
+    }
+
+    for (size_t i = 0; i < rows; i++) {
+        /* %5.1f keeps the columns aligned up to "999.9"; the IMU sensor's
+         * range cannot reach four digits, so this cannot silently shift. */
+        snprintf(row, sizeof(row), "%2u %5.1f %5.1f",
+                 (unsigned)(i + 1),
+                 (double)imu_raw_to_fahrenheit(imu_raw[i]),
+                 (double)soc_temp_centi_c_to_f(soc_centi[i]));
+        printLine(row, TEMP_LIST_FIRST_ROW + i, TEMP_LIST_X, TEMP_LIST_FONT);
+    }
+}
+
+
+/*
+ * display_out_erase_confirm: the destructive-action confirmation screen.
+ *
+ * Layout is a safety feature, not decoration:
+ *
+ *  - The cursor STARTS on Cancel and Cancel is listed FIRST, so the very first
+ *    SELECT after opening this screen is always harmless. Committing requires
+ *    a different button (UP/DOWN) before SELECT, which means no repeated or
+ *    bouncing press on one button can ever erase anything. Two presses of
+ *    SELECT = open, then cancel.
+ *  - It states the SIZE of what is about to be destroyed. A mis-triggered
+ *    confirm then looks obviously wrong before the user commits, rather than
+ *    being an unlabelled yes/no.
+ *  - It names the rate settings explicitly, because losing those is the
+ *    genuinely surprising part -- they live on the MT29F's CONFIG blocks and a
+ *    chip erase takes them with it.
+ */
+void display_out_erase_confirm(uint64_t used_bytes, int cursor, bool full_redraw)
+{
+    char used_str[STATS_VAL_MAX];
+    char line[TEMP_LIST_ROW_MAX];
+
+    if (full_redraw) {
+        clear_display();
+        printLine("ERASE FLASH", 0, TEMP_LIST_X, FONT_MEDIUM);
+
+        format_bytes(used_bytes, used_str, sizeof(used_str));
+        snprintf(line, sizeof(line), "Deletes %s", used_str);
+        printLine(line, 2, TEMP_LIST_X, TEMP_LIST_FONT);
+        printLine("of logged data", 3, TEMP_LIST_X, TEMP_LIST_FONT);
+        printLine("+ rate settings.", 4, TEMP_LIST_X, TEMP_LIST_FONT);
+        printLine("Cannot be undone.", 5, TEMP_LIST_X, TEMP_LIST_FONT);
+    }
+
+    /* Only the two option rows change as the cursor moves, so they are the
+     * only thing repainted on a cursor step. clearAndPrintLine() wipes to the
+     * right edge, which is what removes the previous ">" marker. */
+    snprintf(line, sizeof(line), "%s Cancel", cursor == 0 ? ">" : " ");
+    clearAndPrintLine(line, 7, TEMP_LIST_X, TEMP_LIST_FONT);
+
+    snprintf(line, sizeof(line), "%s ERASE ALL", cursor == 1 ? ">" : " ");
+    clearAndPrintLine(line, 8, TEMP_LIST_X, TEMP_LIST_FONT);
+}

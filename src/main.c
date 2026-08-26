@@ -276,6 +276,21 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
             ui_clock_set_soc_temp(soc_temp_centi_c_to_f(soc_centi));
         }
 
+        /* Feed the display's temperature ring (graph + temp-list screens).
+         *
+         * Deliberately here and not in nvs_pipeline_tick(), where it used to
+         * live: that function bails out unless both the NAND and the IMU are
+         * up, so a board with no usable flash showed empty temperature
+         * screens forever. Nothing about drawing a graph should require a
+         * working flash log.
+         *
+         * Both values are pushed together, on one tick, because the pair is
+         * the point -- the difference between the two dies is what separates
+         * self-heating from sensor error. */
+        if (imu_alive) {
+            temp_history_push(getTempDataFromIMUReg(), soc_centi);
+        }
+
         int batt_mv = battery_voltage_mv();
 
         ui_clock_set_battery_mv(batt_mv);

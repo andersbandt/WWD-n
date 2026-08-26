@@ -368,6 +368,10 @@ void ui_refresh() {
             data_stats_UI_FUNC();
             break;
 
+        case UI_MODE_ERASE_FLASH:
+            erase_flash_UI_FUNC();
+            break;
+
         case UI_MODE_ACTIVITY:
             activity_UI_FUNC();
             break;

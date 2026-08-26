@@ -296,7 +296,14 @@ void nvs_pipeline_tick(void)
         int16_t raw = getTempDataFromIMUReg();
         struct record_temperature t = { .raw = raw };
         nvs_log_record(RECORD_TEMPERATURE, &t, sizeof(t), get_dt_ticks());
-        temp_history_push(raw);  /* RAM copy for the graph screen, see imu.c */
+        /* The temp-history ring used to be fed from HERE, which quietly made
+         * two unrelated things depend on each other: this whole function
+         * returns early unless `nvs_alive && imu_alive`, so on any board where
+         * the NAND is absent or the wrong part (SN1) the graph and the temp
+         * list screens had NO data at all and just showed "0". A display ring
+         * has no business being gated on flash logging. It is now pushed from
+         * sensor_update_thread in main.c, which runs regardless of NVS and
+         * already holds both temperatures. */
 
         /* Logged on the same tick as the IMU temperature, immediately after,
          * so the two land adjacent in the log with the same dt_ticks. Pairing

@@ -77,9 +77,12 @@ char sub_menu_1[SUB_MENU_1_LENGTH][SUB_MENU_CHAR_LENGTH] = {
 
 
 // menu 2 sub-menu options: Data
-#define SUB_MENU_2_LENGTH     2
+#define SUB_MENU_2_LENGTH     3
 char sub_menu_2[SUB_MENU_2_LENGTH][SUB_MENU_CHAR_LENGTH] = {
     "Log Stats",
+    "Erase Flash",   /* destructive — guarded by its own confirm screen, and
+                      * placed last-but-Return so a cursor overshoot from
+                      * "Log Stats" lands on Return rather than on it */
     "Return"
                      };
 
@@ -134,6 +137,7 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
     // Data (Menu 2)
     {
         UI_MODE_DATA_STATS,         // Log Stats
+        UI_MODE_ERASE_FLASH,        // Erase Flash (confirm screen)
         UI_MODE_MENU                // Return
     },
 

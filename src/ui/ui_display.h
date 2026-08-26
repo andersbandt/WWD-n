@@ -221,4 +221,45 @@ void display_out_fault(int error_code);
 
 
 
+
+/**
+ * @brief Recent temperature samples, newest first: IMU die beside MCU die.
+ *
+ * Both columns because one die sensor cannot separate self-heating from
+ * sensor error; the difference between them is the diagnostic.
+ *
+ * @param imu_raw   raw IMU values, newest first (temp_history_get_pairs())
+ * @param soc_centi MCU die, hundredths of a degree C, same order
+ * @param n         number of samples available; only as many as fit are drawn
+ */
+void display_out_temp_list(const int16_t *imu_raw, const int16_t *soc_centi, size_t n);
+
+
+/**
+ * @brief A screen stating in words that there is nothing to draw, and why.
+ *
+ * For empty/error states that would otherwise be rendered as a measurement --
+ * a title over a big "0" reads as a real reading of zero, which is exactly how
+ * the empty temperature graph disguised itself as working.
+ *
+ * @param title headline, drawn at FONT_MEDIUM
+ * @param line1 first detail line, may be NULL
+ * @param line2 second detail line, may be NULL
+ */
+void display_out_notice(const char *title, const char *line1, const char *line2);
+
+
+/**
+ * @brief Confirmation screen for the on-device flash erase.
+ *
+ * Cancel is first and pre-selected on purpose: the first SELECT after this
+ * screen opens can never erase anything, and committing requires a different
+ * button first. See the implementation comment.
+ *
+ * @param used_bytes how much log data is about to be destroyed
+ * @param cursor 0 = Cancel, 1 = ERASE ALL
+ * @param full_redraw true on entry; false repaints only the option rows
+ */
+void display_out_erase_confirm(uint64_t used_bytes, int cursor, bool full_redraw);
+
 #endif
