@@ -162,6 +162,16 @@ uint32_t temp_history_get_rev(void);
 
 
 /**
+ * @brief Seconds of wall time that the newest `n` history samples span.
+ *
+ * For labelling a graph's time axis. Counts the gaps between samples plus the
+ * age of the newest one, from the kernel clock rather than from an assumed
+ * cadence, so a stalled producer widens the axis instead of hiding the stall.
+ */
+uint32_t temp_history_span_s(size_t n);
+
+
+/**
  * @brief function for enabling the FIFO interrupt for the IMU
  */
 int imu_fifo_interrupt();

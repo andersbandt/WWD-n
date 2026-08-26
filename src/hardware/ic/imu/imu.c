@@ -88,6 +88,10 @@ K_MUTEX_DEFINE(latest_imu_event_mutex);
  * scope (see handle_ui_input()/ui_refresh() in ui.c), while
  * temp_history_get() will run from whichever thread draws the graph. */
 #define TEMP_HISTORY_LEN 60
+/* Cadence of the producer (sensor_update_thread's 9 s tick, TIMER1_PERIOD in
+ * timer.c). Only used to label the graph's time axis; a mismatch would show
+ * as a wrong axis, not as wrong data. */
+#define TEMP_HISTORY_INTERVAL_S 9
 static int16_t temp_history_buf[TEMP_HISTORY_LEN];
 /* MCU die temperature, in hundredths of a degree C, captured on the SAME push
  * as the IMU value beside it. Kept in this ring rather than in a second one in
@@ -99,6 +103,8 @@ static int16_t temp_history_buf[TEMP_HISTORY_LEN];
 static int16_t soc_history_buf[TEMP_HISTORY_LEN];
 static size_t temp_history_head = 0;   /* next write index */
 static size_t temp_history_count = 0;  /* valid entries so far, caps at TEMP_HISTORY_LEN */
+static int64_t temp_history_last_ms = 0; /* uptime of the newest push, for the graph's
+                                          * time axis - see temp_history_span_s() */
 static uint32_t temp_history_rev = 0;  /* bumped on every push - lets a redraw-on-change
                                          * UI screen skip re-plotting when nothing's new,
                                          * without an O(n) compare against the last draw */
@@ -372,8 +378,45 @@ void temp_history_push(int16_t raw, int16_t soc_centi_c)
         temp_history_count++;
     }
     temp_history_rev++;
+    temp_history_last_ms = k_uptime_get();
 
     k_mutex_unlock(&temp_history_mutex);
+}
+
+
+/*
+ * temp_history_span_s: how many seconds of history `n` samples represent.
+ *
+ * (n-1) gaps at the producer's cadence, plus however long ago the newest
+ * sample landed - the reader is looking at the plot now, not at the moment
+ * the last sample was taken, and on a nine-minute axis that difference is
+ * a visible fraction of the width.
+ *
+ * Measured against the clock rather than assumed from n * interval so that a
+ * stall in the sensor thread stretches the axis instead of quietly compressing
+ * real time into a shorter-looking window.
+ */
+uint32_t temp_history_span_s(size_t n)
+{
+    k_mutex_lock(&temp_history_mutex, K_FOREVER);
+
+    if (n > temp_history_count) {
+        n = temp_history_count;
+    }
+
+    uint32_t span = 0;
+    if (n > 1) {
+        span = (uint32_t)(n - 1) * TEMP_HISTORY_INTERVAL_S;
+    }
+    if (temp_history_last_ms > 0) {
+        int64_t age_ms = k_uptime_get() - temp_history_last_ms;
+        if (age_ms > 0) {
+            span += (uint32_t)(age_ms / 1000);
+        }
+    }
+
+    k_mutex_unlock(&temp_history_mutex);
+    return span;
 }
 
 

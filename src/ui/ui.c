@@ -364,6 +364,14 @@ void ui_refresh() {
             tempGraph_UI_FUNC();
             break;
 
+        case UI_MODE_BATTERY_GRAPH:
+            batteryGraph_UI_FUNC();
+            break;
+
+        case UI_MODE_STEPS_GRAPH:
+            stepsGraph_UI_FUNC();
+            break;
+
         case UI_MODE_DATA_STATS:
             data_stats_UI_FUNC();
             break;

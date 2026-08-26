@@ -21,7 +21,17 @@ wear_glyph_test: wear_glyph_test.c $(SRC)/st7735s.c $(SRC)/gfx.c $(SRC)/fonts.c
 run-wear: wear_glyph_test
 	./wear_glyph_test
 
-clean:
-	rm -f band_test wear_glyph_test
+# Pure-arithmetic tests for the graph primitive's scaling/layout
+# (src/display/graph_layout.c). No stubs and no fake panel needed — the file
+# under test has no dependencies beyond stdint/stdio, which is why it was split
+# out of display.c in the first place. See graph_test.c.
+graph_test: graph_test.c ../../src/display/graph_layout.c
+	$(CC) $(CFLAGS) $^ -o $@
 
-.PHONY: run run-wear clean
+run-graph: graph_test
+	./graph_test
+
+clean:
+	rm -f band_test wear_glyph_test graph_test
+
+.PHONY: run run-wear run-graph clean

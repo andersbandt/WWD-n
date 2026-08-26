@@ -12,6 +12,7 @@
 #define SRC_POWER_POWER_H_
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /* Must be called at startup before any other power function */
@@ -70,6 +71,43 @@ int battery_voltage_mv(void);
  * Based on a simple LiPo discharge curve (4200mV=100%, 3000mV=0%).
  */
 uint8_t battery_percent(int mv);
+
+
+/* ---- battery history (the Battery graph screen) --------------------------
+ *
+ * A rolling day of battery voltage, kept in RAM. Lives here rather than in
+ * the UI because the producer is the sensor tick that already reads the
+ * battery and the meaning is a property of the battery, not of a screen —
+ * BLE or the log could read it too.
+ *
+ * 288 samples at one per 5 minutes is 24 h for 576 bytes. The 5-minute
+ * cadence is decimation-with-averaging inside struct series (see series.h),
+ * NOT a slower ADC read: the divider is still pulsed once per sensor tick as
+ * before, and each stored point is the mean of its window. A discharge curve
+ * is the one thing you want smoothed — per-reading ADC noise on this board is
+ * worth several millivolts, which is the same order as an hour of real
+ * discharge.
+ */
+#define BATTERY_HISTORY_LEN  288
+
+/*
+ * Feed one reading in, at the sensor tick's cadence. Takes the value the
+ * caller already has rather than sampling again — battery_voltage_mv() pulses
+ * VBAT_DIV_EN and costs energy per call.
+ */
+void battery_history_push(int mv);
+
+/*
+ * Copy up to max_count of the most recent stored samples, OLDEST FIRST (ready
+ * for drawGraphEx). Values are millivolts. Returns how many were copied.
+ */
+size_t battery_history_get(int16_t *out, size_t max_count);
+
+/* Bumped on every stored sample — lets the graph screen skip a redraw. */
+uint32_t battery_history_rev(void);
+
+/* How far back `n` stored samples reach, in seconds, for the time axis. */
+uint32_t battery_history_span_s(size_t n);
 
 /*
  * Control the TPS63900 buck-boost converter mode via BOOST_SEL (MCP23008 GP6).

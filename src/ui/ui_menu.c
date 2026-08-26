@@ -49,7 +49,8 @@ char * main_menu_options[UI_MAIN_MENU_ITEMS] = {
     "IMU",
     "Data",
     "Timer",
-    "Activity"
+    "Activity",
+    "Graphs"
 };
 
 
@@ -66,12 +67,11 @@ char sub_menu_0[SUB_MENU_0_LENGTH][SUB_MENU_CHAR_LENGTH] = {
 
 
 // menu 1 sub-menu options: IMU
-#define SUB_MENU_1_LENGTH     5
+#define SUB_MENU_1_LENGTH     4
 char sub_menu_1[SUB_MENU_1_LENGTH][SUB_MENU_CHAR_LENGTH] = {
     "Display readings",
     "Temperature",
     "Pedometer",
-    "Temp Graph",
     "Return"
                      };
 
@@ -107,8 +107,29 @@ char sub_menu_4[SUB_MENU_4_LENGTH][SUB_MENU_CHAR_LENGTH] = {
                      };
 
 
+// menu 5 sub-menu options: Graphs
+//
+// Every plotted screen lives here rather than beside the numeric screen for
+// the same sensor (Temp Graph used to sit under IMU). Two reasons: a reader
+// looking for "show me a trend" now has one place to look instead of three,
+// and the graphs share a primitive and a set of conventions (time axis along
+// the bottom, units in the left margin) that are easier to keep consistent
+// when they are listed together.
+//
+// Rows are clipped past ~14 characters (see the note in ui_display.c), which
+// is why these are terse.
+#define SUB_MENU_5_LENGTH     4
+char sub_menu_5[SUB_MENU_5_LENGTH][SUB_MENU_CHAR_LENGTH] = {
+    "Temperature",
+    "Battery",
+    "Steps Today",
+    "Return"
+                     };
+
+
 // creating array of sub menu text items
-char * sub_menu[UI_MAIN_MENU_ITEMS] = {*sub_menu_0, *sub_menu_1, *sub_menu_2, *sub_menu_3, *sub_menu_4};
+char * sub_menu[UI_MAIN_MENU_ITEMS] = {*sub_menu_0, *sub_menu_1, *sub_menu_2, *sub_menu_3,
+                                       *sub_menu_4, *sub_menu_5};
 
 
 // Sub-menu UI mode mappings
@@ -130,7 +151,6 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
         UI_MODE_IMU_READ,           // Display readings
         UI_MODE_IMU_TEMP,           // Temperature
         UI_MODE_IMU_PEDOMETER,      // Pedometer
-        UI_MODE_TEMP_GRAPH,         // Temp Graph
         UI_MODE_MENU                // Return
     },
 
@@ -150,6 +170,14 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
     // Activity (Menu 4)
     {
         UI_MODE_ACTIVITY,           // Track Activity
+        UI_MODE_MENU                // Return
+    },
+
+    // Graphs (Menu 5)
+    {
+        UI_MODE_TEMP_GRAPH,         // Temperature
+        UI_MODE_BATTERY_GRAPH,      // Battery
+        UI_MODE_STEPS_GRAPH,        // Steps Today
         UI_MODE_MENU                // Return
     },
 };
@@ -267,6 +295,9 @@ static int getSubMenuLength(int menu_number)
     }
     else if (menu_number == 4) {
         return sizeof(sub_menu_4)/sizeof(sub_menu_4[0]);
+    }
+    else if (menu_number == 5) {
+        return sizeof(sub_menu_5)/sizeof(sub_menu_5[0]);
     }
 
     return -1;

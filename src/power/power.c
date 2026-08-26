@@ -44,6 +44,7 @@
 #include <zephyr/logging/log.h>
 
 #include <power/power.h>
+#include <util/series.h>
 
 LOG_MODULE_REGISTER(power, LOG_LEVEL_INF);
 
@@ -205,6 +206,61 @@ uint8_t battery_percent(int mv)
     if (mv <= 3000) return 0;
     return (uint8_t)((mv - 3000) * 100 / (4200 - 3000));
 }
+
+/* ---- battery history ---------------------------------------------------- */
+
+/* One stored sample per 5 minutes: the sensor tick is 9 s (TIMER1_PERIOD), so
+ * 33 pushes per stored point. 33 * 9 = 297 s, near enough 5 minutes that the
+ * axis label rounds to the same place, and derived from the tick rather than
+ * hardcoded so the two cannot silently disagree. */
+#define BATTERY_PUSH_INTERVAL_S  9
+#define BATTERY_DECIMATE         33
+
+static int16_t battery_history_buf[BATTERY_HISTORY_LEN];
+static struct series battery_history;
+static bool battery_history_ready;
+
+static void battery_history_ensure_init(void)
+{
+    if (!battery_history_ready) {
+        series_init(&battery_history, battery_history_buf, BATTERY_HISTORY_LEN,
+                    BATTERY_PUSH_INTERVAL_S, BATTERY_DECIMATE);
+        battery_history_ready = true;
+    }
+}
+
+void battery_history_push(int mv)
+{
+    /* A failed read returns 0 and would otherwise drag the averaged sample —
+     * and the whole plot's y range — down to a voltage the battery never was.
+     * Drop it instead: a missing point stretches the axis, which is honest,
+     * while a fabricated 0 V is not. */
+    if (mv <= 0) {
+        return;
+    }
+
+    battery_history_ensure_init();
+    series_push(&battery_history, (int16_t)(mv > INT16_MAX ? INT16_MAX : mv));
+}
+
+size_t battery_history_get(int16_t *out, size_t max_count)
+{
+    battery_history_ensure_init();
+    return series_get(&battery_history, out, max_count);
+}
+
+uint32_t battery_history_rev(void)
+{
+    battery_history_ensure_init();
+    return series_get_rev(&battery_history);
+}
+
+uint32_t battery_history_span_s(size_t n)
+{
+    battery_history_ensure_init();
+    return series_span_seconds(&battery_history, n);
+}
+
 
 void power_save_enable(bool enable)
 {

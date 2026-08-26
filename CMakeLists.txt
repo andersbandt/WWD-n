@@ -76,6 +76,8 @@ target_sources(app PRIVATE
     src/power/power.c
     src/power/low_power.c
     src/util/cdc_debug.c
+    src/util/series.c
+    src/util/steps_day.c
 )
 
 add_subdirectory(src/display)

@@ -1,5 +1,6 @@
 target_sources(app PRIVATE
     display.c
+    graph_layout.c
     st7735s/st7735s.c
     st7735s/st7735s_compat.c
     st7735s/gfx.c

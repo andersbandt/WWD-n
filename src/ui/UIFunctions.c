@@ -37,6 +37,8 @@ LOG_MODULE_DECLARE(ui, LOG_LEVEL_INF);
 #include <peripheral/rv3028.h>
 #include <memory/nvs.h>
 #include <power/low_power.h>
+#include <power/power.h>
+#include <util/steps_day.h>
 
 /* UI and display */
 #include <display.h>
@@ -517,12 +519,40 @@ void pedometer_UI_FUNC(void) {
  * however many it's asked for. */
 #define TEMP_GRAPH_SAMPLES 60
 
-/* Left margin reserved for the min/max Fahrenheit labels, so they sit
- * beside the plot box instead of overlapping the line - see the comment
- * above drawGraph() in display.h for why the box itself can't be scaled
- * from data automatically. */
-#define TEMP_GRAPH_LABEL_MARGIN 32
-#define TEMP_GRAPH_LABEL_FONT   FONT_SMALL
+/* The plot box every graph screen draws into: the full panel minus a 4 px
+ * frame. drawGraphEx() reserves its own axis margins INSIDE this, which is
+ * why the screens no longer subtract a label margin themselves (they used to,
+ * and the strip they left beside the plot showed the previous screen). */
+#define GRAPH_BOX  ((struct graph_box){ 4, 4, (int16_t)(WIDTH - 4), (int16_t)(HEIGHT - 4) })
+
+
+/*
+ * graph_time_labels: fills three x-axis labels spanning `span_s` seconds back
+ * from now.
+ *
+ * Absolute clock times when the RTC is set, relative offsets when it is not.
+ * A graph without a time axis is the thing these screens were most obviously
+ * missing — "the temperature went up" is a different claim from "the
+ * temperature went up over the last nine minutes" — but an absolute label off
+ * an unset clock is a confident lie, hence the fallback rather than a blank.
+ *
+ * Each buffer must hold at least 8 bytes.
+ */
+static void graph_time_labels(uint32_t span_s, char *left, char *mid, char *right,
+                              size_t bufsz)
+{
+    if (rv3028_time_is_set()) {
+        Time t = get_current_time();
+        graph_format_clock((uint8_t)t.hours, (uint8_t)t.minutes, span_s, left, bufsz);
+        graph_format_clock((uint8_t)t.hours, (uint8_t)t.minutes, span_s / 2, mid, bufsz);
+        graph_format_clock((uint8_t)t.hours, (uint8_t)t.minutes, 0, right, bufsz);
+    } else {
+        graph_format_ago(span_s, left, bufsz);
+        graph_format_ago(span_s / 2, mid, bufsz);
+        graph_format_ago(0, right, bufsz);
+    }
+}
+
 
 void tempGraph_UI_FUNC(void) {
     static uint32_t last_drawn_rev;
@@ -563,50 +593,186 @@ void tempGraph_UI_FUNC(void) {
 
     int16_t y_min = samples[0];
     int16_t y_max = samples[0];
-    for (size_t i = 1; i < n; i++) {
-        if (samples[i] < y_min) y_min = samples[i];
-        if (samples[i] > y_max) y_max = samples[i];
-    }
-    if (y_min == y_max) {  // drawGraph requires y_max > y_min
-        y_min--;
-        y_max++;
-    }
+    graph_minmax(samples, n, &y_min, &y_max);
+    graph_pad_range(&y_min, &y_max);
 
-    uint32_t box_top = 4;
-    uint32_t box_bottom = HEIGHT - 4;
-    uint32_t plot_left = 4 + TEMP_GRAPH_LABEL_MARGIN;
-
-    /* drawGraph() only clears its own box - it's a generic primitive, not
-     * a full-screen owner (see display.h). This screen previously relied
-     * on that box happening to cover almost the entire panel, which left a
-     * thin unclearable border; once the label margin shrank the box, the
-     * whole left strip (and whatever the previous screen - the menu - left
-     * there) was exposed. Every other full-screen UI function clears itself
-     * on entry (display_out_data_stats, display_out_measurement, etc.) -
-     * this one needs to do the same. */
-    clear_display();
-
-    drawGraph(samples, n, y_min, y_max, plot_left, box_top, WIDTH - 4, box_bottom);
-
-    /* Min/max/mid labels in the reserved left margin - same raw->Fahrenheit
-     * conversion imu_get_temp() uses for the live reading, applied to the
-     * historical extremes (and their midpoint) instead. One decimal place -
-     * a bare integer was throwing away resolution the graph's own vertical
-     * scale doesn't have to lose. Drawn after drawGraph() so they aren't
-     * immediately overwritten by its own background clear. */
-    char label_max[10];
-    char label_mid[10];
-    char label_min[10];
-    int16_t y_mid = y_min + (y_max - y_min) / 2;
+    /* Same raw->Fahrenheit conversion imu_get_temp() uses for the live
+     * reading, applied to the historical extremes and their midpoint. One
+     * decimal place - a bare integer throws away resolution the graph's own
+     * vertical scale doesn't have to lose. */
+    char label_max[10], label_mid[10], label_min[10];
+    int16_t y_mid = (int16_t)(y_min + (y_max - y_min) / 2);
     snprintf(label_max, sizeof(label_max), "%.1fF", (double)imu_raw_to_fahrenheit(y_max));
     snprintf(label_mid, sizeof(label_mid), "%.1fF", (double)imu_raw_to_fahrenheit(y_mid));
     snprintf(label_min, sizeof(label_min), "%.1fF", (double)imu_raw_to_fahrenheit(y_min));
 
-    uint32_t box_mid_y = box_top + (box_bottom - box_top) / 2 - TEMP_GRAPH_LABEL_FONT / 2;
+    /* The ring is fed by the sensor tick, so the span is (n-1) ticks wide.
+     * Asking imu.c for it rather than assuming keeps this honest if that
+     * cadence ever changes. */
+    char t_left[8], t_mid[8], t_right[8];
+    graph_time_labels(temp_history_span_s(n), t_left, t_mid, t_right, sizeof(t_left));
 
-    printFieldLeftAligned(label_max, box_top, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
-    printFieldLeftAligned(label_mid, box_mid_y, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
-    printFieldLeftAligned(label_min, box_bottom - TEMP_GRAPH_LABEL_FONT, 2, TEMP_GRAPH_LABEL_MARGIN - 2, TEMP_GRAPH_LABEL_FONT);
+    struct graph_opts opts = {
+        .style = GRAPH_LINE,
+        .y_max_label = label_max,
+        .y_mid_label = label_mid,
+        .y_min_label = label_min,
+        .x_left = t_left,
+        .x_mid = t_mid,
+        .x_right = t_right,
+        .mark_column = -1,
+    };
+
+    clear_display();
+    drawGraphEx(samples, n, y_min, y_max, GRAPH_BOX, &opts);
+}
+
+
+/*
+ * batteryGraph_UI_FUNC: battery voltage over the last day.
+ *
+ * The y range is the DATA's range padded a little, not the cell's full
+ * 3.0-4.2 V. A day of use moves the pack by a few tens of millivolts, and on
+ * a full-cell axis that is a flat line — which is exactly the reading you
+ * cannot get from the numeric badge on the clock face either, so the screen
+ * would add nothing. The labels carry the absolute voltages, so an auto-range
+ * cannot mislead about level, only about slope.
+ */
+void batteryGraph_UI_FUNC(void) {
+    static uint32_t last_drawn_rev;
+
+    uint32_t rev = battery_history_rev();
+    if (!first_ui_time && rev == last_drawn_rev) {
+        return;
+    }
+    first_ui_time = false;
+    last_drawn_rev = rev;
+
+    static int16_t samples[BATTERY_HISTORY_LEN];
+    size_t n = battery_history_get(samples, BATTERY_HISTORY_LEN);
+
+    if (n < 2) {
+        /* At one stored point per 5 minutes, "no samples yet" is the normal
+         * state for the first few minutes after a boot — say how long rather
+         * than leaving the screen looking broken. */
+        display_out_notice("BATTERY", n == 0 ? "No samples yet." : "Need 2 samples.",
+                           "One per 5 min.");
+        return;
+    }
+
+    int16_t y_min = samples[0];
+    int16_t y_max = samples[0];
+    graph_minmax(samples, n, &y_min, &y_max);
+
+    /* Widen a nearly-flat trace to at least 50 mV so ADC dither does not get
+     * magnified into a dramatic-looking discharge curve. */
+    if (y_max - y_min < 50) {
+        int16_t mid = (int16_t)(y_min + (y_max - y_min) / 2);
+        y_min = (int16_t)(mid - 25);
+        y_max = (int16_t)(mid + 25);
+    }
+    graph_pad_range(&y_min, &y_max);
+
+    char label_max[10], label_mid[10], label_min[10];
+    int16_t y_mid = (int16_t)(y_min + (y_max - y_min) / 2);
+    snprintf(label_max, sizeof(label_max), "%d.%02d", y_max / 1000, (y_max % 1000) / 10);
+    snprintf(label_mid, sizeof(label_mid), "%d.%02d", y_mid / 1000, (y_mid % 1000) / 10);
+    snprintf(label_min, sizeof(label_min), "%d.%02d", y_min / 1000, (y_min % 1000) / 10);
+
+    char t_left[8], t_mid[8], t_right[8];
+    graph_time_labels(battery_history_span_s(n), t_left, t_mid, t_right, sizeof(t_left));
+
+    struct graph_opts opts = {
+        .style = GRAPH_LINE,
+        .y_max_label = label_max,
+        .y_mid_label = label_mid,
+        .y_min_label = label_min,
+        .x_left = t_left,
+        .x_mid = t_mid,
+        .x_right = t_right,
+        .mark_column = -1,
+    };
+
+    clear_display();
+    drawGraphEx(samples, n, y_min, y_max, GRAPH_BOX, &opts);
+}
+
+
+/*
+ * stepsGraph_UI_FUNC: steps per hour for today.
+ *
+ * Bars, not a line, and hours rather than a rolling window: steps are a rate
+ * over an interval (see steps_day.h), and the question this screen answers is
+ * "when did I move today", which a cumulative line cannot show at all.
+ *
+ * The x axis is fixed at 00:00-24:00 rather than scaled to the hours elapsed
+ * so far, so the bars do not slide leftward as the day fills - a bar for 09:00
+ * stays under the same pixel all day.
+ */
+void stepsGraph_UI_FUNC(void) {
+    static uint32_t last_drawn_rev;
+
+    uint32_t rev = steps_day_rev();
+    if (!first_ui_time && rev == last_drawn_rev) {
+        return;
+    }
+    first_ui_time = false;
+    last_drawn_rev = rev;
+
+    int16_t hours[STEPS_DAY_HOURS];
+    size_t n = steps_day_hours(hours, STEPS_DAY_HOURS);
+
+    if (n == 0) {
+        /* The buckets only start once there is a real date to attribute them
+         * to - see steps_day_update(). Naming the reason matters here because
+         * the fix is a user action (sync the clock over BLE), not waiting. */
+        display_out_notice("STEPS TODAY", "Clock not set.", "Sync time first.");
+        return;
+    }
+
+    int16_t peak = 0;
+    graph_minmax(hours, n, NULL, &peak);
+
+    if (peak <= 0) {
+        display_out_notice("STEPS TODAY", "No steps logged", "yet today.");
+        return;
+    }
+
+    /* Headroom above the tallest bar so it does not touch the border, and a
+     * floor of 100 so a 3-step hour is not drawn as a full-height bar. */
+    int16_t y_max = (peak < 100) ? 100 : (int16_t)(peak + peak / 8);
+
+    char label_max[10], label_mid[10];
+    snprintf(label_max, sizeof(label_max), "%d", (int)y_max);
+    snprintf(label_mid, sizeof(label_mid), "%d", (int)(y_max / 2));
+
+    char total_label[12];
+    snprintf(total_label, sizeof(total_label), "%u", (unsigned)steps_day_total());
+
+    struct graph_opts opts = {
+        .style = GRAPH_BAR,
+        .y_max_label = label_max,
+        .y_mid_label = label_mid,
+        .y_min_label = "0",
+        .x_left = "00",
+        .x_mid = "12",
+        .x_right = "24",
+        /* The hour still filling is a partial count; outlining it stops a
+         * half-finished 09:00 from reading as a genuinely quiet hour. */
+        .mark_column = (int16_t)steps_day_current_hour(),
+    };
+
+    /* The day total gets its own header row ABOVE the plot rather than being
+     * overlaid on it. Overlaying was the first attempt and it is a trap: the
+     * top-right of the plot is where a busy evening's bars actually land, so
+     * the label would have punched a background box through the data it was
+     * describing. The bars answer "when", this answers "how many". */
+    struct graph_box box = GRAPH_BOX;
+    box.top = (int16_t)(box.top + FONT_SMALL + 2);
+
+    clear_display();
+    drawGraphEx(hours, n, 0, y_max, box, &opts);
+    printFieldRightAligned(total_label, 4, WIDTH - 6, 60, FONT_SMALL);
 }
 
 

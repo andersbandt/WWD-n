@@ -38,6 +38,7 @@ typedef enum {
 #define line4_Y 125
 
 #include <st7735s.h>
+#include <display/graph_layout.h>
 #include <gfx.h>
 #include <fonts.h>
 
@@ -214,12 +215,67 @@ void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_
                             const uint32_t fieldWidth, font_size_t fontSize);
 
 
+/* Axis label metrics. The font is the smallest we have because three x labels
+ * have to share a ~92 px plot at 6 px per character; the y margin fits five
+ * characters ("100%%", "4.20", "-12.3") plus a pixel of air. */
+#define GRAPH_AXIS_FONT   FONT_SMALL
+#define GRAPH_Y_LABEL_W   32
+
+typedef enum {
+    GRAPH_LINE = 0,   /* polyline — a value sampled at instants */
+    GRAPH_BAR,        /* bars from a zero baseline — a rate over an interval */
+} graph_style_t;
+
+/*
+ * Optional decoration for drawGraphEx(). Every field may be left zero/NULL,
+ * in which case that element is not drawn AND its margin is not reserved —
+ * a graph with no labels gets the full box to plot in.
+ *
+ * Labels are caller-formatted strings rather than values plus a format spec
+ * on purpose: the three graphs that exist want degrees, millivolts and step
+ * counts, with different precisions and units, and a formatting mini-language
+ * inside the drawing primitive would be larger than the three snprintf()s it
+ * replaced.
+ */
+struct graph_opts {
+    graph_style_t style;
+
+    const char *y_max_label;   /* drawn in the left margin, at the plot's top */
+    const char *y_mid_label;
+    const char *y_min_label;
+
+    const char *x_left;        /* drawn under the plot: oldest ... newest */
+    const char *x_mid;
+    const char *x_right;
+
+    int16_t mark_column;       /* column to outline instead of fill, or -1 */
+};
+
+
+/**
+ * @brief Draws a graph, with axis labels, into a box it owns entirely
+ *
+ * Scales num_data samples into [y_min, y_max] (values outside are clamped,
+ * not auto-ranged), clears the whole outer box first, reserves margins for
+ * whichever labels were supplied, and flushes once at the end regardless of
+ * sample count. Aggregates min..max per column when there are more samples
+ * than pixels, so nothing is dropped.
+ *
+ * @param data: sample array, left to right (oldest to newest)
+ * @param num_data: sample count; 1 draws a single tick, 0 is a no-op
+ * @param y_min: value mapped to the bottom of the plot
+ * @param y_max: value mapped to the top of the plot (must exceed y_min)
+ * @param box: the whole rect to draw into, axis margins included
+ * @param opts: style and labels; NULL means a bare unlabelled line graph
+ */
+void drawGraphEx(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
+                 struct graph_box box, const struct graph_opts *opts);
+
+
 /**
  * @brief Draws a primitive line graph over a fixed pixel box
  *
- * Connects num_data samples as a polyline scaled into [y_min, y_max] (values
- * outside that range are clamped, not auto-ranged), with its own background
- * and border. Flushes once at the end regardless of sample count.
+ * Thin wrapper over drawGraphEx() with no labels — the plot fills the box.
  *
  * @param data: sample array, left to right
  * @param num_data: sample count, must be >= 2 (no-op otherwise)

@@ -51,6 +51,7 @@
 #include "comm/rate_config.h"
 
 #include <util/cdc_debug.h>
+#include <util/steps_day.h>
 
 #include "main.h"
 
@@ -185,63 +186,11 @@ static bool bg_park_if_paused(void)
 /* IMU temp/step-count update — every 9 s, triggered by timer1_sem. Wall-clock
  * time updates every UI refresh instead (1 s cadence, see ui_refresh_thread_entry)
  * since a 9 s-stale clock reads as broken to anyone glancing at the screen. */
-/*
- * steps_today: converts the IMU's cumulative step total into a count that
- * rolls over to 0 at local midnight.
- *
- * Done by subtracting a baseline rather than by resetting the counter itself.
- * imu_get_pedo()'s total stays cumulative, so the NVS log and the BLE status
- * keep carrying the raw figure — a daily count can always be derived from a
- * cumulative one, and the reverse is not true. Only the clock face's badge is
- * daily.
- *
- * The day boundary is detected by watching the calendar day change, which is
- * why this lives here rather than in imu.c: the IMU driver has no business
- * depending on the RTC.
- *
- * Two things it deliberately does NOT do:
- *
- *   - It does not roll over while the clock is unset. rv3028_time_is_set() is
- *     false until the RTC has been given a real time (over BLE, or by hand),
- *     and until then get_date() is not a real date. Latching a baseline off it
- *     and then latching another when the clock IS set would show a spurious
- *     reset the moment the user synced their watch.
- *   - It does not try to survive a reboot. step_count is RAM-only and restarts
- *     at 0 on every boot by design, so the baseline restarts with it. A reboot
- *     mid-day therefore shows steps-since-boot, not steps-since-midnight. That
- *     is the pre-existing behaviour of the underlying counter, not something
- *     this introduces; making it durable means persisting both numbers, which
- *     is a separate piece of work.
- *
- * Rollover lands within one sensor tick (9 s) of midnight.
- */
-static uint32_t steps_today(uint32_t cumulative)
-{
-    static uint32_t day_base;        /* cumulative total as of the day's start */
-    static int32_t  base_day = -1;   /* day-of-month the baseline was taken on */
-
-    if (!rv3028_time_is_set()) {
-        /* No trustworthy date yet — show the running total and take no
-         * baseline, so the first real date does not read as a reset. */
-        return cumulative;
-    }
-
-    Date today = get_date();
-
-    if ((int32_t)today.day != base_day) {
-        day_base = cumulative;
-        base_day = (int32_t)today.day;
-    }
-
-    /* Defensive: the baseline can only exceed the total if the cumulative
-     * counter was reset under us (a reboot leaves this static behind in a way
-     * nothing else can, but be explicit rather than underflow a uint32). */
-    if (cumulative < day_base) {
-        day_base = cumulative;
-    }
-
-    return cumulative - day_base;
-}
+/* steps_today() used to live here. It moved to src/util/steps_day.c when the
+ * Steps Today graph needed the same day-change edge to bucket steps by hour —
+ * two copies of that midnight logic would have drifted apart. Behaviour is
+ * unchanged; see steps_day.h for what it deliberately still does not do
+ * (survive a reboot, or roll over while the clock is unset). */
 
 
 static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
@@ -265,7 +214,7 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
 
         if (imu_alive) {
             ui_clock_set_temp(imu_get_temp());
-            ui_clock_set_steps(steps_today((uint32_t)imu_get_pedo()));
+            ui_clock_set_steps(steps_day_update((uint32_t)imu_get_pedo()));
         }
 
         /* Independent of imu_alive — the SoC's own die sensor works whether or
@@ -294,6 +243,13 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
         int batt_mv = battery_voltage_mv();
 
         ui_clock_set_battery_mv(batt_mv);
+
+        /* Same reading into the day-long history ring behind the Battery
+         * graph. Pushed here rather than inside battery_voltage_mv() so the
+         * ring is fed exactly once per tick — the function pulses the divider
+         * leg and costs energy per call, and other callers must not
+         * accidentally distort the cadence the time axis is drawn from. */
+        battery_history_push(batt_mv);
 
         /* Feed the low-power policy from the same reading rather than taking a
          * second one: battery_voltage_mv() pulses the divider leg for its

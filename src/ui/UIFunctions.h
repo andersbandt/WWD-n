@@ -77,6 +77,12 @@ void pedometer_UI_FUNC(void);
  */
 void tempGraph_UI_FUNC(void);
 
+/* Battery voltage over the last day (one stored point per 5 minutes) and
+ * steps per hour for today. Both live under the Graphs menu; see the function
+ * comments in UIFunctions.c for why one is a line and the other bars. */
+void batteryGraph_UI_FUNC(void);
+void stepsGraph_UI_FUNC(void);
+
 
 /////////////////////////////////////////////////////
 ////////// MENU 2 - DATA ////////////////////////////

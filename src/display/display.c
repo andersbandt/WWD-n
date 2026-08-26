@@ -532,60 +532,235 @@ void printFieldLeftAligned(const char * text, const uint32_t posY, const uint32_
 
 
 /*
- * drawGraph: primitive line graph over a fixed pixel box - connects num_data
- * int16_t samples as a polyline scaled into [y_min, y_max], clamping any
- * out-of-range sample to that range so one spike can't blow out the whole
- * scale. Draws its own background + border, then flushes once at the end
- * (not once per segment), so an N-sample graph costs one SPI transfer
- * regardless of N.
- *
- * Deliberately reuses drawLine()/filledRect()/drawRect() from gfx.c rather
- * than adding new drawing primitives - drawLine is already linked into the
- * image via filledRect() (used throughout the existing UI: clearAndPrintLine,
- * printFieldRightAligned, etc.), so this function's marginal flash cost is
- * just its own scaling/loop logic, not a new copy of line-drawing code.
- *
- * @param data: sample array, left to right
- * @param num_data: sample count, must be >= 2
- * @param y_min, y_max: fixed value range to scale against (not auto-ranged
- *        from the data - caller decides the scale, e.g. a known sensor range)
- * @param left, top, right, bottom: pixel box to draw into, border included
+ * drawGraph: thin wrapper kept for callers that just want a bare polyline in
+ * a box — see drawGraphEx() below, which is where the work is now.
  */
 void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
                uint16_t left, uint16_t top, uint16_t right, uint16_t bottom)
 {
-    if (data == NULL || num_data < 2 || y_max <= y_min || right <= left || bottom <= top) {
+    struct graph_opts opts = { .style = GRAPH_LINE };
+    struct graph_box box = { (int16_t)left, (int16_t)top, (int16_t)right, (int16_t)bottom };
+
+    drawGraphEx(data, num_data, y_min, y_max, box, &opts);
+}
+
+
+/*
+ * drawGraphEx: the graph primitive. See display.h for the parameter contract
+ * and graph_layout.h for the arithmetic, which lives outside this file so it
+ * can be tested on a host with no board attached (test/band/graph_test.c).
+ *
+ * Three things this does that the original drawGraph() did not, each of which
+ * came from a real gap rather than from wanting a richer widget:
+ *
+ * IT OWNS ITS MARGINS. The caller hands over one outer rect and this reserves
+ * space inside it for axis labels. The temperature screen used to compute the
+ * label margin itself and pass the reduced box, which left a strip of the
+ * previous screen visible beside the plot until that screen learned to clear
+ * itself first. One owner, one clear, no strip.
+ *
+ * IT AGGREGATES WHEN SAMPLES OUTNUMBER PIXELS. A day of battery history is
+ * 288 points and the plot is ~90 px wide. Plotting every Nth point would drop
+ * exactly the excursions worth seeing, so each column draws its samples'
+ * min..max as a vertical run — dense regions read as a band, and a one-sample
+ * sag stays visible.
+ *
+ * IT DRAWS BARS. Steps per hour is a rate over an interval, not a value at an
+ * instant; joining hourly totals with a line implies a continuity that is not
+ * there. Bars from a zero baseline say what the data means.
+ *
+ * Cost discipline is unchanged from the original: everything reuses
+ * drawLine()/filledRect()/drawRect() from gfx.c, and the whole graph flushes
+ * once at the end rather than once per segment.
+ */
+void drawGraphEx(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
+                 struct graph_box box, const struct graph_opts *opts)
+{
+    static const struct graph_opts default_opts = { .style = GRAPH_LINE };
+
+    if (opts == NULL) {
+        opts = &default_opts;
+    }
+    if (data == NULL || num_data == 0 || y_max <= y_min ||
+        box.right <= box.left || box.bottom <= box.top) {
         return;
     }
 
-    uint16_t plot_w = right - left;
-    uint16_t plot_h = bottom - top;
-    int32_t y_range = (int32_t)y_max - (int32_t)y_min;
+    bool has_y_labels = (opts->y_max_label != NULL) || (opts->y_min_label != NULL) ||
+                        (opts->y_mid_label != NULL);
+    bool has_x_labels = (opts->x_left != NULL) || (opts->x_mid != NULL) ||
+                        (opts->x_right != NULL);
 
-    /* Usually taller than the band, in which case this just returns false and
-     * the graph redraws the way it always has. Worth attempting anyway: a
-     * short graph box composites for free, and this is the redraw where the
-     * clear is most visible because the box is large. */
-    bool banded = beginFieldBand(left, top, right, bottom);
+    int16_t y_label_w = has_y_labels ? GRAPH_Y_LABEL_W : 0;
+    int16_t x_label_h = has_x_labels ? (int16_t)(GRAPH_AXIS_FONT + 2) : 0;
+
+    struct graph_box plot = graph_plot_rect(box, y_label_w, x_label_h);
+    if (plot.right <= plot.left || plot.bottom <= plot.top) {
+        return;
+    }
+
+    /* Attempted for the whole outer rect, not just the plot: the labels are
+     * part of the same repaint, and a band that covers only the plot would
+     * composite the line while the labels still flickered in beside it.
+     * Usually taller than the band and so a no-op, which is fine. */
+    bool banded = beginFieldBand(box.left, box.top, box.right, box.bottom);
 
     setColor(ui_back[0], ui_back[1], ui_back[2]);
-    filledRect(left, top, right, bottom);
+    filledRect((uint16_t)box.left, (uint16_t)box.top,
+               (uint16_t)box.right, (uint16_t)box.bottom);
 
     setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
-    drawRect(left, top, right, bottom);
+    drawRect((uint16_t)plot.left, (uint16_t)plot.top,
+             (uint16_t)plot.right, (uint16_t)plot.bottom);
 
-    for (size_t i = 0; i + 1 < num_data; i++) {
-        int16_t v0 = data[i];
-        int16_t v1 = data[i + 1];
-        v0 = (v0 < y_min) ? y_min : (v0 > y_max) ? y_max : v0;
-        v1 = (v1 < y_min) ? y_min : (v1 > y_max) ? y_max : v1;
+    /* Columns: one per sample while they fit, capped at the pixel width once
+     * they do not. +1 because the rect bounds are inclusive. */
+    uint16_t max_cols = (uint16_t)(plot.right - plot.left + 1);
+    uint16_t cols = (num_data < max_cols) ? (uint16_t)num_data : max_cols;
 
-        uint16_t x0 = left + (uint32_t)i       * plot_w / (num_data - 1);
-        uint16_t x1 = left + (uint32_t)(i + 1) * plot_w / (num_data - 1);
-        uint16_t y0 = bottom - (uint32_t)(v0 - y_min) * plot_h / y_range;
-        uint16_t y1 = bottom - (uint32_t)(v1 - y_min) * plot_h / y_range;
+    if (opts->style == GRAPH_BAR) {
+        /* Bars sit on the axis, so the baseline is 0 (or y_min if the data
+         * never reaches 0) rather than the bottom of an auto-ranged box —
+         * a bar whose height is measured from an arbitrary floor is not a
+         * bar, it is a misleading line. */
+        int32_t baseline_v = (y_min > 0) ? y_min : 0;
+        int16_t baseline_y = graph_value_to_y(baseline_v, y_min, y_max,
+                                              plot.top, plot.bottom);
 
-        drawLine(x0, y0, x1, y1);
+        /* Leave a pixel of air between bars once there is room for it, so 24
+         * hourly bars read as 24 things and not as one filled region. */
+        int16_t bar_w = (int16_t)((plot.right - plot.left) / (cols > 0 ? cols : 1));
+        if (bar_w < 1) {
+            bar_w = 1;
+        } else if (bar_w > 2) {
+            bar_w = (int16_t)(bar_w - 1);
+        }
+
+        for (uint16_t c = 0; c < cols; c++) {
+            size_t from, to;
+            graph_column_span(num_data, cols, c, &from, &to);
+
+            int16_t peak = data[from];
+            for (size_t i = from + 1; i < to; i++) {
+                if (data[i] > peak) {
+                    peak = data[i];
+                }
+            }
+
+            int16_t x0 = graph_col_to_x(c, cols, plot.left, plot.right);
+            int16_t y = graph_value_to_y(peak, y_min, y_max, plot.top, plot.bottom);
+
+            if (y >= baseline_y) {
+                continue;   /* nothing to show for this column */
+            }
+
+            /* Highlight one column if the caller asked (the hour still being
+             * filled, which would otherwise be indistinguishable from a quiet
+             * one). Drawn as an outline so it reads as "in progress" rather
+             * than as a taller bar. */
+            bool marked = (opts->mark_column >= 0) && ((uint16_t)opts->mark_column == c);
+
+            for (int16_t dx = 0; dx < bar_w && (x0 + dx) <= plot.right; dx++) {
+                if (marked && dx > 0 && dx < bar_w - 1) {
+                    setPixel((uint16_t)(x0 + dx), (uint16_t)y);
+                    continue;
+                }
+                drawLine((uint16_t)(x0 + dx), (uint16_t)y,
+                         (uint16_t)(x0 + dx), (uint16_t)baseline_y);
+            }
+        }
+    } else if (num_data == 1) {
+        /* One sample is not a line. Draw it as a tick at its own height so the
+         * screen shows the reading it has rather than nothing at all. */
+        int16_t y = graph_value_to_y(data[0], y_min, y_max, plot.top, plot.bottom);
+        drawLine((uint16_t)plot.left, (uint16_t)y, (uint16_t)plot.right, (uint16_t)y);
+    } else if (num_data <= cols) {
+        /* Fewer samples than pixels: a plain polyline, exactly as before. */
+        for (size_t i = 0; i + 1 < num_data; i++) {
+            int16_t x0 = graph_col_to_x((uint16_t)i, (uint16_t)num_data, plot.left, plot.right);
+            int16_t x1 = graph_col_to_x((uint16_t)(i + 1), (uint16_t)num_data, plot.left, plot.right);
+            int16_t y0 = graph_value_to_y(data[i], y_min, y_max, plot.top, plot.bottom);
+            int16_t y1 = graph_value_to_y(data[i + 1], y_min, y_max, plot.top, plot.bottom);
+            drawLine((uint16_t)x0, (uint16_t)y0, (uint16_t)x1, (uint16_t)y1);
+        }
+    } else {
+        /* More samples than pixels: min..max per column, joined to the
+         * previous column so the trace stays continuous across a step. */
+        int16_t prev_y = 0;
+        bool have_prev = false;
+
+        for (uint16_t c = 0; c < cols; c++) {
+            size_t from, to;
+            graph_column_span(num_data, cols, c, &from, &to);
+
+            int16_t lo = data[from];
+            int16_t hi = data[from];
+            for (size_t i = from + 1; i < to; i++) {
+                if (data[i] < lo) { lo = data[i]; }
+                if (data[i] > hi) { hi = data[i]; }
+            }
+
+            int16_t x = graph_col_to_x(c, cols, plot.left, plot.right);
+            int16_t y_lo = graph_value_to_y(lo, y_min, y_max, plot.top, plot.bottom);
+            int16_t y_hi = graph_value_to_y(hi, y_min, y_max, plot.top, plot.bottom);
+
+            drawLine((uint16_t)x, (uint16_t)y_hi, (uint16_t)x, (uint16_t)y_lo);
+
+            if (have_prev) {
+                int16_t x_prev = graph_col_to_x((uint16_t)(c - 1), cols, plot.left, plot.right);
+                drawLine((uint16_t)x_prev, (uint16_t)prev_y, (uint16_t)x, (uint16_t)y_hi);
+            }
+            prev_y = y_lo;
+            have_prev = true;
+        }
+    }
+
+    /* Labels last: drawGraphEx clears its whole rect at the top, so anything
+     * drawn before the plot would be wiped, and anything drawn by the CALLER
+     * beforehand would be too. */
+    if (has_y_labels) {
+        setFont(getFontPointer(GRAPH_AXIS_FONT));
+        setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
+
+        if (opts->y_max_label != NULL) {
+            drawText((uint16_t)box.left, (uint16_t)plot.top, opts->y_max_label);
+        }
+        if (opts->y_mid_label != NULL) {
+            int16_t mid = (int16_t)(plot.top + (plot.bottom - plot.top) / 2 - GRAPH_AXIS_FONT / 2);
+            drawText((uint16_t)box.left, (uint16_t)mid, opts->y_mid_label);
+        }
+        if (opts->y_min_label != NULL) {
+            drawText((uint16_t)box.left, (uint16_t)(plot.bottom - GRAPH_AXIS_FONT),
+                     opts->y_min_label);
+        }
+    }
+
+    if (has_x_labels) {
+        setFont(getFontPointer(GRAPH_AXIS_FONT));
+        setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
+
+        int16_t label_y = (int16_t)(plot.bottom + 2);
+        int16_t char_w = (int16_t)(GRAPH_AXIS_FONT / 2);
+
+        if (opts->x_left != NULL) {
+            drawText((uint16_t)plot.left, (uint16_t)label_y, opts->x_left);
+        }
+        if (opts->x_mid != NULL) {
+            int16_t w = (int16_t)(strlen(opts->x_mid) * char_w);
+            int16_t x = (int16_t)(plot.left + (plot.right - plot.left) / 2 - w / 2);
+            if (x < plot.left) {
+                x = plot.left;
+            }
+            drawText((uint16_t)x, (uint16_t)label_y, opts->x_mid);
+        }
+        if (opts->x_right != NULL) {
+            int16_t w = (int16_t)(strlen(opts->x_right) * char_w);
+            int16_t x = (int16_t)(plot.right - w);
+            if (x < plot.left) {
+                x = plot.left;
+            }
+            drawText((uint16_t)x, (uint16_t)label_y, opts->x_right);
+        }
     }
 
     flushBuffer();
