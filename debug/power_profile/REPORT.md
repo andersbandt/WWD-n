@@ -74,6 +74,7 @@ python3 analyze_power_profile.py <csv> --t0-offset <fitted> \
 | `-DPOWER_PROFILE_TEARDOWN=ON` | Additive attribution: start with nothing initialised, add one subsystem per dwell |
 | `-DPOWER_PROFILE_PROBE=ON` | Idle-floor (`bare_spin`) and gyro isolation |
 | `-DEXTRA_CONF_FILE=debug/power_profile/tickless_on.conf` | Tickless A/B |
+| `-DPOWER_PROFILE_BLE=ON` | BLE advertiser (scripted) + connection/transfer (host-driven) |
 
 ### Rules learned the hard way
 
@@ -241,6 +242,81 @@ and anything that resets the expander without re-asserting GP6 silently pays it.
 moves it.
 
 ---
+
+### 3.10 Bluetooth LE — advertiser and data transfer (2026-08-25)
+
+Measured after BLE went live (`4bda93a` / `3fc5500`), on SN1 at **3.839 V**, with the
+`-DPOWER_PROFILE_BLE=ON` image: power rail + panel asleep only, **no IMU, no NAND, no
+display**, so the radio deltas are not buried inside subsystems already characterised
+above. The absolute floor here (1.94 mA) is therefore *lower* than the 2.67 mA product
+floor in §3.1 — compare the deltas, not the floor.
+
+Three states are scripted (30 s dwells); the connection phases cannot be, because the
+central owns connect/subscribe/read, so the board holds advertising forever and the host
+walks the phases against the same continuous log.
+
+| State | mA | ±σ | mW |
+|---|---|---|---|
+| `ble_off` — `bt_enable()` never called | 1.939 | 0.023 | 7.45 |
+| `ble_stack_up` — controller up, **not** advertising | 1.967 | 0.035 | 7.55 |
+| `ble_adv` — advertising, `BT_LE_ADV_CONN` (100–150 ms) | 2.053 | 0.007 | 7.88 |
+| Connected, idle (no subscription) | 2.033 | 0.002 | 7.80 |
+| Connected + notify (19 B every 2 s) | 2.033 | 0.002 | 7.80 |
+| Connected + sustained reads (9.7 reads/s) | 2.071 | 0.003 | 7.95 |
+| Advertising again, post-disconnect | 2.061 | 0.005 | 7.91 |
+
+Settled σ is 2–7 µA, so every delta below is far above the noise floor. The
+post-disconnect state returning to within **8 µA** of the original `ble_adv` figure is
+the repeatability check.
+
+**1. The advertiser costs +0.114 mA.** That is ~4% of the 2.67 mA product idle floor —
+about a third of what the gyro costs (0.34 mA), and 1/20th of the panel. Advertising is
+not a power problem on this device, and slowing the advertising interval is not a lever
+worth pulling.
+
+**2. The user-facing BLE-off toggle saves +0.086 mA, not 0.114.** `ble_set_enabled(false)`
+deliberately stops advertising rather than calling `bt_disable()`, so it leaves the
+controller enabled. That residual — `ble_stack_up` vs `ble_off` — measured **+0.028 mA**,
+and even that is at the edge: those two states sit on the boot thermal ramp (σ 0.023/0.035
+vs 0.002–0.007 once settled), so read it as *≤0.03 mA, at the limit of resolution*. The
+design tradeoff in `ble.h` (keep the controller up for reversibility) costs almost nothing
+and should stand.
+
+**3. A connection is CHEAPER than advertising** — connected idle is **0.020 mA below**
+`ble_adv`. Not a measurement artefact: it is repeatable and 3σ clear. An advertising event
+transmits on three channels; a connection event is one TX + one RX. So a connected watch is
+in the cheapest radio state it has.
+
+**4. Data transfer is free at this device's rates.**
+
+- Status notifications — 19 B every 2 s — cost **+0.000 mA**. The radio already wakes every
+  connection interval whether or not there is a payload; 19 bytes ride along inside a slot
+  that was paid for anyway.
+- Hammering it with **sustained reads at 9.7/s** (387 ATT reads in 40 s, ~7.4 KB) costs
+  **+0.038 mA** over connected idle. That is a saturating read loop, far past anything the
+  product does, and it is still 1/9th of the gyro.
+
+**Conclusion: BLE as scoped is essentially free.** The whole feature — advertiser, live
+connection, and notification traffic — lives inside ~0.11 mA against a 2.6 mA floor that is
+still ~80% unattributed (§3.9). There is nothing to optimise here; the display and the
+idle floor remain the only things that matter.
+
+### Caveats on §3.10
+
+- **The connection interval was chosen by BlueZ, not by us.** The firmware never calls
+  `bt_conn_le_param_update()`, so the central sets it. The observed 9.7 reads/s implies
+  ~100 ms per ATT transaction, i.e. a ~100 ms interval. A phone that negotiates a much
+  faster interval would raise the connected-state figures; one that negotiates a slow
+  interval would lower them. **Findings 3 and 4 hold at ~100 ms and are not proven
+  outside it.** If BLE ever runs connected for long periods, requesting an explicit
+  connection interval is the lever, not the advertising interval.
+- Notifications were confirmed live during the measurement (6 received in 12 s, exactly
+  the 2 s `STATUS_NOTIFY_INTERVAL`), so "+0.000 mA" means *sent and free*, not *never
+  sent*. The payload reads all-zero in this image because `ble_publish_status()` is only
+  called from `sensor_update_thread`, which this harness does not run — uptime is the one
+  live field and it tracked correctly.
+- Measured at 3.84 V, not the ~3.29 V of the tables above. Per §3.5 the floor moves with
+  supply voltage; the deltas are what transfer.
 
 ## 4. Open questions
 

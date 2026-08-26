@@ -26,6 +26,11 @@ option(POWER_PROFILE_TEARDOWN "Build the additive teardown/attribution image" OF
 # Build with: cmake ... -DPOWER_PROFILE_BUILD=ON -DPOWER_PROFILE_PROBE=ON
 option(POWER_PROFILE_PROBE "Build the idle-floor / gyro probe image" OFF)
 
+# BLE image: cost of the advertiser (scripted) plus the cost of a live
+# connection and data transfer (host-driven, board holds advertising).
+# Build with: cmake ... -DPOWER_PROFILE_BUILD=ON -DPOWER_PROFILE_BLE=ON
+option(POWER_PROFILE_BLE "Build the BLE advertising / connection power image" OFF)
+
 set(POWER_PROFILE_BOOST_HOLD "" CACHE STRING
     "0 or 1 to build a BOOST_SEL hold-mode image for VBAT sweeps; empty = normal sequence")
 
@@ -42,6 +47,9 @@ if(POWER_PROFILE_BUILD)
     endif()
     if(POWER_PROFILE_TEARDOWN)
         target_compile_definitions(app PRIVATE PP_TEARDOWN=1)
+    endif()
+    if(POWER_PROFILE_BLE)
+        target_compile_definitions(app PRIVATE PP_BLE=1)
     endif()
     if(NOT POWER_PROFILE_BOOST_HOLD STREQUAL "")
         target_compile_definitions(app PRIVATE PP_BOOST_HOLD=${POWER_PROFILE_BOOST_HOLD})

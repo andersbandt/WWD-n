@@ -32,6 +32,9 @@
 #include <nvs.h>
 #include <power/power.h>
 #include <peripheral/clock.h>
+#ifdef PP_BLE
+#include <ble/ble.h>
+#endif
 
 LOG_MODULE_REGISTER(power_profile, LOG_LEVEL_INF);
 
@@ -432,12 +435,116 @@ static void run_probe(void)
 }
 #endif /* PP_PROBE */
 
+#ifdef PP_BLE
+/* ---------------------------------------------------------------------------
+ * BLE mode (-DPOWER_PROFILE_BLE=ON) — what does the radio cost?
+ *
+ * Two questions, and they need different measurement styles, so this mode is
+ * half scripted and half host-driven.
+ *
+ * The SCRIPTED half answers "what does keeping the advertiser going cost?".
+ * Three states decompose it, because "BLE on" is really two separate costs:
+ *   ble_off        — quiet board, bt_enable() never called: the reference.
+ *   ble_stack_up   — controller enabled but NOT advertising. This is exactly
+ *                    what ble_set_enabled(false) leaves behind, so the step
+ *                    from here to ble_adv is the true saving of the user's
+ *                    BLE-off toggle, while the step from ble_off is what
+ *                    compiling BLE out entirely would save.
+ *   ble_adv        — advertising with BT_LE_ADV_CONN (100-150 ms interval).
+ *
+ * The HOLD half answers "what does data transfer cost?". A connection cannot
+ * be scripted from this side — the central decides when to connect, what
+ * connection interval to negotiate, and when to subscribe — so after the
+ * scripted states this parks the board advertising forever and lets the host
+ * drive the phases (connect / idle / notify / sustained reads) against the
+ * same continuous current log. Phase boundaries come from the host's
+ * timestamps, not from a schedule.
+ *
+ * Nothing else is initialised: no IMU (0.41 mA), no NAND, panel asleep. The
+ * radio deltas here are small and would otherwise sit inside the scatter of
+ * subsystems that have already been characterised.
+ * ------------------------------------------------------------------------- */
+
+#define PP_BLE_DWELL_MS 30000   /* not 8 s: see README — 8 s never settles */
+
+static void pb_ble_off(void)
+{
+    /* Reference state. bt_enable() has not been called, so the radio and its
+     * clocks are untouched. */
+}
+
+static void pb_stack_up(void)
+{
+    ble_init();
+    /* ble_init() starts advertising; stop it again so this state isolates the
+     * cost of the controller being up on its own. The dwell is long enough
+     * that the few ms of advertising at the head is discarded with the settle
+     * margin. */
+    ble_set_enabled(false);
+}
+
+static void pb_adv_on(void)
+{
+    ble_set_enabled(true);
+}
+
+static const struct power_state ble_states[] = {
+    { "ble_off",      pb_ble_off },
+    { "ble_stack_up", pb_stack_up },
+    { "ble_adv",      pb_adv_on },
+};
+
+static void run_ble(void)
+{
+    int64_t t0 = k_uptime_get();
+
+    for (size_t i = 0; i < ARRAY_SIZE(ble_states); i++) {
+        int64_t state_start = k_uptime_get();
+
+        LOG_INF("[ble] t=%lldms state=%zu/%zu name=%s",
+                state_start - t0, i + 1, ARRAY_SIZE(ble_states),
+                ble_states[i].name);
+
+        ble_states[i].setup();
+
+        int64_t used = k_uptime_get() - state_start;
+        if (used < PP_BLE_DWELL_MS) {
+            k_msleep((int32_t)(PP_BLE_DWELL_MS - used));
+        }
+    }
+
+    LOG_INF("[ble] scripted states complete, t=%lldms — now advertising"
+            " indefinitely, host drives the connection phases",
+            k_uptime_get() - t0);
+}
+#endif /* PP_BLE */
+
 int main(void)
 {
     LOG_INF("=== WWD-n power profiling harness ===");
     LOG_INF("Board must be PS-powered (not direct USB) for a clean measurement.");
     LOG_INF("%zu states, %d ms dwell each (padded to exactly this) -> see schedule",
             NUM_STATES, DWELL_MS);
+
+#ifdef PP_BLE
+    /* Quiet board first, then the scripted BLE states, then hold advertising
+     * so the host can drive the connection phases. Deliberately no IMU and no
+     * NVS init — see the comment on ble_states above. */
+    power_init();
+    init_display();
+    if (display_status) {
+        switch_display(false);
+    }
+    power_debug_hold_vbat_div(false);
+    nrf_power_dcdcen_set(NRF_POWER, true);
+
+    k_msleep(2000);
+    LOG_INF("[ble] BEGIN t=0");
+    run_ble();
+    while (1) {
+        k_sleep(K_FOREVER);
+    }
+#endif
 
 #ifdef PP_PROBE
     /* Skip all eager init: run_probe() brings pieces up one dwell at a time. */
