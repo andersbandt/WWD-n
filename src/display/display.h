@@ -135,6 +135,27 @@ void printStatusField(const char * text, const uint32_t posY, const uint32_t fie
 
 
 /**
+ * @brief Draws the wear indicator: a green check (worn) or a red cross (not).
+ *
+ * Same fixed-box geometry as printStatusField() — same 2 px pad, same
+ * clear-first, same off-screen band — so it lines up with the "BT"/"LP"/"CX"
+ * text badges and cannot leave stale pixels behind. The difference is that
+ * the state changes the GLYPH here, not just the color, which is why the box
+ * must be (and is) cleared in full on every call.
+ *
+ * The glyph is a square of side `fontSize`, right-aligned in the field.
+ *
+ * @param posY: pixel Y position (top of the glyph box)
+ * @param fieldRight: pixel X of the box's right edge
+ * @param fieldWidth: box width in pixels
+ * @param fontSize: sets the glyph's side length, to match neighbouring text
+ * @param worn: true for the green check, false for the red cross
+ */
+void printWearField(const uint32_t posY, const uint32_t fieldRight,
+                    const uint32_t fieldWidth, font_size_t fontSize, bool worn);
+
+
+/**
  * @brief Redraws a right-aligned "%02u" field only if it changed since last_value
  *
  * Thin wrapper around printFieldRightAligned() that skips the redraw (and the SPI
@@ -245,6 +266,29 @@ void changeContrast(const uint8_t contrast);
 
 
 void switch_display(const bool on);
+
+/**
+ * @brief Fade the backlight to black over duration_ms, then leave it dark.
+ *
+ * Used by the display auto-off so the screen dims away instead of snapping
+ * off. Only animates the backlight PWM — it does not sleep the panel, and it
+ * does not take display_draw_mutex (no SPI involved), so drawing threads keep
+ * running throughout. See the implementation comment in display.c for why this
+ * is a backlight ramp rather than a per-pixel dissolve, and why the ramp is
+ * quadratic.
+ *
+ * Crucially it does not disturb the remembered backlight level, so waking the
+ * panel later restores the user's brightness rather than coming back black.
+ *
+ * @param duration_ms total fade time; a duration shorter than one step just
+ *                    goes dark immediately
+ * @param cancelled   polled once per step (~25 ms); return true to abort. Pass
+ *                    NULL for an uninterruptible fade.
+ * @return true if the fade completed and the screen is now dark; false if it
+ *         was cancelled, in which case the backlight is already back at its
+ *         previous level and the caller should remain awake.
+ */
+bool display_fade_out(uint32_t duration_ms, bool (*cancelled)(void));
 
 /**
  * @brief Returns true if the display is currently awake (sleep-out/active).

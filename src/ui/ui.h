@@ -66,6 +66,7 @@ typedef struct {
     float imu_temp;
     float soc_temp;         // nRF52833 die temp, degrees F (see soc_temp.h)
     int ble_on;             // Bluetooth radio enabled, see ble_is_enabled()
+    int worn;               // watch is on a wrist, see imu_is_worn()
     int charging_status;
     int low_power;          // TPS63900 power-save mode, see power_save_is_enabled()
     int bat_percent;
@@ -84,6 +85,7 @@ typedef struct {
 #define UI_CLOCK_DIRTY_POWER        (1 << 6)   /* charging + low-power indicators */
 #define UI_CLOCK_DIRTY_SOC_TEMP     (1 << 7)   /* nRF52833 die temperature badge */
 #define UI_CLOCK_DIRTY_BLE          (1 << 8)   /* Bluetooth status badge */
+#define UI_CLOCK_DIRTY_WEAR         (1 << 9)   /* wear (on-wrist) badge */
 #define UI_CLOCK_DIRTY_ALL          0xFFFFFFFF
 
 
@@ -243,6 +245,12 @@ void ui_clock_set_soc_temp(float temp);
  * @param on non-zero if the radio is enabled
  */
 void ui_clock_set_ble(int on);
+
+/**
+ * @brief Set the wear (on-wrist) indicator state and mark dirty
+ * @param worn non-zero if the watch is being worn (imu_is_worn())
+ */
+void ui_clock_set_worn(int worn);
 
 /**
  * @brief Set battery percentage and mark dirty

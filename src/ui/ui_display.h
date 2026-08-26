@@ -139,6 +139,15 @@ void display_out_activity(size_t cursor, bool full_redraw);
  */
 void display_out_ble_indicator(int on);
 
+
+/*
+ * display_out_wear_indicator: wear badge on the clock face, stacked directly
+ * above the Bluetooth badge. Green check = on a wrist, red cross = off.
+ *
+ * @param worn non-zero if the watch is being worn (imu_is_worn())
+ */
+void display_out_wear_indicator(int worn);
+
 /**
  * display_out_battery: displays battery voltage (upper-right corner badge)
  *

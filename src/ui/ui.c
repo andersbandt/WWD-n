@@ -142,6 +142,13 @@ void ui_clock_set_ble(int on)
     ui_clock_mark_dirty(UI_CLOCK_DIRTY_BLE);
 }
 
+
+void ui_clock_set_worn(int worn)
+{
+    clock_data.worn = worn;
+    ui_clock_mark_dirty(UI_CLOCK_DIRTY_WEAR);
+}
+
 /**
  * @brief Set battery percentage and mark dirty
  */
@@ -283,6 +290,11 @@ void ui_refresh() {
             if (ui_clock_is_dirty(UI_CLOCK_DIRTY_BLE)) {
                 display_out_ble_indicator(clock_data.ble_on);
                 ui_clock_clear_dirty(UI_CLOCK_DIRTY_BLE);
+            }
+
+            if (ui_clock_is_dirty(UI_CLOCK_DIRTY_WEAR)) {
+                display_out_wear_indicator(clock_data.worn);
+                ui_clock_clear_dirty(UI_CLOCK_DIRTY_WEAR);
             }
 
             if (ui_clock_is_dirty(UI_CLOCK_DIRTY_BATTERY)) {

@@ -630,3 +630,17 @@ void ST7735S_partialArea(uint16_t from, uint16_t to) {
 void Backlight_Pct(uint8_t p) {
         Pin_BLK_Pct(p % 101);
 }
+
+/* See the header comment. Clamps rather than reusing Backlight_Pct()'s
+ * `% 101`, which wraps 101 -> 0 and would make an out-of-range step read as
+ * fully dark instead of fully bright. */
+void ST7735S_backlightTransient(uint8_t pct) {
+        uint8_t remembered = backlight_pct;
+
+        Pin_BLK_Pct(pct > 100 ? 100 : pct);
+        backlight_pct = remembered;
+}
+
+void ST7735S_backlightRestore(void) {
+        Pin_BLK_Pct(backlight_pct);
+}

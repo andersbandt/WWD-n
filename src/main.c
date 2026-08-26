@@ -239,6 +239,12 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
         ui_clock_set_low_power(low_power_is_active() ? 1 : 0);
         ui_clock_set_ble(ble_is_enabled() ? 1 : 0);
 
+        /* Fed unguarded by imu_alive, exactly like the ble_publish_status()
+         * call below: imu_is_worn() reads a plain static that stays false when
+         * the IMU never came up, so a dead IMU reads "not worn" rather than
+         * crashing or going stale. */
+        ui_clock_set_worn(imu_is_worn() ? 1 : 0);
+
         /* Hand BLE the same snapshot the clock face just got. Deliberately
          * fed from here rather than sampled in the notify work: every value
          * below comes from SPI1 or I2C, and reading them from the Bluetooth

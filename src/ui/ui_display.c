@@ -117,6 +117,25 @@ void display_out_bms(int charging, int battery_percent) {
 #define CLOCK_BLE_RIGHT   (WIDTH - 2)
 #define CLOCK_BLE_WIDTH   16
 
+/* Wear indicator, stacked directly above the Bluetooth badge in the same
+ * right-hand column.
+ *
+ * 50 = CLOCK_SOC_TEMP_Y_MARGIN (34) + FONT_SMALL height (12) + the 2+2 px of
+ * padding printStatusField()/printWearField() put around their boxes. That is
+ * exactly flush: this badge's padded box ends where the BT badge's begins, so
+ * the two never overlap and neither can clear part of the other. Do not shrink
+ * it below 50 — the boxes would then fight over the same rows, and because
+ * each one clears before it draws, the visible result would depend on which
+ * dirty flag happened to be serviced last.
+ *
+ * The band from the big time display (ends ~y=74) down to the SoC-temp row is
+ * otherwise empty, so this disturbs nothing.
+ *
+ * Same width as the BT badge so the column edges line up. */
+#define CLOCK_WEAR_Y_MARGIN 50
+#define CLOCK_WEAR_RIGHT    CLOCK_BLE_RIGHT
+#define CLOCK_WEAR_WIDTH    CLOCK_BLE_WIDTH
+
 /* Power-status indicator row, top-right, tucked between the battery badge
  * (y 4..16) and the big time display (starts at CLOCK_TIME_Y = line 1 of
  * FONT_XXLARGE = y 46). x >= 86 keeps it clear of the weekday/day header,
@@ -383,6 +402,25 @@ void display_out_ble_indicator(int on) {
      * leave stale pixels behind. */
     printStatusField("BT", HEIGHT - CLOCK_SOC_TEMP_Y_MARGIN, CLOCK_BLE_RIGHT,
                      CLOCK_BLE_WIDTH, CLOCK_STATUS_FONT, on != 0);
+}
+
+
+/*
+ * Unlike every other badge on this face, the wear state is carried by hue and
+ * shape rather than by a label whose color merely dims. "Worn" and "not worn"
+ * are equally valid steady states — there is no on/off asymmetry for an
+ * accent/dim pair to express — so a dim "WR" would read as "wear detection is
+ * off", which is not what it would mean. A green check and a red cross say it
+ * without a legend. See printWearField() in display.c for why the drawing
+ * lives there.
+ *
+ * Note this reports imu_is_worn() directly, so a board whose IMU never came up
+ * shows the red cross: "not worn" and "cannot tell" look the same. That is the
+ * same convention the CX badge already uses for its unwired charge signal.
+ */
+void display_out_wear_indicator(int worn) {
+    printWearField(HEIGHT - CLOCK_WEAR_Y_MARGIN, CLOCK_WEAR_RIGHT,
+                   CLOCK_WEAR_WIDTH, CLOCK_STATUS_FONT, worn != 0);
 }
 
 

@@ -1,8 +1,8 @@
-__enable_irq () at /home/anders/ncs/v3.1.1/modules/hal/cmsis/CMSIS/Core/Include/cmsis_gcc.h:951
-951	  __ASM volatile ("cpsie i" : : : "memory");
+0x0000aef6 in sym_WVJLOWUIPBC2HDDMNEWOD4POANUBUKS6OYFXDSA ()
 Expected an decimal digit (0-9)
-Breakpoint 1 at 0xc616: file /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_bringup.c, line 380.
-
-Breakpoint 1, imu_probe () at /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_bringup.c:380
-380	    int who = -1;
-$1 = (const struct device * const) 0x2000ef40 <z_main_stack+4096>
+$1 = 0
+$2 = true
+$3 = 0
+$4 = 0
+$5 = UI_MODE_CLOCK
+[Inferior 1 (Remote target) detached]

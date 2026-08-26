@@ -31,6 +31,7 @@
 
 /* My header files */
 #include <display.h>
+#include <display/wear_glyph.h>
 
 
 LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
@@ -52,6 +53,37 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 #define DIM_R 11    // dim/secondary text #5C6773
 #define DIM_G 25
 #define DIM_B 14
+
+/* Off-palette on purpose. The Darcula set above has no green and no red, and
+ * the wear indicator is the one badge whose meaning is carried by hue rather
+ * than by a label — a check and a cross are only legible as "good" and "bad"
+ * if they are actually green and red. Kept adjacent to the palette so it is
+ * obvious these two are the exception, not a second theme.
+ *
+ * *** These are TRUE red/green/blue, and printWearField() passes them to
+ * setColor() with red and blue SWAPPED. That is not a typo. ***
+ *
+ * color565_t (st7735s.h) declares its bitfields `r:5, g:6, b:5`. On a
+ * little-endian target the first-declared field takes the LOW bits, so `.r`
+ * ends up in bits 0..4 — and after setColorC()'s byte swap in gfx.c that
+ * reaches the panel where RGB565 expects BLUE. The struct is therefore BGR in
+ * effect: the field named `r` is displayed as blue, and `b` as red.
+ *
+ * Every constant in the Darcula block above is written in struct order and so
+ * inherits the swap — which is why ACCENT, documented as orange #CC7832,
+ * actually renders blue on the panel. Correcting that is a whole-UI change and
+ * is deliberately NOT done here; this badge just declares its colours honestly
+ * and swaps at the one call site, where the swap is visible.
+ *
+ * Found the hard way: the cross shipped blue. Green hid it — 11/47/11 is
+ * symmetric in red and blue, so the check looked correct either way. */
+#define GOOD_RED 11   // wear: on-wrist  #58BC58
+#define GOOD_GRN 47
+#define GOOD_BLU 11
+
+#define BAD_RED  28   // wear: off-wrist #E05450
+#define BAD_GRN  21
+#define BAD_BLU  10
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //! -----------------------------------------------------------------------------------------------------------------------//
@@ -311,6 +343,64 @@ void printStatusField(const char * text, const uint32_t posY, const uint32_t fie
     }
     setFont(getFontPointer(fontSize));
     drawText(textX, posY, text);
+
+    setColor(FORE_R, FORE_G, FORE_B);
+    flushBuffer();
+    if (banded) {
+        endBand();
+    }
+}
+
+
+/*
+ * printWearField: the clock face's wear indicator — a green check when the
+ * watch is on a wrist, a red cross when it is not.
+ *
+ * Lives here rather than in ui_display.c for the reason already recorded on
+ * CLOCK_BLE_RIGHT over there: the palette constants and beginFieldBand() are
+ * static to this file, so anything that wants to draw a colored glyph in a
+ * badge box either lives here or duplicates the palette across a module
+ * boundary. This is the first caller to actually need that, and it is the
+ * same door the Bluetooth rune should come through later.
+ *
+ * Geometry is deliberately identical to printStatusField() — same fixed box,
+ * same 2 px pad, same clear-first, same band — so this badge lines up with
+ * the "BT"/"LP"/"CX" text badges and can never leave stale pixels behind.
+ * Unlike those, the STATE here changes the glyph as well as the color; that
+ * is safe only because the box is cleared in full every call.
+ *
+ * The glyph is a square of side `fontSize` right-aligned in the field, so it
+ * matches the cap height of the text badges beside and below it. The stroke
+ * geometry itself lives in wear_glyph.h rather than here, so that the
+ * host-side renderer in test/band/ draws the same shape this does — see that
+ * header for why, and run `make -C test/band run-wear` after touching it.
+ */
+void printWearField(const uint32_t posY, const uint32_t fieldRight,
+                    const uint32_t fieldWidth, font_size_t fontSize, bool worn)
+{
+    uint32_t fontHeight = (uint32_t)fontSize;
+    uint32_t fieldLeft  = fieldRight - fieldWidth;
+
+    bool banded = beginFieldBand((int32_t)fieldLeft - 2, (int32_t)posY - 2,
+                                 (int32_t)(fieldRight + 2),
+                                 (int32_t)(posY + fontHeight + 2));
+
+    setColor(BACK_R, BACK_G, BACK_B);
+    filledRect(fieldLeft - 2, posY - 2, fieldRight + 2, posY + fontHeight + 2);
+
+    /* Square glyph box, right-aligned in the field and inset by 1 px so the
+     * strokes (and their +1 px thickening) stay inside the cleared area. */
+    uint32_t side = fontHeight;
+    uint32_t x1   = fieldRight - 1;
+    uint32_t x0   = (x1 > fieldLeft + side) ? (x1 - side) : fieldLeft;
+
+    /* Red and blue swapped on purpose — see the GOOD_ / BAD_ block above.
+     * setColor()'s first argument lands in the panel's blue channel. */
+    setColor(worn ? GOOD_BLU : BAD_BLU,
+             worn ? GOOD_GRN : BAD_GRN,
+             worn ? GOOD_RED : BAD_RED);
+
+    wear_glyph_strokes(x0, posY, side, worn, drawLine);
 
     setColor(FORE_R, FORE_G, FORE_B);
     flushBuffer();
@@ -583,6 +673,70 @@ bool display_is_awake(void)
 {
     return display_awake;
 }
+
+/* Step interval. 25 ms gives 40 steps across a 1 s fade — smooth against the
+ * ~10 ms panel frame period — and bounds how long a cancelling button press
+ * waits to be noticed. */
+#define DISPLAY_FADE_STEP_MS 25
+
+/*
+ * display_fade_out: ramps the backlight from its current level to fully dark
+ * over duration_ms, then leaves it there. The caller is expected to actually
+ * sleep the panel afterwards; this only does the light.
+ *
+ * "Fade to black" here is a backlight ramp, not a per-pixel dissolve. A pixel
+ * dissolve would need the framebuffer we deliberately do not have: a full
+ * frame is 128*160*2 = 40,960 B against ~38 KB free, and re-sending it per
+ * animation step is ~41 ms at 8 MHz, so ~24 fps flat out with the SPI bus
+ * saturated. The backlight is one PWM register and looks the same to the eye.
+ *
+ * The ramp is quadratic, not linear, because perceived brightness goes roughly
+ * as luminance^(1/2.2) while PWM duty is roughly linear in luminance. A linear
+ * duty ramp reads as "drops fast, then lingers near black". Squaring the
+ * remaining fraction makes the *perceived* fall close to linear. The tail
+ * lands on 0-1% for the last few steps, which is correct: those steps are
+ * perceptually tiny, and 1% is the finest duty this API can express anyway.
+ *
+ * Touches only the backlight PWM, never SPI, so it deliberately does NOT take
+ * display_draw_mutex — a 1 s fade must not lock out the drawing threads for a
+ * second. It is safe to run concurrently with a redraw; the redraw just lands
+ * on a dimmer screen.
+ *
+ * @param duration_ms  total fade time
+ * @param cancelled    polled once per step; return true to abort. May be NULL
+ *                     for an uninterruptible fade.
+ * @return true if the fade completed (screen now dark), false if `cancelled`
+ *         aborted it — in which case the backlight has already been put back
+ *         to its remembered level and the caller should stay awake.
+ */
+bool display_fade_out(uint32_t duration_ms, bool (*cancelled)(void))
+{
+    uint32_t steps = duration_ms / DISPLAY_FADE_STEP_MS;
+    uint32_t start = backlight_pct;
+
+    /* Nothing to animate: already dark, or a duration too short to have even
+     * one step. Report success — the caller's next move is to sleep anyway. */
+    if (steps == 0 || start == 0) {
+        ST7735S_backlightTransient(0);
+        return true;
+    }
+
+    for (uint32_t i = 1; i <= steps; i++) {
+        if (cancelled != NULL && cancelled()) {
+            ST7735S_backlightRestore();
+            return false;
+        }
+
+        uint32_t remaining = steps - i;
+        ST7735S_backlightTransient(
+            (uint8_t)((start * remaining * remaining) / (steps * steps)));
+
+        k_msleep(DISPLAY_FADE_STEP_MS);
+    }
+
+    return true;
+}
+
 
 void switch_display(const bool on)
 {

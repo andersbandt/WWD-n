@@ -43,6 +43,27 @@ extern color565_t bg_color;
 
 void Delay(uint32_t);
 void Backlight_Pct(uint8_t p);
+
+/* ---- transient backlight (fades) -----------------------------------------
+ *
+ * Backlight_Pct()/Pin_BLK_Pct() both *remember* the level they set, and
+ * ST7735S_sleepOut() restores that remembered level on wake. So a fade driven
+ * through them would walk the remembered level down to 0 along with the actual
+ * PWM, and the panel would come back from sleep black — the user's brightness
+ * silently destroyed by the animation.
+ *
+ * These two drive the PWM without touching what is remembered:
+ *   Transient() sets the duty for right now.
+ *   Restore()   puts the PWM back to the remembered level.
+ *
+ * ST7735S_sleepIn() already does exactly this save/restore dance internally
+ * for the same reason; these just expose it so an animation can step the level
+ * repeatedly. Neither touches SPI — the backlight is its own PWM peripheral —
+ * so neither needs the display draw lock. That is what lets a fade run without
+ * blocking the drawing threads.
+ */
+void ST7735S_backlightTransient(uint8_t pct);
+void ST7735S_backlightRestore(void);
 int ST7735S_Init(void);
 void ST7735S_flush(void);
 
