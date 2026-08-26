@@ -154,8 +154,18 @@ struct record_wear_state {
  * STOP belongs to that session, so session_seq is effectively the run index.
  *
  * session_seq is unique only WITHIN A BOOT SEGMENT — it is RAM-only and
- * restarts at 0 after a reset. Scope it by the surrounding RESET_MARKER /
- * TIME_ANCHOR, which decoders already track for the time axis.
+ * restarts at 0 after a reset.
+ *
+ * Finding that boundary in a dump is harder than it looks, and this comment
+ * used to get it wrong twice over (corrected 2026-08-26). RESET_MARKER is
+ * never written — the only call site is commented out in nvs_init() — and a
+ * TIME_ANCHOR is NOT a boot: one is written every ANCHOR_INTERVAL_SEC (300 s,
+ * nvs_bringup.c), so anchors tick over every five minutes of healthy capture
+ * and scoping by them would split a long run into six-per-half-hour pieces.
+ * What actually marks a reboot is the anchor's raw_ticks going BACKWARDS,
+ * since the kernel tick count restarts while the log keeps appending. That is
+ * what dump_decoder.py's `boot` column tracks. Restoring the RESET_MARKER
+ * write would make this explicit rather than inferred.
  *
  * nand_offset is where the marker itself lands, as a seek hint so analysis
  * can jump to a session instead of walking from zero. Advisory only: records
