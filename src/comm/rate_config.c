@@ -14,7 +14,7 @@
 
 #include "rate_config.h"
 #include <imu.h>
-#include <nvs.h>
+#include <memory/config_store.h>
 
 LOG_MODULE_REGISTER(rate_config, CONFIG_LOG_DEFAULT_LEVEL);
 
@@ -34,8 +34,8 @@ bool rate_config_load_persisted(void)
 {
     uint16_t odr, interval;
 
-    if (nvs_config_load(&odr, &interval) != 0) {
-        LOG_INF("rate_config: no persisted config on flash, keeping defaults (odr=%u temp=%u)",
+    if (config_store_load(&odr, &interval) != 0) {
+        LOG_INF("rate_config: no persisted config, keeping defaults (odr=%u temp=%u)",
                 imu_odr_hz, temp_interval_sec);
         return false;
     }
@@ -49,7 +49,8 @@ bool rate_config_load_persisted(void)
     }
 
     temp_interval_sec = interval;
-    LOG_INF("rate_config: restored from flash — odr=%u temp_interval=%u", imu_odr_hz, temp_interval_sec);
+    LOG_INF("rate_config: restored from internal flash — odr=%u temp_interval=%u",
+            imu_odr_hz, temp_interval_sec);
     return true;
 }
 
@@ -63,7 +64,7 @@ int rate_config_set_imu_odr_hz(uint16_t hz)
 
     imu_odr_hz = hz;
 
-    int save_rc = nvs_config_save(imu_odr_hz, temp_interval_sec);
+    int save_rc = config_store_save(imu_odr_hz, temp_interval_sec);
     if (save_rc != 0) {
         LOG_WRN("rate_config: failed to persist ODR change: %d", save_rc);
     }
@@ -86,7 +87,7 @@ int rate_config_set_temp_interval_sec(uint16_t sec)
     temp_interval_sec = sec;
     LOG_INF("rate_config: temperature interval set to %u s", sec);
 
-    int save_rc = nvs_config_save(imu_odr_hz, temp_interval_sec);
+    int save_rc = config_store_save(imu_odr_hz, temp_interval_sec);
     if (save_rc != 0) {
         LOG_WRN("rate_config: failed to persist temp interval change: %d", save_rc);
     }

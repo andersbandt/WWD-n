@@ -651,6 +651,10 @@ void data_stats_UI_FUNC(void) {
  *
  * The erase itself is synchronous and takes a while; the screen says so
  * before it starts, because the UI is frozen for the duration.
+ *
+ * Since rate config moved to the nRF's internal flash (config_store.c) this no
+ * longer destroys the user's sample rates -- erasing the log and resetting the
+ * device are now separate actions, which is the point.
  */
 void erase_flash_UI_FUNC(void) {
     static int cursor;
@@ -700,7 +704,7 @@ void erase_flash_UI_FUNC(void) {
             LOG_INF("erase: complete");
 
             button_buffer_clear();
-            display_out_notice("ERASED", "Log cleared.", "Rate cfg reset.");
+            display_out_notice("ERASED", "Log cleared.", "Settings kept.");
             return;
         }
     }

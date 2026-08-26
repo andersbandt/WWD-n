@@ -225,12 +225,13 @@ void nvs_bringup_phase(void)
 
     meta_block_inspect();
 
-    /* rate_config_init() (called earlier, before NVS was up) only set RAM
-     * defaults — recover whatever the user last set via CMD_SET_RATE now
-     * that the CONFIG region is reachable. */
-    bool rate_restored = rate_config_load_persisted();
-    cdc_printf("  rate config: %s (odr=%u Hz, temp_interval=%u s)\r\n",
-               rate_restored ? "restored from flash" : "using defaults",
+    /* Rate config used to be RESTORED here, from the NAND's CONFIG blocks —
+     * which meant it could only ever be restored on a board whose NAND worked,
+     * since everything above this point is behind `if (!nvs_alive) return`.
+     * It now lives on the nRF's internal flash and is loaded from main.c,
+     * unconditionally. Reported here only because this is where the boot
+     * summary is printed. */
+    cdc_printf("  rate config: odr=%u Hz, temp_interval=%u s\r\n",
                rate_config_get_imu_odr_hz(), rate_config_get_temp_interval_sec());
 
 #if NVS_BRINGUP_STEP == NVS_STEP_BASELINE

@@ -751,6 +751,19 @@ int main(void)
     /* IMU first, NVS second — the 0f89f1e ordering. */
     nvs_bringup_phase();
 
+    /* Rate config now lives on the nRF's OWN flash (config_store.c), so it is
+     * restored here rather than from inside nvs_bringup_phase(), which returns
+     * early unless the NAND came up. On SN1 and SN2 that early return meant a
+     * user's sample rates could never be restored at all. Placed after the IMU
+     * phase because applying a persisted ODR calls imu_set_odr(). */
+    {
+        bool restored = rate_config_load_persisted();
+        LOG_INF("rate config: %s (odr=%u Hz, temp_interval=%u s)",
+                restored ? "restored" : "defaults",
+                rate_config_get_imu_odr_hz(),
+                rate_config_get_temp_interval_sec());
+    }
+
     /* ---- Real system bring-up ---- */
 
     led_init();

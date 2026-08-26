@@ -919,9 +919,12 @@ void display_out_erase_confirm(uint64_t used_bytes, int cursor, bool full_redraw
         format_bytes(used_bytes, used_str, sizeof(used_str));
         snprintf(line, sizeof(line), "Deletes %s", used_str);
         printLine(line, 2, TEMP_LIST_X, TEMP_LIST_FONT);
-        printLine("of logged data", 3, TEMP_LIST_X, TEMP_LIST_FONT);
-        printLine("+ rate settings.", 4, TEMP_LIST_X, TEMP_LIST_FONT);
-        printLine("Cannot be undone.", 5, TEMP_LIST_X, TEMP_LIST_FONT);
+        printLine("of logged data.", 3, TEMP_LIST_X, TEMP_LIST_FONT);
+        /* Said "+ rate settings" until those moved to the nRF's internal flash
+         * (config_store.c). They now SURVIVE an erase, which is worth stating
+         * outright — the previous behaviour was the surprising one. */
+        printLine("Rate settings", 4, TEMP_LIST_X, TEMP_LIST_FONT);
+        printLine("are kept.", 5, TEMP_LIST_X, TEMP_LIST_FONT);
     }
 
     /* Only the two option rows change as the cursor moves, so they are the
