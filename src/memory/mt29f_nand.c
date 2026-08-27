@@ -69,10 +69,18 @@ static const mt29f_cfg_t cfg = {
     .blocks_per_die = 1024,
     .pages_per_block = 64,
     .bytes_per_page = 2176,
+    .usable_bytes_per_page = 2112,  /* the die keeps 2112..2175 for ECC parity */
     .oob_bytes = 128
 };
 
 static mt29f_cfg_t inst = {0};
+
+/* STATUS sampled right after the last page read, plus a running tally of reads
+ * whose ECCS field was not ECC_STATUS_OK. Nothing read ECCS before 2026-08-26 —
+ * see src/memory/nand_page_defects.md. Written only under mt29f_bus_mutex. */
+static uint8_t  last_read_status = 0;
+static uint32_t ecc_event_count = 0;
+static off_t    ecc_last_offset = -1;
 
 
 static int spi_nand_get_feature(const uint8_t addr, uint8_t *val)
@@ -490,6 +498,41 @@ static int spi_nand_page_read(const off_t offset, uint8_t *dest, const size_t le
     return rc;
   }
 
+  /* ECCS is only meaningful after the read has moved data into the cache. A
+   * failure to sample it must not fail the read itself — this is diagnostics. */
+  {
+    uint8_t status = 0;
+
+    if (spi_nand_get_feature(REG_STATUS, &status) == 0) {
+      last_read_status = status;
+
+      const uint8_t eccs = mt29f_ecc_status_of(status);
+
+      if (eccs != ECC_STATUS_OK) {
+        ecc_event_count++;
+        ecc_last_offset = offset;
+
+        /* Deliberately does NOT fail the read. An erased page has all-1s
+         * parity and it is not yet established what this die reports for one,
+         * so failing here could break the metadata scan and nvs_dump(), both
+         * of which read erased pages by design. Count and log sparsely; decide
+         * what to enforce once the bench run says what erased pages report. */
+        /* Log only the first few. The log backends ride USB CDC and RTT, and a
+         * per-page warning inside a multi-thousand-page scan slows the scan to a
+         * crawl waiting on them. The counters above are the real record. */
+        if (ecc_event_count <= 4) {
+          if (eccs == ECC_STATUS_NOT_OK) {
+            LOG_ERR("ECC uncorrectable at offset %ld (status=0x%02x, event %u)",
+                    (long)offset, status, ecc_event_count);
+          } else {
+            LOG_WRN("ECC corrected at offset %ld (eccs=0x%x, status=0x%02x, event %u)",
+                    (long)offset, eccs, status, ecc_event_count);
+          }
+        }
+      }
+    }
+  }
+
   return rc;
 }
 
@@ -658,6 +701,52 @@ int mt29f_init(void)
 const mt29f_cfg_t* mt29f_get_config(void)
 {
   return &cfg;
+}
+
+int mt29f_get_feature(uint8_t reg, uint8_t *val)
+{
+  if (!val) {
+    return -EINVAL;
+  }
+
+  k_mutex_lock(&mt29f_bus_mutex, K_FOREVER);
+  int rc = spi_nand_get_feature(reg, val);
+  k_mutex_unlock(&mt29f_bus_mutex);
+
+  return rc;
+}
+
+int mt29f_set_feature(uint8_t reg, uint8_t val)
+{
+  k_mutex_lock(&mt29f_bus_mutex, K_FOREVER);
+  spi_nand_write_enable();
+  int rc = spi_nand_set_feature(reg, val);
+  spi_nand_wait_until_ready();
+  k_mutex_unlock(&mt29f_bus_mutex);
+
+  return rc;
+}
+
+uint8_t mt29f_last_read_status(void)
+{
+  return last_read_status;
+}
+
+uint8_t mt29f_ecc_status_of(uint8_t status)
+{
+  return (uint8_t)((status & (STATUS_BIT_ECCS0_MASK |
+                              STATUS_BIT_ECCS1_MASK |
+                              STATUS_BIT_ECCS2_MASK)) >> 4);
+}
+
+uint32_t mt29f_ecc_event_count(void)
+{
+  return ecc_event_count;
+}
+
+off_t mt29f_ecc_last_offset(void)
+{
+  return ecc_last_offset;
 }
 
 int mt29f_read(const off_t offset, uint8_t *data, const size_t len)

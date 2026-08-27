@@ -5,6 +5,45 @@ bring-up session.
 
 ---
 
+## [FIXED 2026-08-26, one part still OPEN] MT29F page defects behind the "record overruns page" warnings
+
+Root-caused on-target on SN3. Full evidence, verbatim console output and the
+verification run are in `src/memory/nand_page_defects.md`; audit tool is
+`debug/nand_page_audit.py <dump.bin> [stride]`. **Changes are uncommitted.**
+
+- **A — FIXED. With internal ECC on, the die owns bytes 2112..2175 of every
+  page.** Proved by an ECC-on/ECC-off A/B on the same page: with ECC off all
+  2176 bytes round-trip, with it on the last 64 come back as parity. Usable
+  payload is **2112** — not 2048, not 2176. `mt29f_cfg_t` now carries
+  `usable_bytes_per_page` beside `bytes_per_page` (address/transfer with the
+  first, never pack past the second). Currently latent: the 100-record
+  checkpoint flushes every page at ~2000 bytes, so nothing reaches 2112 today.
+- **B — FIXED. Recovery resumed onto pages that already held data**, and NAND
+  programming only clears bits, so old and new records ANDed into garbage. That
+  is every "record overruns page" warning. `nvs_find_append_point()` in `nvs.c`
+  now binary-searches forward from the recovered offset to the first erased page
+  (~17 reads; the log is append-only so "written" is monotonic in the address).
+  Verified: the resume page went from `LIVE DATA` to `ERASED (safe)`.
+- **C — STILL OPEN. Metadata stops advancing, and only warns.** This is why B
+  was catastrophic rather than a one-page nuisance: metadata stalled at seq
+  ~95,174 while the log ran on to page 130,305 — a **35,129-page (76 MB) rewind
+  on every boot**. `nvs_log_record()` treats a failed metadata write as
+  `LOG_WRN(... non-fatal)`, so tens of thousands of consecutive failures are
+  indistinguishable from silence. **Start here next session.** The append-point
+  fix makes it harmless, but recovery still cannot resume where a session ended.
+
+Also found: `plane_alias_test()` had been reporting "aliasing still present" for
+months. False alarm — it memcmp'd the die's parity region. It compares
+`usable_bytes_per_page` now and passes. And **ECC status was never read
+anywhere**; every page read now samples ECCS. The two pages the host decoder
+called corrupt report `eccs=0x2` (uncorrectable) — the die knew all along.
+
+This revises the mechanism in the 2026-08-07 torn-write note below: a torn write
+leaves bits *un*programmed, the opposite of what is on flash. That note's
+boot-boundary correlation was real and is now explained.
+
+---
+
 ## [OPEN BUG 2026-08-24] A full NAND floods the log with one ERR per rejected record
 
 **Symptom:** once `write_addr` reaches the end of the data region, every single

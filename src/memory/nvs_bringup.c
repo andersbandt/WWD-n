@@ -6,6 +6,8 @@
 
 /* My header files */
 #include <nvs.h>
+#include <mt29f_nand.h>
+#include "mt29f_defs.h"
 #include <imu.h>
 #include <imu_bringup.h>
 #include <ICM_42670.h>          /* getTempDataFromIMUReg() */
@@ -48,6 +50,12 @@
 
 #define NVS_BRINGUP_STEP  NVS_STEP_PIPELINE
 
+/* Set to 1 to run the one-shot MT29F page-layout / ECC probe at boot
+ * (src/memory/nand_page_defects.md). Destructive to the two scratch blocks it
+ * uses and, via the plane test, to the CONFIG blocks. Diagnostics only — turn
+ * back off once the defects are settled. */
+#define NVS_PAGE_PROBE 0
+
 /* Step B: how many tagged records to write. Payload raw values are 1000+i so
  * the dump is unmistakably this test and not stale flash content. */
 #define NVS_TEST_RECORD_COUNT 25
@@ -57,6 +65,12 @@
  * src/comm/rate_config.h and CMD_GET_RATE/CMD_SET_RATE in protocol.c. */
 
 static bool nvs_alive;
+
+/* T1 mirror — plane_alias_test() runs long before probe_results is declared, so
+ * it parks its verdict here and page_layout_test() copies it across. */
+static uint32_t plane_even_ok_mirror;
+static uint32_t plane_odd_ok_mirror;
+static uint32_t plane_first_mismatch_mirror;
 
 /* Real wall clock, as of 2026-08-25.
  *
@@ -177,9 +191,26 @@ static void plane_alias_test(void)
     int rc_ro = mt29f_read((off_t)odd_blk * bytes_per_block, readback_odd, c->bytes_per_page);
     cdc_printf("[plane test] read even rc=%d, read odd rc=%d\r\n", rc_re, rc_ro);
 
-    bool even_ok = memcmp(readback_even, pattern_even, c->bytes_per_page) == 0;
-    bool odd_ok = memcmp(readback_odd, pattern_odd, c->bytes_per_page) == 0;
-    bool cross_contaminated = memcmp(readback_odd, pattern_even, c->bytes_per_page) == 0;
+    /* Compare only the usable page. This test used to memcmp all 2176 bytes and
+     * so always failed at byte 2112 on the die's ECC parity, reporting
+     * "aliasing still present" on a chip with no aliasing at all — the plane
+     * fix has been fine since 2026-07-26. See src/memory/nand_page_defects.md. */
+    const uint16_t cmp_len = c->usable_bytes_per_page;
+    bool even_ok = memcmp(readback_even, pattern_even, cmp_len) == 0;
+    bool odd_ok = memcmp(readback_odd, pattern_odd, cmp_len) == 0;
+    bool cross_contaminated = memcmp(readback_odd, pattern_even, cmp_len) == 0;
+
+    plane_even_ok_mirror = even_ok ? 1u : 0u;
+    plane_odd_ok_mirror = odd_ok ? 1u : 0u;
+    plane_first_mismatch_mirror = c->bytes_per_page;
+    for (uint16_t i = 0; i < cmp_len; i++) {
+        if (readback_even[i] != pattern_even[i]) {
+            plane_first_mismatch_mirror = i;
+            break;
+        }
+    }
+    cdc_printf("[plane test] even first mismatch at byte %u\r\n",
+               plane_first_mismatch_mirror);
 
     cdc_printf("[plane test] even block correct=%d (first byte=0x%02x)\r\n",
                even_ok, readback_even[0]);
@@ -191,6 +222,372 @@ static void plane_alias_test(void)
                (even_ok && odd_ok && !cross_contaminated)
                    ? "PASS -- plane fix confirmed, no aliasing"
                    : "FAIL -- aliasing still present");
+}
+
+
+/* ===================== T1/T2/T3/T4 page-layout probe =======================
+ *
+ * Settles the two defects written up in src/memory/nand_page_defects.md:
+ *
+ *  A  the chip owns bytes 2048..2175 of every page once internal ECC is on, so
+ *     the last 128 bytes of every page_buffer are silently discarded;
+ *  B  pages are being programmed twice without an erase (bits only ever clear).
+ *
+ * Writes a non-0xFF pattern to a scratch page, reads it back, and reports where
+ * the round-trip stops being faithful — with ECC enabled and again with it
+ * disabled, which is the A/B that pins the cause on the ECC engine rather than
+ * on the driver's addressing. Scratch blocks are the last two DATA blocks,
+ * below CONFIG_BLOCK_START, so neither the CONFIG nor the META region is
+ * touched. Destructive to those two blocks only.
+ */
+#define PROBE_PAGE_BYTES 2176
+
+/* SWD-readable mirror of the probe's results. The CDC console only exists for
+ * a ~2 s window after enumeration and the probe output kept landing in it
+ * before any host could attach, so every number the probe produces is also
+ * parked here — read it with
+ *   nrfjprog --memrd $(nm -C build_n33/zephyr/zephyr.elf | grep probe_results)
+ * See project_swd_ram_mirror_diagnostics. Field order is fixed; append only. */
+struct probe_result_page {
+    uint32_t magic;          /* 0x50524F42 'PROB' once this arm has run */
+    int32_t  rc_write;
+    int32_t  rc_read;
+    uint32_t status;         /* STATUS byte sampled after the read */
+    uint32_t first_mismatch; /* PROBE_PAGE_BYTES if the whole page round-tripped */
+    uint32_t main_match;     /* bytes 0..2047   read back as written */
+    uint32_t main_other;
+    uint32_t spare_match;    /* bytes 2048..2111 */
+    uint32_t spare_erased;
+    uint32_t parity_match;   /* bytes 2112..2175 */
+    uint32_t parity_erased;
+    uint8_t  tail[48];       /* readback bytes 2040..2087 */
+};
+
+struct probe_results {
+    uint32_t magic;
+    uint32_t cfg_reg_at_entry;
+    uint32_t resume_addr;
+    uint32_t resume_page_erased;   /* 1 = safe, 0 = live data (defect B) */
+    uint8_t  resume_first16[16];
+    uint32_t plane_even_ok;
+    uint32_t plane_odd_ok;
+    uint32_t plane_first_mismatch;
+    struct probe_result_page ecc_on;
+    struct probe_result_page ecc_off;
+    uint32_t ecc_events;
+
+    /* T5: how far behind the true end of the log the recovered offset is. */
+    uint32_t scan_pages_live;      /* live pages found from resume_addr onward */
+    uint32_t scan_first_erased;    /* page index of the first erased page */
+    uint32_t scan_capped;          /* 1 = hit the scan limit, distance is a floor */
+
+    /* T6: two pages the 2026-08-26 dump decoded as corrupt, re-read from the
+     * chip with ECC status now wired up. */
+    uint32_t t6_page[2];
+    uint32_t t6_status[2];
+    uint32_t t6_first_bad_len[2];  /* offset of the first length field that is
+                                    * not 0x000e on the 20-byte grid, or 0 */
+    uint8_t  t6_head[2][32];
+
+    uint32_t done_magic;
+};
+
+volatile struct probe_results probe_results;
+
+static uint8_t probe_pattern[PROBE_PAGE_BYTES];
+static uint8_t probe_readback[PROBE_PAGE_BYTES];
+
+/* Never 0xFF, so "discarded" (reads back erased) is distinguishable from
+ * "written". 251 is prime, so the sequence does not align with any power-of-two
+ * page/sector boundary either. */
+static void probe_fill_pattern(uint8_t salt)
+{
+    for (size_t i = 0; i < PROBE_PAGE_BYTES; i++) {
+        probe_pattern[i] = (uint8_t)((i + salt) % 251u);
+    }
+}
+
+static void probe_hexdump(const char *tag, const uint8_t *buf, size_t from, size_t to)
+{
+    for (size_t base = from; base < to; base += 16) {
+        char line[64];
+        int n = 0;
+
+        for (size_t i = base; i < base + 16 && i < to; i++) {
+            n += snprintk(&line[n], sizeof(line) - n, "%02x ", buf[i]);
+        }
+        cdc_printf("    %s %4u: %s\r\n", tag, (unsigned)base, line);
+    }
+}
+
+/* Reports, for one region, how many bytes came back as written / erased / other. */
+static void probe_region_report(const char *name, size_t from, size_t to)
+{
+    size_t match = 0, erased = 0, other = 0;
+
+    for (size_t i = from; i < to; i++) {
+        if (probe_readback[i] == probe_pattern[i]) {
+            match++;
+        } else if (probe_readback[i] == 0xFF) {
+            erased++;
+        } else {
+            other++;
+        }
+    }
+
+    cdc_printf("    %-14s [%4u..%4u]  match=%u erased=%u other=%u\r\n",
+               name, (unsigned)from, (unsigned)to - 1,
+               (unsigned)match, (unsigned)erased, (unsigned)other);
+}
+
+static void probe_one_page(const char *label, uint32_t blk, uint8_t salt,
+                           volatile struct probe_result_page *out)
+{
+    const mt29f_cfg_t *c = mt29f_get_config();
+    const uint32_t bytes_per_block = (uint32_t)c->pages_per_block * c->bytes_per_page;
+    const off_t addr = (off_t)blk * bytes_per_block;
+
+    probe_fill_pattern(salt);
+    memset(probe_readback, 0x00, sizeof(probe_readback));
+
+    mt29f_block_erase(addr);
+
+    int rc_w = mt29f_write(addr, probe_pattern, c->bytes_per_page);
+    int rc_r = mt29f_read(addr, probe_readback, c->bytes_per_page);
+    uint8_t status = mt29f_last_read_status();
+
+    cdc_printf("  [%s] blk=%u write rc=%d read rc=%d  status=0x%02x eccs=0x%x\r\n",
+               label, blk, rc_w, rc_r, status, mt29f_ecc_status_of(status));
+
+    size_t first_bad = PROBE_PAGE_BYTES;
+
+    for (size_t i = 0; i < PROBE_PAGE_BYTES; i++) {
+        if (probe_readback[i] != probe_pattern[i]) {
+            first_bad = i;
+            break;
+        }
+    }
+
+    if (first_bad == PROBE_PAGE_BYTES) {
+        cdc_printf("    all %u bytes round-tripped\r\n", PROBE_PAGE_BYTES);
+    } else {
+        cdc_printf("    first mismatch at byte %u (wrote 0x%02x, read 0x%02x)\r\n",
+                   (unsigned)first_bad, probe_pattern[first_bad], probe_readback[first_bad]);
+    }
+
+    probe_region_report("main", 0, 2048);
+    probe_region_report("user spare", 2048, 2112);
+    probe_region_report("parity", 2112, 2176);
+    probe_hexdump(label, probe_readback, 2032, 2064);
+    probe_hexdump(label, probe_readback, 2096, 2176);
+
+    if (out) {
+        memset((void *)out, 0, sizeof(*out));
+        out->rc_write = rc_w;
+        out->rc_read = rc_r;
+        out->status = status;
+        out->first_mismatch = (uint32_t)first_bad;
+
+        for (size_t i = 0; i < 2048; i++) {
+            if (probe_readback[i] == probe_pattern[i]) {
+                out->main_match++;
+            } else if (probe_readback[i] != 0xFF) {
+                out->main_other++;
+            }
+        }
+        for (size_t i = 2048; i < 2112; i++) {
+            if (probe_readback[i] == probe_pattern[i]) {
+                out->spare_match++;
+            } else if (probe_readback[i] == 0xFF) {
+                out->spare_erased++;
+            }
+        }
+        for (size_t i = 2112; i < 2176; i++) {
+            if (probe_readback[i] == probe_pattern[i]) {
+                out->parity_match++;
+            } else if (probe_readback[i] == 0xFF) {
+                out->parity_erased++;
+            }
+        }
+        memcpy((void *)out->tail, &probe_readback[2040], sizeof(out->tail));
+        out->magic = 0x50524F42;
+    }
+}
+
+/* T4: is the offset that metadata recovery handed us pointing at a LIVE page?
+ * If so the next flush programs it a second time without an erase, which is
+ * defect B's suspected mechanism. Read-only. */
+static void probe_resume_offset(void)
+{
+    const mt29f_cfg_t *c = mt29f_get_config();
+    const off_t addr = (off_t)nvs_get_addr_offset();
+
+    if (mt29f_read(addr, probe_readback, c->bytes_per_page) != 0) {
+        cdc_printf("  [T4] read of resume page at %ld FAILED\r\n", (long)addr);
+        return;
+    }
+
+    bool erased = true;
+
+    for (size_t i = 0; i < c->bytes_per_page; i++) {
+        if (probe_readback[i] != 0xFF) {
+            erased = false;
+            break;
+        }
+    }
+
+    probe_results.resume_addr = (uint32_t)addr;
+    probe_results.resume_page_erased = erased ? 1u : 0u;
+    memcpy((void *)probe_results.resume_first16, probe_readback,
+           sizeof(probe_results.resume_first16));
+
+    cdc_printf("  [T4] resume page @%ld: %s  first16: ", (long)addr,
+               erased ? "ERASED (safe)" : "*** LIVE DATA — next write double-programs it ***");
+    for (size_t i = 0; i < 16; i++) {
+        cdc_printf("%02x ", probe_readback[i]);
+    }
+    cdc_printf("\r\n");
+}
+
+
+/* T5: walk forward from the recovered write_addr to the first erased page. The
+ * distance is exactly how many already-written pages the next writes would
+ * program a second time. Read-only; capped so a bad recovery cannot hang boot. */
+static void probe_scan_forward(void)
+{
+    const mt29f_cfg_t *c = mt29f_get_config();
+    const uint32_t limit = 1024;
+    off_t addr = (off_t)nvs_get_addr_offset();
+    uint32_t live = 0;
+
+    while (live < limit) {
+        if (mt29f_read(addr, probe_readback, c->bytes_per_page) != 0) {
+            break;
+        }
+
+        bool erased = true;
+
+        /* A header of six 0xFF bytes is the same test nvs_dump() uses to find
+         * the end of a page's records — enough to call a page unwritten. */
+        for (size_t i = 0; i < 6; i++) {
+            if (probe_readback[i] != 0xFF) {
+                erased = false;
+                break;
+            }
+        }
+        if (erased) {
+            break;
+        }
+
+        live++;
+        addr += c->bytes_per_page;
+        /* Published every iteration so an SWD read can watch it advance. */
+        probe_results.scan_pages_live = live;
+    }
+
+    probe_results.scan_pages_live = live;
+    probe_results.scan_first_erased = (uint32_t)(addr / c->bytes_per_page);
+    probe_results.scan_capped = (live >= limit) ? 1u : 0u;
+
+    cdc_printf("  [T5] %u live pages from the resume offset; first erased page %u%s\r\n",
+               live, probe_results.scan_first_erased, (live >= limit) ? " (CAPPED)" : "");
+}
+
+/* T6: re-read two pages the host-side decode called corrupt, straight off the
+ * chip, and report what the ECC engine says about them. Confirms the corruption
+ * is on flash rather than a dump-transport artifact. */
+static void probe_known_bad_pages(void)
+{
+    const mt29f_cfg_t *c = mt29f_get_config();
+    static const uint32_t pages[2] = { 81638u, 94658u };
+
+    for (int k = 0; k < 2; k++) {
+        const off_t addr = (off_t)pages[k] * c->bytes_per_page;
+
+        probe_results.t6_page[k] = pages[k];
+
+        if (mt29f_read(addr, probe_readback, c->bytes_per_page) != 0) {
+            cdc_printf("  [T6] page %u: READ FAILED\r\n", pages[k]);
+            continue;
+        }
+
+        probe_results.t6_status[k] = mt29f_last_read_status();
+        memcpy((void *)probe_results.t6_head[k], probe_readback,
+               sizeof(probe_results.t6_head[k]));
+
+        /* First length field on the 20-byte IMU_FIFO grid that is not 14. */
+        for (uint16_t off = 0; off + 4 < 2040; off += 20) {
+            uint16_t len = (uint16_t)(probe_readback[off + 2] |
+                                      (probe_readback[off + 3] << 8));
+
+            if (len != 0x000E) {
+                probe_results.t6_first_bad_len[k] = off;
+                break;
+            }
+        }
+
+        cdc_printf("  [T6] page %u: status=0x%02x eccs=0x%x first bad len @%u\r\n",
+                   pages[k], probe_results.t6_status[k],
+                   mt29f_ecc_status_of((uint8_t)probe_results.t6_status[k]),
+                   probe_results.t6_first_bad_len[k]);
+    }
+}
+
+static void page_layout_test(void)
+{
+    const mt29f_cfg_t *c = mt29f_get_config();
+    const uint32_t total_blocks = (uint32_t)c->blocks_per_die * c->num_dies;
+    /* Last two DATA blocks: CONFIG_BLOCK_START is total-META-CONFIG, so
+     * total-META-CONFIG-1 and -2 are the highest blocks the log itself uses. */
+    const uint32_t blk_ecc_on  = total_blocks - META_BLOCK_COUNT - CONFIG_BLOCK_COUNT - 1;
+    const uint32_t blk_ecc_off = blk_ecc_on - 1;
+    uint8_t cfg_reg = 0;
+
+    cdc_write("\r\n===== page layout probe (nand_page_defects.md) =====\r\n");
+
+    memset((void *)&probe_results, 0, sizeof(probe_results));
+    probe_results.magic = 0x50524F42;
+
+    mt29f_get_feature(REG_CONFIGURATION, &cfg_reg);
+    probe_results.cfg_reg_at_entry = cfg_reg;
+    cdc_printf("  CONFIGURATION reg = 0x%02x (ECC_EN=%d)\r\n",
+               cfg_reg, (cfg_reg & SEC_STATUS_BIT_ECC_EN) ? 1 : 0);
+
+    probe_results.plane_even_ok = plane_even_ok_mirror;
+    probe_results.plane_odd_ok = plane_odd_ok_mirror;
+    probe_results.plane_first_mismatch = plane_first_mismatch_mirror;
+
+    probe_resume_offset();
+    probe_scan_forward();
+    probe_known_bad_pages();
+
+    /* T2: as shipped, ECC enabled. */
+    probe_one_page("T2 ecc-on", blk_ecc_on, 0, &probe_results.ecc_on);
+
+    /* T2b: same test with the ECC engine off. If all 2176 bytes round-trip
+     * here and only here, the spare is chip-owned under ECC and defect A is
+     * proven; if the tail is lost either way, the cause is elsewhere. */
+    if (mt29f_set_feature(REG_CONFIGURATION, (uint8_t)(cfg_reg & ~SEC_STATUS_BIT_ECC_EN)) == 0) {
+        uint8_t check = 0;
+
+        mt29f_get_feature(REG_CONFIGURATION, &check);
+        cdc_printf("  CONFIGURATION reg now 0x%02x (ECC_EN=%d)\r\n",
+                   check, (check & SEC_STATUS_BIT_ECC_EN) ? 1 : 0);
+
+        probe_one_page("T2b ecc-off", blk_ecc_off, 7, &probe_results.ecc_off);
+
+        mt29f_set_feature(REG_CONFIGURATION, cfg_reg);
+        mt29f_get_feature(REG_CONFIGURATION, &check);
+        cdc_printf("  CONFIGURATION restored to 0x%02x\r\n", check);
+    } else {
+        cdc_write("  could not clear ECC_EN — skipping the ecc-off arm\r\n");
+    }
+
+    probe_results.ecc_events = mt29f_ecc_event_count();
+    probe_results.done_magic = 0x444F4E45; /* 'DONE' */
+    cdc_printf("  ECC events since boot: %u (last offset %ld)\r\n",
+               mt29f_ecc_event_count(), (long)mt29f_ecc_last_offset());
+    cdc_write("=====================================================\r\n");
 }
 
 void nvs_bringup_phase(void)
@@ -224,6 +621,15 @@ void nvs_bringup_phase(void)
     }
 
     meta_block_inspect();
+
+#if NVS_PAGE_PROBE
+    /* T1: the existing plane test memcmps all 2176 bytes of an 0xAA page, so
+     * under defect A it must fail at byte 2112. If it passes, defect A is
+     * wrong and nothing below should be believed. Note it erases the two
+     * blocks at CONFIG_BLOCK_START, i.e. it destroys the saved rate config. */
+    plane_alias_test();
+    page_layout_test();
+#endif
 
     /* Rate config used to be RESTORED here, from the NAND's CONFIG blocks —
      * which meant it could only ever be restored on a board whose NAND worked,

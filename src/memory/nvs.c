@@ -537,6 +537,107 @@ int nvs_config_load(uint16_t *imu_odr_hz, uint16_t *temp_interval_sec)
 }
 
 
+
+/*
+ * nvs_page_is_erased: is the page at @addr unwritten?
+ *
+ * A six-byte 0xFF header is the same "no record here" test nvs_dump() uses to
+ * find the end of a page's records; a page whose first header is all-0xFF was
+ * never programmed. Reads a whole page because that is the driver's unit.
+ */
+static bool nvs_page_is_erased(off_t addr, uint8_t *page_buf, bool *read_ok)
+{
+    if (mt29f_read(addr, page_buf, cfg->bytes_per_page) != 0) {
+        *read_ok = false;
+        return false;
+    }
+
+    *read_ok = true;
+
+    for (size_t i = 0; i < sizeof(struct log_entry_hdr); i++) {
+        if (page_buf[i] != 0xFF) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/*
+ * nvs_find_append_point: the first erased page at or after @from.
+ *
+ * Metadata only checkpoints every 100 records, and the META rotation can hand
+ * back an entry older still — measured on SN3 2026-08-26 as at least 1024 pages
+ * behind the true end of the log. Resuming there re-programs pages that already
+ * hold data, and NAND programming only clears bits, so the old and new records
+ * AND together into garbage. That is the corruption behind every
+ * "record overruns page" warning in a dump; see src/memory/nand_page_defects.md.
+ *
+ * The log is append-only, so "written" is monotonic in the address: every page
+ * below the append point is written and every page above it is erased. That
+ * makes the boundary a binary search — ~17 page reads over the whole data
+ * region instead of the thousands a linear scan would need, which matters
+ * because this runs at boot.
+ *
+ * Returns the recovered offset unchanged if any read fails, so a flaky bus
+ * degrades to the old behaviour rather than parking the write pointer
+ * somewhere arbitrary.
+ */
+static off_t nvs_find_append_point(off_t from)
+{
+    const uint32_t page_size = cfg->bytes_per_page;
+    const uint64_t data_region_end =
+        (uint64_t)CONFIG_BLOCK_START * cfg->pages_per_block * page_size;
+
+    uint8_t *page_buf = k_malloc(page_size);
+
+    if (page_buf == NULL) {
+        LOG_ERR("nvs_find_append_point: no memory, keeping recovered offset");
+        return from;
+    }
+
+    bool read_ok = true;
+    off_t result = from;
+
+    /* If the recovered page is already erased there is nothing to skip — the
+     * common healthy case, and it costs one read. */
+    if (nvs_page_is_erased(from, page_buf, &read_ok) || !read_ok) {
+        k_free(page_buf);
+        if (!read_ok) {
+            LOG_WRN("nvs_find_append_point: read failed, keeping offset %ld", (long)from);
+        }
+        return from;
+    }
+
+    /* Invariant: page `lo` is written, page `hi` is erased or past the end. */
+    uint32_t lo = (uint32_t)(from / page_size);
+    uint32_t hi = (uint32_t)(data_region_end / page_size);
+
+    while (hi - lo > 1) {
+        uint32_t mid = lo + (hi - lo) / 2;
+
+        if (nvs_page_is_erased((off_t)mid * page_size, page_buf, &read_ok)) {
+            hi = mid;
+        } else if (read_ok) {
+            lo = mid;
+        } else {
+            LOG_WRN("nvs_find_append_point: read failed at page %u, keeping offset %ld",
+                    mid, (long)from);
+            k_free(page_buf);
+            return from;
+        }
+    }
+
+    result = (off_t)hi * page_size;
+    k_free(page_buf);
+
+    LOG_WRN("Recovered offset %ld points at live data; appending at %ld instead "
+            "(%u pages skipped)", (long)from, (long)result,
+            (unsigned)(hi - (uint32_t)(from / page_size)));
+
+    return result;
+}
+
 /*
  * nvs_calc_offset: calculates the NVS address offset using metadata
  */
@@ -549,6 +650,11 @@ bool nvs_calc_offset() {
         // Successfully recovered offset from metadata
         write_addr = (off_t)offset;
         LOG_INF("Offset recovered from metadata: %ld", write_addr);
+
+        /* The checkpoint can be arbitrarily far behind the real end of the log.
+         * Skip forward over anything already written rather than programming
+         * those pages a second time. */
+        write_addr = nvs_find_append_point(write_addr);
         return true;
     }
 
@@ -659,7 +765,9 @@ void nvs_dump(void)
 
         uint16_t page_offset = 0;
 
-        while (page_offset + sizeof(struct log_entry_hdr) <= cfg->bytes_per_page) {
+        /* Records can only ever live below usable_bytes_per_page; past that
+         * is the die's ECC parity, which is not record data. */
+        while (page_offset + sizeof(struct log_entry_hdr) <= cfg->usable_bytes_per_page) {
             if (page_buf[page_offset] == 0xFF) {
                 break; /* rest of page is 0xFF padding */
             }
@@ -668,7 +776,7 @@ void nvs_dump(void)
             memcpy(&hdr, &page_buf[page_offset], sizeof(hdr));
             page_offset += sizeof(hdr);
 
-            if (page_offset + hdr.length > cfg->bytes_per_page) {
+            if (page_offset + hdr.length > cfg->usable_bytes_per_page) {
                 LOG_WRN("nvs_dump: record overruns page at addr=%ld offset=%u", addr, page_offset);
                 break;
             }
@@ -797,8 +905,9 @@ static int nvs_log_record_impl(enum record_type type, const void *payload, uint1
         return -EINVAL;
     }
 
-    if (total_size > cfg->bytes_per_page) {
-        LOG_ERR("Record too large: %zu bytes (max %u)", total_size, cfg->bytes_per_page);
+    if (total_size > cfg->usable_bytes_per_page) {
+        LOG_ERR("Record too large: %zu bytes (max %u)", total_size,
+                cfg->usable_bytes_per_page);
         return -EINVAL;
     }
 
@@ -813,8 +922,10 @@ static int nvs_log_record_impl(enum record_type type, const void *payload, uint1
         return -ENOSPC;
     }
 
-    // Check if record fits in current page buffer
-    if (page_buffer_offset + total_size > cfg->bytes_per_page) {
+    /* Fit against the USABLE page, not the whole page: the die overwrites
+     * 2112..2175 with ECC parity, so anything packed past that is discarded on
+     * the way to flash. See mt29f_nand.h and src/memory/nand_page_defects.md. */
+    if (page_buffer_offset + total_size > cfg->usable_bytes_per_page) {
         // Flush current page to make room
         ret = nvs_flush_page_buffer();
         if (ret != 0) {
