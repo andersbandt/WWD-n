@@ -11,6 +11,13 @@ extern "C" {
 void setPixel(uint16_t, uint16_t);
 /* background pixel used for font draw */
 void setbgPixel(uint16_t, uint16_t);
+/* Fills the whole panel with the FOREGROUND colour (setColor/setColorRaw), not
+ * the background one — it is filledRect(0,0,W,H), and every fill primitive here
+ * paints with `color`. `bg_color` is read only by the font renderer's opaque
+ * mode via setbgPixel(). Set the foreground to whatever you want the screen to
+ * become before calling this; see clear_display() in display.c, which got this
+ * wrong for a long time and painted the panel black on the day the menu ink
+ * became black. */
 void fillScreen(void);
 /* needs to be the last action when using BUFFER or HVBUFFER */
 void flushBuffer(void);

@@ -244,11 +244,33 @@ void init_display() {
 
 /**
  * clearDisplay: clears all content on the display
+ *
+ * *** fillScreen() paints with the FOREGROUND colour, not the background one. ***
+ *
+ * fillScreen() -> filledRect() -> drawLine() -> ST7735S_Pixel(), and that last
+ * one writes gfx.c's `color`. `bg_color` is only ever read by ST7735S_bgPixel(),
+ * i.e. by font rendering in non-transparent mode. So the setbgColor() below does
+ * NOT decide what the wipe paints — it is here only so text drawn afterwards in
+ * opaque mode lands on the right ground.
+ *
+ * This function used to set only the background and then wipe with whatever
+ * foreground the previous screen happened to leave behind. That was wrong the
+ * whole time and invisible for just as long, because the leftover was almost
+ * always the light body text colour. The moment the menu theme made the ink
+ * BLACK (2026-08-26), exiting a menu started wiping the panel black and then
+ * drawing correctly-coloured boxes on top of it — the "inverted screen" report.
+ *
+ * Every other clear in this file already does it correctly (setColor(ui_back)
+ * then filledRect); this one is now consistent with them, and restores the ink
+ * afterwards so a caller that draws text next is unaffected.
  */
 void clear_display()
 {
-    setbgColor(ui_back[0], ui_back[1], ui_back[2]);
+    setColor(ui_back[0], ui_back[1], ui_back[2]);     /* what fillScreen actually paints with */
+    setbgColor(ui_back[0], ui_back[1], ui_back[2]);   /* ground for opaque text drawn later */
     fillScreen();
+
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);     /* leave the ink where callers expect it */
     flushBuffer();
 }
 

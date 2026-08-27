@@ -331,7 +331,47 @@ idle floor remain the only things that matter.
    2.85 or 3.02 V.
 3. **Which BOOST_SEL level is 2.7 V vs 3.0 V** is *inferred from current*, not measured. A
    direct VCC reading in each mode would confirm it.
-4. **SN1 has the wrong NAND** (1.8 V `MT29F2G01ABBGD`), so NVS never initialises and the
+   **Partial answer 2026-08-26:** Anders measured **VCC = 2.7 V** on SN3 with a DMM while
+   `power_save_active` read **false** in RAM — i.e. firmware believed it was driving the
+   *normal, higher* rail. The MCP23008's buttons were dead at the same time, so the working
+   theory is that the expander lost its configuration and GP6/BOOST_SEL was **floating**.
+   That makes 2.7 V a reading of the *floating* mode-select, not of either driven level, so
+   it does not close this question — but it does mean a floating GP6 lands on 2.7 V, which
+   is worth knowing on its own. See §5.
+
+4. **Does screen CONTENT cost power?** (raised 2026-08-26, unmeasured)
+
+   §3.1 measured the panel at backlight steps but always showing the same thing. Nobody has
+   varied what is *on* the screen. The 2026-08-26 sunlight rework flipped every menu and leaf
+   screen from light-on-dark to **black-on-light**, and both the commit message and the design
+   review assert that "unlike an OLED, a white ground costs no extra power here, because the
+   backlight is on regardless." **That claim is reasoning, not a measurement**, and it is now
+   load-bearing for a UI decision — if it is wrong, the new theme costs battery on every menu
+   screen, and the correct response would be to keep the dark theme indoors and switch to the
+   light one only in a sun mode.
+
+   What to measure, panel on, backlight fixed at 50%, dwell >= 30 s per state (`DWELL_MS`'s
+   8 s does not settle — see §2):
+
+   | State | Why |
+   |---|---|
+   | Full black | Floor for content-dependent draw |
+   | Full white | The theoretical worst case |
+   | Real clock face (dark ground) | What the watch actually shows most of the time |
+   | Real menu screen (light ground) | What the new theme actually shows |
+   | Full white at 0% and 100% backlight | Whether content and backlight interact |
+
+   **Expected result: a difference well under 0.1 mA** — this is a transmissive TFT with an
+   LED backlight, so pixel content changes only the LC switching and the panel's own drive,
+   not the light source. The measurement is worth taking *because* the expected answer is
+   "no difference": that is exactly the kind of assumption that silently becomes wrong, and
+   §3.1 already showed the panel logic alone (2.1 mA) dwarfs the entire backlight range
+   (2.3 mA), so the panel side is not obviously negligible.
+
+   Anything above ~0.1 mA between black and white means content-dependent draw is real and
+   the light theme needs revisiting. Note this is also cheap to fold into an existing sweep —
+   it needs no new firmware image, just a UI state to park in.
+5. **SN1 has the wrong NAND** (1.8 V `MT29F2G01ABBGD`), so NVS never initialises and the
    `nvs_*` states are marked `invalid` in `schedule.json`. NVS write power is unmeasured.
 
 ## 5. Firmware follow-ups this exposed
