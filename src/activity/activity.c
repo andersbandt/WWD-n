@@ -26,8 +26,23 @@ static const struct {
     activity_id_t id;
     const char   *name;
 } ACTIVITY_DEFS[] = {
-    { ACTIVITY_RUN, "Running" },
+    { ACTIVITY_RUN,   "Running"     },
+    { ACTIVITY_EAT,   "Eating"      },
+    { ACTIVITY_WORK,  "Working"     },
+    { ACTIVITY_TV,    "Watching TV" },
+    { ACTIVITY_PHONE, "Phone"       },
+    { ACTIVITY_CLEAN, "Cleaning"    },
+    { ACTIVITY_DRIVE, "Driving"     },
 };
+
+/* Row order is menu order, and it deliberately matches the enum: the ids are
+ * on flash and cannot be reordered, so keeping the table in the same order
+ * means one list to reason about instead of two.
+ *
+ * "Watching TV" is the longest name that fits. The activity screen draws
+ * "> " + name + " *" at FONT_MEDIUM (8 px/char) into WIDTH - ACT_X = 124 px,
+ * i.e. 15 characters — so a name has 11 to work with, and the 12th would be
+ * silently clipped with no wrap and no warning. */
 
 #define ACTIVITY_DEF_COUNT  (sizeof(ACTIVITY_DEFS) / sizeof(ACTIVITY_DEFS[0]))
 

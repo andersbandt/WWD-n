@@ -363,6 +363,20 @@ void drawAxisGauge(int16_t left, int16_t top, int16_t right, int16_t bottom,
 
 
 /**
+ * @brief Draws a 0-100%% horizontal fill bar
+ *
+ * For a bounded value the user is actively driving (brightness). Banded and
+ * cheap — two rects and an outline — because it is redrawn on every
+ * auto-repeat step while a button is held.
+ *
+ * @param left,top,right,bottom: inclusive pixel rect
+ * @param pct: 0-100, clamped
+ */
+void drawLevelBar(int16_t left, int16_t top, int16_t right, int16_t bottom,
+                  uint8_t pct);
+
+
+/**
  * @brief Draws a green (on) or red (off) border around the whole panel
  *
  * The state indicator for every binary setting screen — a colour at the edge

@@ -37,13 +37,18 @@
  */
 
 typedef enum {
-    ACTIVITY_NONE = 0,   /* not an activity — means "nothing running" */
-    ACTIVITY_RUN  = 1,
+    ACTIVITY_NONE  = 0,   /* not an activity — means "nothing running" */
+    ACTIVITY_RUN   = 1,
+    ACTIVITY_EAT   = 2,
+    ACTIVITY_WORK  = 3,
+    ACTIVITY_TV    = 4,
+    ACTIVITY_PHONE = 5,
+    ACTIVITY_CLEAN = 6,
+    ACTIVITY_DRIVE = 7,
 
     /* APPEND ONLY — these values are written to flash and are hand-mirrored
      * by dump_decoder.py. Inserting or renumbering silently rewrites the
-     * meaning of every dump already taken. Planned: eating, driving, phone,
-     * TV, working, exercise. */
+     * meaning of every dump already taken. */
 } activity_id_t;
 
 /** @brief Marker kind, as stored in struct record_activity.event. */

@@ -234,6 +234,19 @@ void display_out_imu_live(const struct imu_live_view *v);
 
 
 /**
+ * display_out_brightness: the backlight brightness screen.
+ *
+ * Big percentage plus a fill bar. Replaces display_out_measurement() here
+ * because that clears the whole panel on every change, which a held button
+ * asking for a step every 120 ms cannot keep up with.
+ *
+ * @param pct         value actually in effect (already low-power capped)
+ * @param full_redraw paint the static chrome; pass true only on entry
+ */
+void display_out_brightness(uint8_t pct, bool full_redraw);
+
+
+/**
  * display_out_toggle: the screen for a binary setting.
  *
  * A green (on) or red (off) ring around the whole panel with the state in

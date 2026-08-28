@@ -341,10 +341,12 @@ void display_out_activity(size_t cursor, bool full_redraw)
 {
     static char last_row[ACT_ROWS_PER_PAGE][ACT_ROW_MAX];
     static char last_status[ACT_ROW_MAX];
+    static size_t last_page = (size_t)-1;
 
     size_t count = activity_count();
     size_t page  = cursor / ACT_ROWS_PER_PAGE;
     size_t start = page * ACT_ROWS_PER_PAGE;
+    size_t pages = (count + ACT_ROWS_PER_PAGE - 1) / ACT_ROWS_PER_PAGE;
 
     if (full_redraw) {
         clear_display();
@@ -354,6 +356,24 @@ void display_out_activity(size_t cursor, bool full_redraw)
             last_row[i][0] = '\0';
         }
         last_status[0] = '\0';
+        last_page = (size_t)-1;
+    }
+
+    /* Page counter beside the title, only once there is more than one page.
+     * The list scrolls by replacing all five rows in place, so without this
+     * there is nothing on screen to say that anything exists past the fifth
+     * activity — which did not matter when there was one activity and does
+     * now that there are seven. Drawn on the title row rather than the status
+     * row because the status row is already at its 15-character budget with
+     * "-- idle --" plus an elapsed time. */
+    if (pages > 1 && page != last_page) {
+        /* Both counts are bounded by ACTIVITY_DEF_COUNT, but the compiler
+         * cannot see that through size_t, so size for the worst case it can. */
+        char pager[24];
+        snprintf(pager, sizeof(pager), "%u/%u",
+                 (unsigned)(page + 1), (unsigned)pages);
+        printFieldRightAligned(pager, 2, (uint32_t)(WIDTH - 2), 34, FONT_SMALL);
+        last_page = page;
     }
 
     for (size_t i = 0; i < ACT_ROWS_PER_PAGE; i++) {
@@ -896,6 +916,47 @@ void display_out_imu_live(const struct imu_live_view *v)
                              (int16_t)(WIDTH - 1), (int16_t)(HEIGHT - 1) };
 
     drawGraphMulti(traces, 3, v->gyro_n, (int16_t)-peak, (int16_t)peak, box, &opts);
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Brightness
+ *
+ * Its own screen rather than display_out_measurement(), which does a
+ * clear_display() — a full 128x160x2 = 40 KB panel wipe — plus two FONT_LARGE
+ * printLine()s on EVERY change. Held down, the auto-repeat asks for a new
+ * value every 120 ms and that repaint cannot finish in 120 ms, so the screen
+ * fell progressively further behind the thumb. That is the "slow" in
+ * "brightness is slow", not the input path.
+ *
+ * Now: the title is painted once on entry and never again, and a step redraws
+ * only the number's own fixed-width box plus the bar — both banded, together
+ * about a tenth of the pixels.
+ * ------------------------------------------------------------------------- */
+
+#define BRT_VALUE_Y    46
+#define BRT_VALUE_FONT FONT_XXLARGE
+#define BRT_VALUE_W    72
+#define BRT_BAR_TOP    92
+#define BRT_BAR_BOT    112
+#define BRT_HINT_LINE  8    /* FONT_SMALL line 8 => y=130, clear of the bar */
+
+void display_out_brightness(uint8_t pct, bool full_redraw)
+{
+    char text[8];
+
+    if (full_redraw) {
+        clear_display();
+        printLine("BRIGHTNESS", 0, 4, FONT_MEDIUM);
+        /* Static, so it is painted once with the title and left alone. */
+        printLine("UP / DOWN to set", BRT_HINT_LINE, 4, FONT_SMALL);
+    }
+
+    snprintf(text, sizeof(text), "%u%%", (unsigned)pct);
+    printFieldRightAligned(text, BRT_VALUE_Y, (uint32_t)(WIDTH - 20), BRT_VALUE_W,
+                           BRT_VALUE_FONT);
+
+    drawLevelBar(8, BRT_BAR_TOP, (int16_t)(WIDTH - 9), BRT_BAR_BOT, pct);
 }
 
 

@@ -63,29 +63,60 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
  * ground costs no extra power here: the backlight is on regardless.)
  */
 
-/* Clock-face ground: Darcula background #2B2B2B */
-#define BACK_R 5
-#define BACK_G 10
-#define BACK_B 5
-
-/* Clock-face text: #C6B4AD.
+/* The warm light lilac #C6B4AD.
  *
- * NOT the Darcula #A9B7C6 the old comment claimed. That constant was written
- * in struct order, so the panel has been showing its r/b mirror — this warm
- * light lilac — for the whole life of the project. It is what Anders means by
- * "our original main display light purple", so it is kept exactly as it
- * appears on the glass and simply written down honestly. */
-#define FORE_R 24
-#define FORE_G 45
-#define FORE_B 21
+ * NOT the Darcula #A9B7C6 an older comment claimed. That constant was written
+ * in struct order, so the panel showed its r/b mirror — this lilac — for the
+ * whole life of the project. It is what Anders means by "our original main
+ * display light purple", so it is kept exactly as it appears on the glass and
+ * simply written down honestly.
+ *
+ * It was the clock face's TEXT until 2026-08-27. It is now the GROUND, on both
+ * the clock face and the menus. */
+#define LILAC_R 24
+#define LILAC_G 45
+#define LILAC_B 21
 
-/* Clock-face badge states (charging / low-power indicators). Only ever drawn
- * on the dark ground, so these do not need light-theme variants. */
-#define ACCENT_R 25 // accent (selection/highlight) — Darcula orange #CC7832
-#define ACCENT_G 30
-#define ACCENT_B  6
+/* Clock-face ground and ink — light ground, black ink, since 2026-08-27.
+ *
+ * The clock face was the last screen still running light-on-dark (Darcula
+ * #2B2B2B ground under this lilac text). Anders: "I can't see it at all
+ * outside." Same finding, and the same fix, as the menus got on 2026-08-26:
+ * this is a transmissive TFT and in sunlight the reflected glare swamps the
+ * ratio contrast that makes light-on-dark readable indoors. What survives is
+ * the absolute luminance DIFFERENCE between ink and ground, so the ground
+ * wants to be as bright as the panel can make it and the ink as dark as
+ * possible. Black on near-white, not the reverse.
+ *
+ * Costs nothing in power: unlike an OLED, the backlight is on regardless of
+ * what is being displayed.
+ *
+ * The old dark ground was BACK 5/10/5 (#2B2B2B) with this lilac as ink — kept
+ * written down in case a night theme is ever wanted, which is the one case
+ * where the old direction was the better one. */
+#define BACK_R LILAC_R
+#define BACK_G LILAC_G
+#define BACK_B LILAC_B
 
-#define DIM_R 11    // dim/secondary text #5C6773
+#define FORE_R 0    /* black ink — maximum luminance difference */
+#define FORE_G 0
+#define FORE_B 0
+
+/* Clock-face badge states (charging / low-power indicators).
+ *
+ * These now sit on a LIGHT ground, which flipped what works. Orange at Darcula's
+ * own luminance (25/30/6) is nearly as bright as the lilac behind it and washed
+ * out completely, so the accent is now a dark amber — it has to be darker than
+ * its ground, not merely a different hue from it.
+ *
+ * DIM needed no change and is the one constant that reads BETTER after the
+ * inversion: at roughly half the ground's luminance it lands as genuinely
+ * greyed-out secondary text, which is what it always claimed to be. */
+#define ACCENT_R 20 // accent (selection/highlight) — dark amber, readable on lilac
+#define ACCENT_G 16
+#define ACCENT_B  0
+
+#define DIM_R 11    // dim/secondary text
 #define DIM_G 25
 #define DIM_B 14
 
@@ -102,14 +133,22 @@ LOG_MODULE_REGISTER(display, LOG_LEVEL_INF);
 #define BAD_GRN  21
 #define BAD_BLU  10
 
-/* Menu / leaf-screen ground: the clock face's light lilac, per Anders'
- * suggestion — black on it instead of the #F52091 pink, which put low-contrast
- * light text on a mid-luminance ground and would have been unreadable outside.
+/* Menu / leaf-screen ground. Was defined as FORE_* back when the clock face's
+ * FOREGROUND was the lilac; now that the clock face has been inverted too,
+ * both themes are the same thing and this says so directly. Defining it in
+ * terms of FORE_* today would paint black on black.
+ *
+ * The two setters below are deliberately KEPT despite now selecting identical
+ * palettes: every caller already expresses "I am drawing a clock face" or "I
+ * am drawing a menu", and that intent is what a future night theme (or a
+ * per-screen accent) would hang off. Collapsing them would throw away the
+ * distinction and gain nothing.
+ *
  * Push this closer to white (e.g. 28/58/28) if the sun still wins; the green
  * channel carries most of the luminance, so brightening g buys the most. */
-#define MENU_BACK_R FORE_R
-#define MENU_BACK_G FORE_G
-#define MENU_BACK_B FORE_B
+#define MENU_BACK_R LILAC_R
+#define MENU_BACK_G LILAC_G
+#define MENU_BACK_B LILAC_B
 
 #define MENU_FORE_R 0   /* black ink — maximum luminance difference */
 #define MENU_FORE_G 0
@@ -975,6 +1014,53 @@ void drawAxisGauge(int16_t left, int16_t top, int16_t right, int16_t bottom,
         text_x = (int16_t)(track_right + 2);
     }
     drawText((uint16_t)text_x, (uint16_t)top, text);
+
+    flushBuffer();
+    if (banded) {
+        endBand();
+    }
+}
+
+
+/*
+ * drawLevelBar: a 0-100% horizontal fill bar.
+ *
+ * For a bounded quantity the user is actively driving — brightness today.
+ * A number alone makes you read and compare digits to know where you are in
+ * the range; a bar answers that at a glance, which matters most while the
+ * value is moving under your thumb.
+ *
+ * Banded, and cheap on purpose: this is redrawn on every auto-repeat step, so
+ * it is two filled rects and an outline inside one composite band — roughly
+ * 3 KB of SPI against the 40 KB a full-screen clear costs. That difference is
+ * the whole reason the brightness screen could not keep up with a held button.
+ */
+void drawLevelBar(int16_t left, int16_t top, int16_t right, int16_t bottom,
+                  uint8_t pct)
+{
+    if (right <= left || bottom <= top) {
+        return;
+    }
+    if (pct > 100) {
+        pct = 100;
+    }
+
+    bool banded = beginFieldBand(left, top, right, bottom);
+
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
+    filledRect((uint16_t)left, (uint16_t)top, (uint16_t)right, (uint16_t)bottom);
+
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
+    drawRect((uint16_t)left, (uint16_t)top, (uint16_t)right, (uint16_t)bottom);
+
+    /* Inset by 2 so the fill never touches the frame — a fill flush against
+     * its own outline reads as one solid block at the top of the range. */
+    int16_t span = (int16_t)(right - left - 4);
+    int16_t fill = (int16_t)((int32_t)span * pct / 100);
+    if (fill > 0) {
+        filledRect((uint16_t)(left + 2), (uint16_t)(top + 2),
+                   (uint16_t)(left + 2 + fill), (uint16_t)(bottom - 2));
+    }
 
     flushBuffer();
     if (banded) {

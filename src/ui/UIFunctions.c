@@ -361,6 +361,36 @@ void system_prompt_for_time_UI_FUNC() {
                               * turn it back up */
 #define BRIGHTNESS_MAX  100
 
+/* Auto-repeat acceleration.
+ *
+ * The repeat itself already exists (run_button_autorepeat() in main.c: 450 ms
+ * to engage, then a step every 120 ms). At a flat 5% per step, crossing the
+ * range is 19 steps — over two seconds of holding, and it feels like the
+ * screen is ignoring you.
+ *
+ * So the step grows the longer the hold lasts: 5, then 10, then 20. Small
+ * steps stay available for the first few, which is what a tap needs, and a
+ * sustained hold crosses 5..100 in about a second. The trigger is the GAP
+ * between changes rather than a press count — a gap under the threshold can
+ * only come from the repeat timer, never from a human tapping, so a series of
+ * deliberate single taps never accelerates.
+ */
+#define BRIGHTNESS_ACCEL_GAP_MS  250  /* below this, it is the repeat timer */
+#define BRIGHTNESS_ACCEL_MED     4    /* steps held before 10% */
+#define BRIGHTNESS_ACCEL_FAST    8    /* steps held before 20% */
+
+static uint8_t brightness_step_for(uint8_t consecutive)
+{
+    if (consecutive >= BRIGHTNESS_ACCEL_FAST) {
+        return BRIGHTNESS_STEP * 4;
+    }
+    if (consecutive >= BRIGHTNESS_ACCEL_MED) {
+        return BRIGHTNESS_STEP * 2;
+    }
+    return BRIGHTNESS_STEP;
+}
+
+
 void system_adjust_brightness_UI_FUNC(void) {
     /* Seeded from the display driver's live value (st7735s_compat.c), not a
      * local - so re-entering this screen shows the brightness actually in
@@ -368,33 +398,54 @@ void system_adjust_brightness_UI_FUNC(void) {
      * sleepIn/sleepOut. */
     uint8_t brightness = backlight_pct;
 
+    static uint8_t consecutive;     /* repeats in the current hold */
+    static int64_t last_change_ms;
+
     if (first_ui_time) {
         first_ui_time = false;
         button_buffer_clear();
-        display_out_measurement("Brightness", brightness);
+        consecutive = 0;
+        last_change_ms = 0;
+        display_out_brightness(low_power_cap_backlight(brightness), true);
         return;
     }
 
-    /* Same drain-then-redraw-once shape as the time/date setter above: step
-     * the value for every queued press, but only push it to the backlight
-     * and repaint the readout once, at the final value. */
+    /* Drain every queued press before touching the panel: the value is cheap
+     * to step and the redraw is not, so a burst must land as ONE repaint at
+     * the final value rather than one per press. */
     uint8_t btn_poll;
     bool changed = false;
 
     while ((btn_poll = get_button_event()) != 0) {
+        if (btn_poll != BUTTON_1_MASK && btn_poll != BUTTON_4_MASK) {
+            continue;
+        }
+
+        int64_t now = k_uptime_get();
+        if (now - last_change_ms <= BRIGHTNESS_ACCEL_GAP_MS) {
+            if (consecutive < 255) {
+                consecutive++;
+            }
+        } else {
+            consecutive = 0;    /* a fresh press, not a continuing hold */
+        }
+        last_change_ms = now;
+
+        uint8_t step = brightness_step_for(consecutive);
+
         // INCREMENT (SW1, top-left — UP, same as everywhere else in the UI)
         if (btn_poll == BUTTON_1_MASK) {
             if (brightness < BRIGHTNESS_MAX) {
-                brightness = (brightness + BRIGHTNESS_STEP > BRIGHTNESS_MAX)
-                                ? BRIGHTNESS_MAX : brightness + BRIGHTNESS_STEP;
+                brightness = (brightness + step > BRIGHTNESS_MAX)
+                                ? BRIGHTNESS_MAX : brightness + step;
                 changed = true;
             }
         }
         // DECREMENT (SW4, bottom-left)
-        else if (btn_poll == BUTTON_4_MASK) {
+        else {
             if (brightness > BRIGHTNESS_MIN) {
-                brightness = (brightness - BRIGHTNESS_STEP < BRIGHTNESS_MIN)
-                                ? BRIGHTNESS_MIN : brightness - BRIGHTNESS_STEP;
+                brightness = (brightness < BRIGHTNESS_MIN + step)
+                                ? BRIGHTNESS_MIN : brightness - step;
                 changed = true;
             }
         }
@@ -408,7 +459,7 @@ void system_adjust_brightness_UI_FUNC(void) {
         uint8_t applied = low_power_cap_backlight(brightness);
 
         Backlight_Pct(applied);
-        display_out_measurement("Brightness", applied);
+        display_out_brightness(applied, false);
     }
 
     return;
