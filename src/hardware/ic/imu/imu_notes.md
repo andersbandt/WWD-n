@@ -1,5 +1,105 @@
 # IMU Notes
 
+## RAISE-TO-WAKE TUNING LOG
+
+Every threshold in the wake path, what it is set to, and when it changed. Add a
+row here BEFORE changing a value — several of these have been re-derived from
+scratch more than once because the reasoning lived only in a commit message.
+
+Units: WOM counts are the register's fixed 3.9 mg (1 g / 256, independent of
+accel FSR). Gate thresholds are raw accel LSB at 2048 LSB/g (the +/-16 g FSR
+`startAccel()` configures).
+
+| Constant | Where | Value | Changed | Why |
+|---|---|---|---|---|
+| `WOM_THRESHOLD` | ICM_42670.c | 80 (~312 mg) | 2026-08-22 (v1) | Initial guess. Never tuned. |
+| `WOM_THRESHOLD` | ICM_42670.c | **50 (~195 mg)** | **2026-08-27** | Anders: raise only arms if the arm is rotated briskly. See the CMP_PREV analysis below. UNTESTED on wrist. |
+| `RAISE_AZ_MIN_LSB` | imu.c | 1024 (0.5 g, ~60 deg cone) | 2026-08-23 (v2) | Guess. **Never measured against the real mechanical orientation** — the first thing to check now that the live IMU screen reads accel out in g. |
+| `RAISE_STILL_PP_LSB` | imu.c | 512 (0.25 g pp, all 3 axes) | 2026-08-23 (v2) | Guess. Anders 2026-08-27: "the stillness seems fine." |
+| `RAISE_SETTLE_MS` | imu.c | 250 | 2026-08-23 (v2) | Guess, untouched. |
+| `RAISE_WINDOW_MS` | imu.c | 1500 | 2026-08-23 (v2) | Guess, untouched. Note it is reset on EVERY WOM, so it is really "1500 ms since the last motion", not since the gesture began. |
+| `RAISE_RING_LEN` | imu.c | 16 (~160 ms @ 100 Hz) | 2026-08-23 (v2) | Guess, untouched. |
+
+### Why the WOM threshold was the wrong knob at 80, quantitatively
+
+`inv_imu_configure_wom()` hardcodes **`WOM_CONFIG_WOM_MODE_CMP_PREV`** (see
+inv_imu_driver.c) — WOM compares each accel sample to the **previous** sample,
+not to a stored reference. At the 100 Hz ODR that makes it a **jerk** test, not
+a motion test.
+
+Rotate the wrist 90 degrees over ~1 second: the gravity projection on an axis
+moves by at most 1 g across that whole second, so the per-sample delta is
+about `1 g * (pi/2 rad / 1 s) * 10 ms` = **~16 mg**, i.e. ~4 counts. Against a
+threshold of 80 counts that is twenty times too small — the rotation itself can
+never arm WOM. What was actually arming it was the incidental jerk of moving
+briskly, which is exactly the "it comes down to how fast I rotate my arm"
+symptom.
+
+50 counts is a first step, not the answer: it is still ~12x the per-sample
+delta of a slow rotation. **The real fix is probably `WOM_CONFIG_WOM_MODE_CMP_INIT`**
+(wom_mode bit = 0: "initial sample is stored, future samples are compared to
+initial sample"), where a slow 90-degree rotation accumulates the full ~1 g
+against the stored reference and comfortably crosses any sane threshold. The
+enum already exists in inv_imu_defs.h; the driver just never offers it, so
+using it means either writing WOM_CONFIG directly or widening
+`inv_imu_configure_wom()`. Not done yet — one variable at a time.
+
+Lowering the threshold is cheap in a way that is worth remembering: since v2,
+WOM only **arms** the gesture, and `imu_check_raise_gesture()`'s posture +
+stillness gate does the accepting. Extra arms are rejected by the gate, and WOM
+shares INT1 with FIFO_THS which is already firing continuously, so there is no
+new interrupt, SPI or power cost. Too high silently misses raises; too low
+costs approximately nothing. Bias low.
+
+
+## [2026-08-26] Live "Display readings" screen rebuilt: all six axes, two different shapes
+
+The screen showed **AX, AY and GZ**. That was not a bug in the sense of
+something breaking — it is what `display_out_imu(evt, IMU_DISPLAY_BOTH)` was
+written to do, a hardcoded "compact tradeoff" branch inside a display-mode
+enum. `IMU_DISPLAY_ACCEL` and `IMU_DISPLAY_GYRO` existed and had no callers,
+so three of the six axes were simply unreachable from the UI.
+
+Rebuilt around the fact that **the two sensors do not want the same
+presentation**:
+
+- **Accelerometer -> the newest sample, as three centre-zero bar gauges.** At
+  rest the reading IS the gravity vector, i.e. the watch's orientation, and an
+  orientation is a shape rather than a number. Bars are +/-2 g full scale, not
+  the sensor's +/-16 g: at 16 g, 1 g of gravity is a sixteenth of the track and
+  a resting wrist looks like nothing is happening.
+- **Gyroscope -> a history, as three overlaid traces on one time axis.**
+  Angular rate is zero whenever the wrist is still, so a live gyro *number*
+  spends most of its life reading nothing. What is worth seeing is the shape
+  of a movement, which only exists over time.
+
+**The gyro ring is peak-hold, not averaged, and that is why it is not a
+`util/series.h` ring.** `series_push()` decimates by taking the MEAN of its
+window, which is correct for battery voltage and wrong here: the mean of any
+back-and-forth motion is ~0, so averaging would erase exactly the events the
+screen exists to show. `imu_gyro_history_feed()` (imu.c) keeps the
+largest-magnitude sample of each window instead. 64 samples x 3 axes,
+decimation 16, so ~10 s at the default 100 Hz ODR. The stored cadence is
+**measured** (smoothed gap between stores) rather than computed from the ODR,
+because the ODR is runtime-settable via `CMD_SET_RATE` and a computed cadence
+would silently mislabel the time axis afterwards.
+
+Fed from `event_cb()` in `ICM_42670.c`, gated on `isGyroDataValid(evt)` —
+an invalid packet would plot the driver's stale placeholder as a movement.
+Unlike the raise-to-wake ring next to it, this one has a reader on another
+thread, so it takes a mutex.
+
+Supporting changes, both outside the IMU: `drawGraphMulti()` in display.c (the
+old `drawGraphEx()` is now a one-trace call into it) so several series can
+share one clear, one band and one y range — three separate `drawGraphEx()`
+calls cannot overlay, the second would clear away the first; and
+`drawAxisGauge()` for the bars.
+
+**Untested on hardware.** Built only. The arithmetic (bar scaling, axis
+ranges) has no host test — `test/band` covers the band and `graph_layout`, not
+these.
+
+
 ## [RESEARCH 2026-08-23] Temperature reads ~14 degrees warm: it is self-heating, not the sensor
 
 Anders reports the clock-face temperature consistently high by ~14 degrees (display is

@@ -34,6 +34,7 @@ typedef enum {
     UI_MODE_CLEAR_FAULTS,               // Fault clearing interface
     UI_MODE_LOW_POWER,                  // Low-power mode toggle (see low_power.h)
     UI_MODE_BLE,                        // Bluetooth on/off toggle (see ble.h)
+    UI_MODE_SUB_AUTO_OFF,               // Display auto-off inside sub-screens
 
     // IMU modes (Menu 1)
     UI_MODE_IMU_READ,                   // IMU accelerometer reading display
@@ -107,6 +108,14 @@ typedef struct {
  * stays fully readable for the whole timeout. Costs one extra second of panel
  * wake time (~2.1 mA) per timeout event. */
 #define UI_DISPLAY_FADE_MS 1000
+
+/* Backstop for a sub-screen with auto-off disabled: the panel still sleeps
+ * after this long without a press. Not a timeout the user asked for — the
+ * point of turning auto-off off is to keep a graph on screen while you look
+ * at it — but "on screen while you look at it" and "on all night because the
+ * watch was left in a menu" are different things, and the panel costs ~2.1 mA
+ * even at 0% backlight. Long enough that it cannot be hit while reading. */
+#define UI_SUB_SCREEN_MAX_ON_MS (10 * 60 * 1000)
 
 
 extern ui_mode_t ui_mode;
@@ -183,6 +192,30 @@ void ui_note_activity(void);
  * from a thread, not an ISR — it takes display_draw_mutex and touches SPI1.
  */
 void ui_idle_tick(void);
+
+
+/**
+ * @brief True if the display should auto-off while a sub-screen is open.
+ *
+ * The EFFECTIVE state: the user's setting OR low-power mode, which forces it
+ * on the same way it shortens the timeout. Same shape as
+ * low_power_is_active() vs low_power_user_enabled(), and for the same reason
+ * — the screen should show what is true, not what was asked for.
+ */
+bool ui_sub_auto_off_active(void);
+
+/** @brief The user's manual setting, independent of low-power mode. */
+bool ui_sub_auto_off_user(void);
+
+/**
+ * @brief Set the user's sub-screen auto-off setting. Applies immediately.
+ *
+ * Off (the default) means a sub-screen — a graph, the live IMU readings, log
+ * stats — stays lit while it is open, because those screens exist to be
+ * watched and a nine-second timeout blanks them mid-look. The clock face and
+ * the menu are unaffected either way: they always auto-off.
+ */
+void ui_set_sub_auto_off(bool on);
 
 
 void change_ui_mode(ui_mode_t new_mode);

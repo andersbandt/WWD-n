@@ -63,10 +63,28 @@ typedef struct mt29f_row_addr {
 
 typedef uint16_t mt29f_col_addr_t;
 
-// Flash hardware configuration
+/* Flash hardware configuration — MT29F2G01ABAGD (device ID 0x24).
+ *
+ * ONE die of 2048 blocks. This said `num_dies = 2, blocks_per_die = 1024`
+ * until 2026-08-27, inherited unexamined from the upstream driver this was
+ * forked from, which targets device ID 0x46 — the 4 Gbit MT29F4G01ADAGD,
+ * which really is two stacked dies with a working REG_DIE_SELECT feature.
+ * The 2 Gbit part has no such feature.
+ *
+ * The cost of the mistake: blk_num never exceeded 1023, and everything above
+ * 1 Gbit was "reached" by a die-select write the part ignores — so offset X
+ * and offset X + 1 Gbit produced the SAME row address, for writes as well as
+ * reads. Every page mirrored at +65536, half the chip was unreachable, and
+ * the log silently overwrote itself once it passed the halfway mark. Proved
+ * from a full dump: page N == page N+65536 byte-for-byte, 300/300 sampled
+ * pairs. See nvs_notes.md.
+ *
+ * The part's TWO PLANES are a separate thing and were always handled
+ * correctly, by the CA12 plane-select bit below (added 2026-07-26). Planes
+ * are not dies; mt29f_nand.h used to say they were. */
 static const mt29f_cfg_t cfg = {
-    .num_dies = 2,
-    .blocks_per_die = 1024,
+    .num_dies = 1,
+    .blocks_per_die = 2048,
     .pages_per_block = 64,
     .bytes_per_page = 2176,
     .usable_bytes_per_page = 2112,  /* the die keeps 2112..2175 for ECC parity */
@@ -250,6 +268,17 @@ static int spi_nand_check_id(void)
 static int spi_nand_die_select(uint8_t die_num)
 {
   int rc = 0;
+
+  /* Single-die parts (the MT29F2G01 on this board) do not implement the die
+   * select feature at all. Writing REG_DIE_SELECT to one is an undefined
+   * feature write, and READING it back to decide whether to write — as the
+   * code below does — is worse: it compares against whatever the part
+   * happens to return for an address it does not implement. Skip it
+   * entirely rather than relying on the write being harmless. */
+  if (inst.num_dies <= 1) {
+    return 0;
+  }
+
   const uint8_t target_die = (die_num == 0) ? DIE_0 : DIE_1;
   uint8_t die;
   spi_nand_get_feature(REG_DIE_SELECT, &die);
@@ -690,8 +719,13 @@ int mt29f_init(void)
     }
   }
 
-  spi_nand_unlock(DIE_1);
-  spi_nand_unlock(DIE_0);
+  /* One unlock per die, so a single-die part gets exactly one. DIE_0/DIE_1
+   * are feature-register VALUES, not die indices — passing them as the
+   * die_number argument happened to work only because everything non-zero
+   * took the DIE_1 branch. */
+  for (uint8_t d = 0; d < inst.num_dies; d++) {
+    spi_nand_unlock(d);
+  }
   spi_nand_wait_until_ready();
 
   LOG_INF("MT29F Init Complete");

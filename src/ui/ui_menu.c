@@ -55,12 +55,13 @@ char * main_menu_options[UI_MAIN_MENU_ITEMS] = {
 
 
 // menu 0 sub-menu options: System Settings
-#define SUB_MENU_0_LENGTH     6
+#define SUB_MENU_0_LENGTH     7
 char sub_menu_0[SUB_MENU_0_LENGTH][SUB_MENU_CHAR_LENGTH] = {
                          "Change Date/Time",
                          "Brightness",
                          "Low Power",
                          "Bluetooth",
+                         "Sub Auto-Off",   /* display timeout inside leaf screens */
                          "Clear faults",
                          "Return"
                      };
@@ -142,6 +143,7 @@ ui_mode_t sub_menu_modes[UI_MAIN_MENU_ITEMS][SUB_MENU_MAX_LENGTH] = {
         UI_MODE_ADJUST_BRIGHTNESS,  // Adjust Brightness
         UI_MODE_LOW_POWER,          // Low Power
         UI_MODE_BLE,                // Bluetooth
+        UI_MODE_SUB_AUTO_OFF,       // Sub Auto-Off
         UI_MODE_CLEAR_FAULTS,       // Clear faults
         UI_MODE_MENU                // Return (back to menu)
     },

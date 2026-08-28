@@ -46,6 +46,16 @@ void system_low_power_UI_FUNC(void);
 
 /** @brief Bluetooth on/off toggle screen (UI_MODE_BLE). UP = on, DOWN = off. */
 void system_ble_UI_FUNC(void);
+
+/**
+ * @brief System settings: does the display auto-off while a sub-screen is open?
+ *
+ * Off by default — a graph you opened to look at should not blank nine
+ * seconds in. Low-power mode forces it on. See ui_sub_auto_off_active().
+ */
+void system_sub_auto_off_UI_FUNC(void);
+
+
 void system_clear_faults_UI_FUNC(void);
 
 

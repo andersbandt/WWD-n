@@ -16,7 +16,7 @@
 // define some menu constants
 #define UI_MAIN_MENU_ITEMS    6  // total amount of items in the menu (for tracking absolute position)
 #define UI_MENU_ITEMS_PAGE    4  // total amount of items per page
-#define SUB_MENU_MAX_LENGTH    6  // bumped for menu 0's 6th item (Bluetooth); see sub_menu_0
+#define SUB_MENU_MAX_LENGTH    7  // bumped for menu 0's 7th item (Sub Auto-Off); see sub_menu_0
 #define SUB_MENU_CHAR_LENGTH  22
 
 #define START_X               12  // how far rightward to start printing lines on x axis. Used to be 8

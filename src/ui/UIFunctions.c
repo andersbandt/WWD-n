@@ -158,6 +158,46 @@ void reset_uifunc_params() {
  * via the same font (see display_out_date() in ui_display.c), so paging
  * between them never leaves a stale longer string behind — except the title,
  * which clearAndPrintLine() clears for us. */
+/*
+ * draw_setter_hints: names each of the four buttons, at the corner it sits at.
+ *
+ * The time/date setter is the one screen where every button does something
+ * different from everywhere else in the UI — SW3 moves the cursor between
+ * fields instead of going back, and SW2 commits instead of selecting — and
+ * none of that is discoverable by looking at it. Anders asked for labels;
+ * this puts them at the corners rather than in a list because the buttons ARE
+ * at the corners, so a label beside a button needs no legend to decode.
+ *
+ * SW2's label changes with the screen, since its job does: it pages
+ * TIME -> DATE, and then commits. "SAVE" appearing only on the last screen is
+ * the cue that there is no third page.
+ *
+ * printField*Aligned() rather than printLine(): each clears its own fixed box
+ * first, so "FIELD >" cannot leave a tail behind when it is replaced by a
+ * shorter label, and each is banded so the hints do not flicker on the
+ * redraw that every button press triggers.
+ */
+#define SETTER_HINT_FONT     FONT_SMALL
+#define SETTER_HINT_TOP_Y    26    /* under the title, above the value */
+#define SETTER_HINT_BOT_Y    138   /* clears the value, 12 px of glyph fits in 160 */
+#define SETTER_HINT_W        50
+
+static void draw_setter_hints(void)
+{
+    /* SW1 top-left / SW4 bottom-left: the left column changes the value, the
+     * same convention the brightness screen uses. */
+    printFieldLeftAligned("UP",   SETTER_HINT_TOP_Y, 2, SETTER_HINT_W, SETTER_HINT_FONT);
+    printFieldLeftAligned("DOWN", SETTER_HINT_BOT_Y, 2, SETTER_HINT_W, SETTER_HINT_FONT);
+
+    /* SW2 top-right: advance a screen, then finish. SW3 bottom-right: advance
+     * a field within this screen. */
+    printFieldRightAligned(set_screen == SET_SCREEN_TIME ? "DATE >" : "SAVE",
+                           SETTER_HINT_TOP_Y, WIDTH - 2, SETTER_HINT_W, SETTER_HINT_FONT);
+    printFieldRightAligned("FIELD >",
+                           SETTER_HINT_BOT_Y, WIDTH - 2, SETTER_HINT_W, SETTER_HINT_FONT);
+}
+
+
 static void draw_time_set_screen(void)
 {
     if (set_screen == SET_SCREEN_TIME) {
@@ -174,6 +214,8 @@ static void draw_time_set_screen(void)
                          position == 1 ? DATE_INVERT_DAY :
                                          DATE_INVERT_YEAR);
     }
+
+    draw_setter_hints();
 }
 
 /* Applies dir to whichever field the cursor is on. */
@@ -372,78 +414,107 @@ void system_adjust_brightness_UI_FUNC(void) {
     return;
 }
 
+/* ---------------------------------------------------------------------------
+ * Binary setting screens
+ *
+ * All three below share one shape, and now one look: display_out_toggle()
+ * draws a Garmin-style ring around the panel — green for on, red for off —
+ * with the state in words inside it. They used to render as
+ * display_out_measurement("Bluetooth", 1), i.e. a label over a digit, which
+ * made a setting look exactly like a measurement and required the reader to
+ * remember which way the encoding went.
+ *
+ *   SW1 (top-left)     turn it ON
+ *   SW4 (bottom-left)  turn it OFF
+ *
+ * Each reads its state back from the owning module rather than echoing the
+ * request: ble_set_enabled() refuses if the stack never came up, and both
+ * low power and sub-screen auto-off can be forced on by something other than
+ * the user. The screen should show what is true.
+ *
+ * Each also redraws when the EFFECTIVE state changes for a reason that is not
+ * a button press — the battery trigger engaging low-power mode, which in turn
+ * forces sub-screen auto-off on — hence the last-drawn compare rather than a
+ * plain `changed` flag.
+ * ------------------------------------------------------------------------- */
+
+#define TOGGLE_ON_HINT   "UP:   turn ON"
+#define TOGGLE_OFF_HINT  "DOWN: turn OFF"
+
 /*
- * system_low_power_UI_FUNC: low-power mode toggle.
+ * toggle_screen: the body every binary setting screen shares.
  *
- *   SW1 (top-left)     turn low-power mode ON
- *   SW4 (bottom-left)  turn low-power mode OFF
- *
- * Reads 1/0 rather than a name because display_out_measurement() renders a
- * label plus an integer, matching the Brightness screen next to it.
- *
- * Note this toggles only the USER setting. The battery trigger
- * (low_power.h, engages under 3.60 V, releases over 3.90 V) is independent and
- * can hold the mode on even when the user setting reads 0 — which is why the
- * readout shows the EFFECTIVE state, not the user bit. Turning it "off" on a
- * flat battery therefore correctly appears to do nothing.
+ * @param label   what is being toggled
+ * @param setter  applies the user's request
+ * @param getter  reads the effective state back
+ * @param last_drawn caller-owned last-drawn state; -1 forces a draw
  */
-/* Same shape as system_low_power_UI_FUNC below: UP enables, DOWN disables,
- * and the screen only repaints when something actually changed. */
+static void toggle_screen(const char *label, void (*setter)(bool),
+                          bool (*getter)(void), int8_t *last_drawn)
+{
+    if (first_ui_time) {
+        first_ui_time = false;
+        button_buffer_clear();
+        *last_drawn = -1;
+    }
+
+    uint8_t btn_poll;
+    while ((btn_poll = get_button_event()) != 0) {
+        if (btn_poll == BUTTON_1_MASK) {
+            setter(true);
+        } else if (btn_poll == BUTTON_4_MASK) {
+            setter(false);
+        }
+    }
+
+    int8_t state = getter() ? 1 : 0;
+    if (state == *last_drawn) {
+        return;
+    }
+    *last_drawn = state;
+
+    display_out_toggle(label, state != 0, TOGGLE_ON_HINT, TOGGLE_OFF_HINT);
+}
+
+
+static void ble_set(bool on) { ble_set_enabled(on); }
+static bool ble_get(void)    { return ble_is_enabled(); }
+
 void system_ble_UI_FUNC(void) {
-    if (first_ui_time) {
-        first_ui_time = false;
-        button_buffer_clear();
-        display_out_measurement("Bluetooth", ble_is_enabled() ? 1 : 0);
-        return;
-    }
-
-    uint8_t btn_poll;
-    bool changed = false;
-
-    while ((btn_poll = get_button_event()) != 0) {
-        if (btn_poll == BUTTON_1_MASK) {
-            ble_set_enabled(true);
-            changed = true;
-        } else if (btn_poll == BUTTON_4_MASK) {
-            ble_set_enabled(false);
-            changed = true;
-        }
-    }
-
-    if (changed) {
-        /* Reads back ble_is_enabled() rather than echoing the request —
-         * ble_set_enabled() refuses if the stack never came up, and the screen
-         * should show what is true, not what was asked for. */
-        display_out_measurement("Bluetooth", ble_is_enabled() ? 1 : 0);
-    }
+    static int8_t last_drawn = -1;
+    toggle_screen("Bluetooth", ble_set, ble_get, &last_drawn);
 }
 
 
+/*
+ * Note this toggles only the USER setting. The battery trigger (low_power.h,
+ * engages under 3.60 V, releases over 3.90 V) is independent and can hold the
+ * mode on even when the user setting reads off — which is why the ring shows
+ * the EFFECTIVE state. Turning it "off" on a flat battery therefore correctly
+ * appears to do nothing.
+ */
 void system_low_power_UI_FUNC(void) {
-    if (first_ui_time) {
-        first_ui_time = false;
-        button_buffer_clear();
-        display_out_measurement("Low Power", low_power_is_active() ? 1 : 0);
-        return;
-    }
-
-    uint8_t btn_poll;
-    bool changed = false;
-
-    while ((btn_poll = get_button_event()) != 0) {
-        if (btn_poll == BUTTON_1_MASK) {
-            low_power_set_user(true);
-            changed = true;
-        } else if (btn_poll == BUTTON_4_MASK) {
-            low_power_set_user(false);
-            changed = true;
-        }
-    }
-
-    if (changed) {
-        display_out_measurement("Low Power", low_power_is_active() ? 1 : 0);
-    }
+    static int8_t last_drawn = -1;
+    toggle_screen("Low Power", low_power_set_user, low_power_is_active, &last_drawn);
 }
+
+
+/*
+ * system_sub_auto_off_UI_FUNC: does the display time out while you are INSIDE
+ * a sub-screen (a graph, live IMU readings, log stats)?
+ *
+ * Off by default: those screens exist to be watched, and the 9 s clock-face
+ * timeout blanks them mid-look. On, they behave like the clock face. Low-power
+ * mode forces it on, same as it shortens every other timeout, so the ring can
+ * read green with the user setting off — which is the honest answer to "will
+ * my graph stay up right now". See ui_sub_auto_off_active() in ui.c.
+ */
+void system_sub_auto_off_UI_FUNC(void) {
+    static int8_t last_drawn = -1;
+    toggle_screen("Sub Auto-Off", ui_set_sub_auto_off, ui_sub_auto_off_active,
+                  &last_drawn);
+}
+
 
 void system_clear_faults_UI_FUNC(void) {
     // No-op: this board uses a discrete BQ24090 + separate over/undervoltage
@@ -458,13 +529,86 @@ void system_clear_faults_UI_FUNC(void) {
 ////////// MENU 1 - IMU SETTINGS   ///////// ////////
 /////////////////////////////////////////////////////
 
+/* Gyro trace length. Caps at the ring's own depth (imu.c's
+ * GYRO_HISTORY_LEN); more than the ~96 px plot is wide only costs the
+ * per-column aggregation drawGraphMulti() already does. */
+#define IMU_LIVE_GYRO_SAMPLES 64
+
+/*
+ * imuRead_UI_FUNC: the live IMU screen.
+ *
+ * What it used to be: display_out_imu(&event, IMU_DISPLAY_BOTH), which
+ * printed AX, AY and GZ — the "compact tradeoff" branch of a display mode
+ * enum, i.e. two thirds of the accelerometer and one third of the gyro, with
+ * no time axis and a full clear_display() at 1 Hz. Three of six axes were
+ * simply unreachable from the UI.
+ *
+ * What it is now: every axis of both sensors, each in the form that suits it
+ * — see display_out_imu_live(). This function's job is only to gather the
+ * two shapes of data and the time labels.
+ *
+ * Redrawn on every tick rather than on a revision change, unlike the graph
+ * screens: the accel gauges ARE the live reading, so skipping a frame because
+ * no new gyro sample landed would freeze the half of the screen that is
+ * supposed to move. The per-row bands are what keep that flicker-free.
+ */
 void imuRead_UI_FUNC(void) {
+    static int16_t gyro_x[IMU_LIVE_GYRO_SAMPLES];
+    static int16_t gyro_y[IMU_LIVE_GYRO_SAMPLES];
+    static int16_t gyro_z[IMU_LIVE_GYRO_SAMPLES];
+
+    /* What is currently on the screen. Three states rather than a bool
+     * because this screen has two of them to leave alone: the "no data yet"
+     * notice and the live chrome. Coming back from the notice has to repaint
+     * the chrome even though it is no longer the first frame on the screen. */
+    enum { DRAWN_NOTHING = 0, DRAWN_NOTICE, DRAWN_LIVE };
+    static uint8_t drawn_state;
+
+    if (first_ui_time) {
+        first_ui_time = false;
+        drawn_state = DRAWN_NOTHING;
+    }
+
     inv_imu_sensor_event_t event;
     if (!imu_get_latest_event(&event)) {
-        return;  // no FIFO event has arrived yet - leave the screen as-is
+        /* Nothing has come out of the FIFO yet. Say so rather than drawing
+         * three zeroed gauges, which would be indistinguishable from a watch
+         * in free fall — the same "an empty state must not look like a
+         * reading" rule the temperature screens learned. */
+        if (drawn_state != DRAWN_NOTICE) {
+            display_out_notice("IMU LIVE",
+                               imu_alive ? "No FIFO data yet." : "IMU is not up.",
+                               imu_alive ? "Wait a moment." : NULL);
+            drawn_state = DRAWN_NOTICE;
+        }
+        return;
     }
-    display_out_imu(&event, IMU_DISPLAY_BOTH);
-    return;
+
+    struct imu_live_view view = {
+        .accel = { event.accel[0], event.accel[1], event.accel[2] },
+        .full_redraw = (drawn_state != DRAWN_LIVE),
+    };
+
+    view.gyro_n = imu_gyro_history_get(gyro_x, gyro_y, gyro_z, IMU_LIVE_GYRO_SAMPLES);
+    view.gyro_x = gyro_x;
+    view.gyro_y = gyro_y;
+    view.gyro_z = gyro_z;
+
+    char t_left[8], t_mid[8], t_right[8];
+    if (view.gyro_n >= 2) {
+        /* Seconds-ago rather than clock times: the window is ~10 s wide, so
+         * three absolute labels would all read the same minute. */
+        uint32_t span_s = imu_gyro_history_span_s(view.gyro_n);
+        graph_format_ago(span_s, t_left, sizeof(t_left));
+        graph_format_ago(span_s / 2, t_mid, sizeof(t_mid));
+        graph_format_ago(0, t_right, sizeof(t_right));
+        view.x_left = t_left;
+        view.x_mid = t_mid;
+        view.x_right = t_right;
+    }
+
+    display_out_imu_live(&view);
+    drawn_state = DRAWN_LIVE;
 }
 
 

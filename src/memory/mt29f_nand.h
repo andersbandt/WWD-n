@@ -7,7 +7,11 @@
 #include <sys/types.h>
 
 typedef struct mt29f_cfg {
-  uint8_t   num_dies;         // AKA "plane"
+  /* Stacked dies, NOT planes — they are different things and conflating them
+   * cost half the chip until 2026-08-27 (see the cfg comment in mt29f_nand.c).
+   * The MT29F2G01 on this board is num_dies = 1. Planes are selected by the
+   * block LSB through CA12 and are handled separately. */
+  uint8_t   num_dies;
   uint16_t  blocks_per_die;
   uint16_t  pages_per_block;
   uint16_t  bytes_per_page;   // address stride and SPI transfer size

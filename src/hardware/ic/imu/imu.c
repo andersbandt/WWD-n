@@ -74,6 +74,42 @@ static inv_imu_sensor_event_t latest_imu_event;
 static bool latest_imu_event_valid = false;
 K_MUTEX_DEFINE(latest_imu_event_mutex);
 
+/* Live gyro history for the IMU "Display readings" screen.
+ *
+ * Accelerometer and gyroscope are worth showing DIFFERENTLY. A single accel
+ * sample is meaningful on its own — at rest it is the gravity vector, i.e. the
+ * watch's current orientation — so the screen shows the newest one. A single
+ * gyro sample is not: angular rate is zero whenever the wrist is still, and
+ * what you actually want to see is the shape of a movement over time. Hence a
+ * ring here for the gyro and nothing extra for the accel.
+ *
+ * Fed from event_cb() (button_handler_thread) at the FIFO drain rate, read by
+ * whichever thread draws the screen, so it needs the lock the raise-to-wake
+ * ring above does not.
+ *
+ * DECIMATION IS PEAK-HOLD, NOT MEAN. This is why the screen does not use
+ * util/series.h, which averages its decimation window: the mean of a gyro
+ * window is ~0 for any back-and-forth motion, so averaging would erase
+ * exactly the events the screen exists to show. Keeping the largest-magnitude
+ * sample of each window keeps a flick visible at one sixteenth the storage.
+ */
+#define GYRO_HISTORY_LEN       64
+#define GYRO_HISTORY_DECIMATE  16   /* 100 Hz ODR -> 6.25 Hz stored -> ~10 s window */
+
+static int16_t  gyro_history_buf[3][GYRO_HISTORY_LEN];
+static size_t   gyro_history_head;   /* next write index */
+static size_t   gyro_history_count;  /* valid entries, caps at GYRO_HISTORY_LEN */
+static uint32_t gyro_history_rev;    /* bumped per stored sample, same redraw-skip
+                                      * role as temp_history_rev below */
+static int16_t  gyro_peak[3];        /* largest-magnitude sample of the open window */
+static uint16_t gyro_pending;        /* pushes accumulated toward the next store */
+static int64_t  gyro_history_last_ms;
+/* Measured spacing between stores rather than assumed from the ODR: the ODR is
+ * runtime-configurable (rate_config.c) and the drain is interrupt-paced, so a
+ * computed cadence would silently mislabel the time axis after CMD_SET_RATE. */
+static uint32_t gyro_history_interval_ms;
+K_MUTEX_DEFINE(gyro_history_mutex);
+
 /* In-RAM recent-history ring for the temperature graph screen. Pushed
  * alongside nvs_log_record(RECORD_TEMPERATURE, ...) (see nvs_pipeline_tick()
  * in nvs_bringup.c) instead of read back from the flash log itself - the
@@ -328,6 +364,110 @@ bool imu_get_latest_event(inv_imu_sensor_event_t *out) {
     }
     k_mutex_unlock(&latest_imu_event_mutex);
     return valid;
+}
+
+
+/*
+ * imu_gyro_history_feed: one raw gyro sample in. See the ring's declaration
+ * above for why this peak-holds rather than averages.
+ */
+void imu_gyro_history_feed(const int16_t gyro[3]) {
+    for (unsigned ax = 0; ax < 3; ax++) {
+        int32_t v = gyro[ax];
+        if (gyro_pending == 0 || (v < 0 ? -v : v) > (gyro_peak[ax] < 0 ? -(int32_t)gyro_peak[ax]
+                                                                      : (int32_t)gyro_peak[ax])) {
+            gyro_peak[ax] = gyro[ax];
+        }
+    }
+
+    if (++gyro_pending < GYRO_HISTORY_DECIMATE) {
+        return;
+    }
+    gyro_pending = 0;
+
+    int64_t now = k_uptime_get();
+
+    k_mutex_lock(&gyro_history_mutex, K_FOREVER);
+
+    for (unsigned ax = 0; ax < 3; ax++) {
+        gyro_history_buf[ax][gyro_history_head] = gyro_peak[ax];
+    }
+    gyro_history_head = (gyro_history_head + 1) % GYRO_HISTORY_LEN;
+    if (gyro_history_count < GYRO_HISTORY_LEN) {
+        gyro_history_count++;
+    }
+
+    if (gyro_history_last_ms != 0) {
+        uint32_t gap = (uint32_t)(now - gyro_history_last_ms);
+        /* Smoothed, because one delayed drain (a long NAND write, a dump)
+         * should stretch the axis a little rather than redefine it. */
+        gyro_history_interval_ms = (gyro_history_interval_ms == 0)
+                                 ? gap
+                                 : (gyro_history_interval_ms * 3 + gap) / 4;
+    }
+    gyro_history_last_ms = now;
+    gyro_history_rev++;
+
+    k_mutex_unlock(&gyro_history_mutex);
+}
+
+
+/*
+ * imu_gyro_history_get: the most recent stored samples, OLDEST FIRST so each
+ * axis array can go straight to the graph primitive left to right. All three
+ * axes come out of one call because they share a head — asking for them
+ * separately could straddle a store and misalign the traces.
+ */
+size_t imu_gyro_history_get(int16_t *x, int16_t *y, int16_t *z, size_t max_count) {
+    if (x == NULL || y == NULL || z == NULL || max_count == 0) {
+        return 0;
+    }
+
+    k_mutex_lock(&gyro_history_mutex, K_FOREVER);
+
+    size_t n = (gyro_history_count < max_count) ? gyro_history_count : max_count;
+    size_t start = (gyro_history_head + GYRO_HISTORY_LEN - n) % GYRO_HISTORY_LEN;
+
+    for (size_t i = 0; i < n; i++) {
+        size_t idx = (start + i) % GYRO_HISTORY_LEN;
+        x[i] = gyro_history_buf[0][idx];
+        y[i] = gyro_history_buf[1][idx];
+        z[i] = gyro_history_buf[2][idx];
+    }
+
+    k_mutex_unlock(&gyro_history_mutex);
+    return n;
+}
+
+
+uint32_t imu_gyro_history_rev(void) {
+    k_mutex_lock(&gyro_history_mutex, K_FOREVER);
+    uint32_t rev = gyro_history_rev;
+    k_mutex_unlock(&gyro_history_mutex);
+    return rev;
+}
+
+
+/*
+ * imu_gyro_history_span_s: how far back n stored samples reach, in seconds.
+ * Measured cadence times the gap count, plus the age of the newest sample —
+ * the same "derive the axis from the clock, not from an assumed rate" rule
+ * temp_history_span_s() follows.
+ */
+uint32_t imu_gyro_history_span_s(size_t n) {
+    k_mutex_lock(&gyro_history_mutex, K_FOREVER);
+
+    uint32_t interval = gyro_history_interval_ms;
+    int64_t  last     = gyro_history_last_ms;
+
+    k_mutex_unlock(&gyro_history_mutex);
+
+    if (n < 2 || interval == 0 || last == 0) {
+        return 0;
+    }
+
+    uint32_t age_ms = (uint32_t)(k_uptime_get() - last);
+    return (uint32_t)(((uint64_t)(n - 1) * interval + age_ms) / 1000U);
 }
 
 

@@ -1,8 +1,13 @@
-0x0000aef6 in sym_WVJLOWUIPBC2HDDMNEWOD4POANUBUKS6OYFXDSA ()
+0x0000b236 in sym_WVJLOWUIPBC2HDDMNEWOD4POANUBUKS6OYFXDSA ()
 Expected an decimal digit (0-9)
+Breakpoint 1 at 0x15980: file /home/anders/Documents/NCS/WWD-n/src/memory/nvs_bringup.c, line 693.
+
+Breakpoint 1, nvs_pipeline_tick () at /home/anders/Documents/NCS/WWD-n/src/memory/nvs_bringup.c:693
+693	    if (!nvs_alive || !imu_alive) {
 $1 = 0
-$2 = true
+0x20009418 <page_buffer>:	0xff	0xff	0xff	0xff	0xff	0xff	0xff	0xff
+$2 = 0
+0x20009418 <page_buffer>:	0xff	0xff	0xff	0xff	0xff	0xff	0xff	0xff
 $3 = 0
-$4 = 0
-$5 = UI_MODE_CLOCK
+0x20009418 <page_buffer>:	0xff	0xff	0xff	0xff	0xff	0xff	0xff	0xff
 [Inferior 1 (Remote target) detached]

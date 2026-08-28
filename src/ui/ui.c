@@ -347,6 +347,10 @@ void ui_refresh() {
             system_low_power_UI_FUNC();
             break;
 
+        case UI_MODE_SUB_AUTO_OFF:
+            system_sub_auto_off_UI_FUNC();
+            break;
+
         // IMU UI Functions (Menu 1)
         case UI_MODE_IMU_READ:
             imuRead_UI_FUNC();
@@ -444,6 +448,63 @@ void ui_note_activity(void)
     last_activity_ms = k_uptime_get();
 }
 
+
+/* ---------------------------------------------------------------------------
+ * Sub-screen auto-off
+ *
+ * The auto-off above is right for the clock face and the menu, and wrong for
+ * the screens you open in order to look at them: a temperature graph blanking
+ * nine seconds in is a graph you cannot read, and re-waking it costs a button
+ * press that also navigates. So the timeout is now conditional on WHERE you
+ * are, with a setting for the case where saving the panel matters more.
+ *
+ * Off by default. Low-power mode forces it on, which is the whole reason it
+ * is phrased as an "active" state rather than a plain bool — on a flat
+ * battery the display levers matter more than the reading does.
+ *
+ * Deliberately RAM-only, like the low-power and Bluetooth toggles beside it.
+ * config_store's record is a fixed 8 bytes with a BUILD_ASSERT on its size
+ * (see config_store.c), so persisting this means a format change on a store
+ * that already has live records on every board — not worth it for a setting
+ * whose natural scope is "while I am looking at this".
+ * ------------------------------------------------------------------------- */
+static bool sub_auto_off_user;   /* default off — see above */
+
+/*
+ * A sub-screen is anything that is not the clock face or the menu: the leaf
+ * screens reached through the menu. Defined by exclusion rather than by
+ * listing them, so a screen added later gets the behaviour without anyone
+ * having to remember this function exists.
+ */
+static bool ui_mode_is_sub_screen(ui_mode_t mode)
+{
+    return (mode != UI_MODE_CLOCK) && (mode != UI_MODE_MENU);
+}
+
+bool ui_sub_auto_off_active(void)
+{
+    return sub_auto_off_user || low_power_is_active();
+}
+
+bool ui_sub_auto_off_user(void)
+{
+    return sub_auto_off_user;
+}
+
+void ui_set_sub_auto_off(bool on)
+{
+    sub_auto_off_user = on;
+
+    /* Turning it back ON should not blank the screen you are standing on
+     * instantly — the setting was just changed by a button press, so treat
+     * that press as the activity it is. */
+    ui_note_activity();
+
+    LOG_INF("sub-screen auto-off %s (effective: %s)",
+            on ? "enabled" : "disabled",
+            ui_sub_auto_off_active() ? "on" : "off");
+}
+
 /* Activity timestamp sampled when the fade starts, so idle_fade_cancelled()
  * can spot ui_note_activity() landing mid-fade. */
 static int64_t fade_start_activity_ms;
@@ -471,6 +532,14 @@ void ui_idle_tick(void)
      * 0% backlight, so sleeping it sooner is the biggest lever the mode has. */
     uint32_t timeout_ms = low_power_is_active() ? LOW_POWER_TIMEOUT_MS
                                                 : UI_DISPLAY_TIMEOUT_MS;
+
+    /* Sub-screens are opened to be looked at, so unless the setting (or
+     * low-power mode) says otherwise they hold the panel awake — up to the
+     * backstop, which exists so a watch left in a menu does not burn the
+     * night. See the sub-screen auto-off block above. */
+    if (ui_mode_is_sub_screen(ui_mode) && !ui_sub_auto_off_active()) {
+        timeout_ms = UI_SUB_SCREEN_MAX_ON_MS;
+    }
 
     if ((k_uptime_get() - last_activity_ms) < timeout_ms) {
         return;

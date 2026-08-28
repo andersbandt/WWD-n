@@ -81,6 +81,20 @@ int readIMUReg(int reg) {
 }
 
 
+/* Wake-on-motion threshold, per axis, in the register's 3.9 mg counts
+ * (1 g / 256, fixed regardless of accel FSR). 50 => ~195 mg.
+ *
+ * 2026-08-27: lowered 80 (~312 mg) -> 50 (~195 mg). A raise was only arming
+ * when the arm was rotated briskly. WOM here is CMP_PREV, i.e. it tests the
+ * change between CONSECUTIVE accel samples, so at the 100 Hz ODR it is
+ * effectively a jerk test: a deliberate 90-degree rotation taken over ~1 s
+ * moves the gravity projection by only ~16 mg per sample, twenty times under
+ * the old threshold. Slow rotation could not arm it at all.
+ *
+ * Full history of this and the gate's thresholds: imu_notes.md tuning log. */
+#define WOM_THRESHOLD 50
+
+
 void dumpIMUReg() {
     int data = 0;
     LOG_INF("IMU_reg,IMU_data");
@@ -113,6 +127,13 @@ void event_cb(inv_imu_sensor_event_t *evt) {
     circular_buffer_add(imu_data_buffer, evt);
     imu_set_latest_event(evt);
     imu_gesture_feed(evt->accel);  /* raise-to-wake posture ring, see imu.c */
+
+    /* Gyro is only present in the packet when the gyro is enabled and its
+     * data is fresh; feeding an invalid packet would plot the driver's stale
+     * placeholder as if it were a movement. */
+    if (isGyroDataValid(evt)) {
+        imu_gyro_history_feed(evt->gyro);  /* live-readings screen, see imu.c */
+    }
 }
 
 
@@ -437,7 +458,17 @@ int startApex() {
     // ENABLE CERTAIN APEX FEATURES
     rc |= inv_imu_apex_enable_tilt(&icm_driver);
     rc |= inv_imu_apex_enable_pedometer(&icm_driver);
-    rc |= inv_imu_configure_wom(&icm_driver, 80, 80, 80,
+    /* WOM threshold, in the register's fixed 3.9 mg counts (1 g / 256,
+     * independent of the accel FSR). This ARMS raise-to-wake; the actual
+     * accept/reject is imu_check_raise_gesture()'s posture + stillness gate
+     * (imu.c), so a threshold that is too low costs almost nothing — the gate
+     * rejects the extra arms, and WOM shares INT1 with FIFO_THS, which is
+     * already firing continuously.
+     *
+     * Too HIGH is the expensive direction: the gate never gets to run and the
+     * raise is silently missed. See the tuning log in imu_notes.md before
+     * changing this — the value has a history and a measured reason. */
+    rc |= inv_imu_configure_wom(&icm_driver, WOM_THRESHOLD, WOM_THRESHOLD, WOM_THRESHOLD,
                                 WOM_CONFIG_WOM_INT_MODE_ORED,
                                 WOM_CONFIG_WOM_INT_DUR_3_SMPL);
     rc |= inv_imu_enable_wom(&icm_driver);

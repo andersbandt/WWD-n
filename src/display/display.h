@@ -249,6 +249,27 @@ struct graph_opts {
     const char *x_right;
 
     int16_t mark_column;       /* column to outline instead of fill, or -1 */
+
+    /* Draw a horizontal rule at value 0 across the plot. For a signed
+     * quantity (angular rate) the sign is most of the meaning, and without a
+     * marked zero an auto-ranged box cannot tell "spinning one way" from
+     * "spinning the other". Ignored when 0 is outside [y_min, y_max]. */
+    bool zero_line;
+};
+
+
+/*
+ * One plotted series for drawGraphMulti(). Colour is per-trace because the
+ * only reason to overlay series at all is to compare them, and three
+ * identically-coloured lines are less readable than one.
+ *
+ * Components are the 5/6/5 ranges setColor() takes (r 0-31, g 0-63, b 0-31),
+ * in honest RGB order. Leave `color` all-zero to plot in the theme's
+ * foreground ink.
+ */
+struct graph_trace {
+    const int16_t *data;
+    uint8_t color[3];
 };
 
 
@@ -273,6 +294,27 @@ void drawGraphEx(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_
 
 
 /**
+ * @brief Draws several series over one shared set of axes
+ *
+ * Same contract as drawGraphEx() — which is now a one-trace call into this —
+ * except that every trace shares the box, the y range, the labels and the
+ * single clear, so they can be compared against each other rather than
+ * against three different auto-ranges. All traces must be num_data long.
+ *
+ * One clear and one band for the whole figure is the reason this exists as a
+ * primitive rather than as three drawGraphEx() calls: the second call would
+ * clear away the first trace, and its band would composite over it.
+ *
+ * @param traces: per-series data + colour
+ * @param num_traces: how many; 0 draws an empty framed box
+ * @param num_data: samples per trace, left to right (oldest to newest)
+ */
+void drawGraphMulti(const struct graph_trace *traces, size_t num_traces, size_t num_data,
+                    int16_t y_min, int16_t y_max, struct graph_box box,
+                    const struct graph_opts *opts);
+
+
+/**
  * @brief Draws a primitive line graph over a fixed pixel box
  *
  * Thin wrapper over drawGraphEx() with no labels — the plot fills the box.
@@ -288,6 +330,59 @@ void drawGraphEx(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_
  */
 void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
                uint16_t left, uint16_t top, uint16_t right, uint16_t bottom);
+
+
+/**
+ * @brief Selects a font face for subsequent raw drawText() calls
+ *
+ * For screens drawing their own coloured text; the print* helpers below pick
+ * a face themselves and need no call to this.
+ */
+void display_set_font(font_size_t fontSize);
+
+
+/**
+ * @brief Draws one signed value as a centre-zero bar gauge plus its number
+ *
+ * The live IMU screen's accelerometer rows. Zero sits at the middle of the
+ * track, so sign and magnitude are both readable without parsing digits;
+ * @p value beyond @p full_scale clamps rather than auto-ranging.
+ *
+ * Fits (and expects) one row at a time — the whole three-axis block would not
+ * fit the off-screen composite band this uses to draw without flicker.
+ *
+ * @param left,top,right,bottom: inclusive pixel rect for the whole row
+ * @param label: one-character axis name drawn at the left, or NULL
+ * @param value: signed value, in the same unit as full_scale (milli-units)
+ * @param full_scale: value mapped to a full half-track; must be > 0
+ * @param color: bar colour, setColor()'s 5/6/5 RGB
+ */
+void drawAxisGauge(int16_t left, int16_t top, int16_t right, int16_t bottom,
+                   const char *label, int32_t value, int32_t full_scale,
+                   const uint8_t color[3]);
+
+
+/**
+ * @brief Draws a green (on) or red (off) border around the whole panel
+ *
+ * The state indicator for every binary setting screen — a colour at the edge
+ * of the screen says on/off without the reader having to decode a 1 or a 0.
+ * Draw it before the screen's text; it does not clear the interior.
+ *
+ * @param on: true for the green "enabled" ring, false for the red one
+ * @param thickness: border width in pixels (clamped to HEIGHT/4)
+ */
+void drawStatusRing(bool on, uint8_t thickness);
+
+
+/**
+ * @brief Reads back the current foreground/background colours
+ *
+ * For screens composing their own widgets from gfx primitives, which would
+ * otherwise have to guess whether the clock-face or the menu ground is in
+ * effect. Either pointer may be NULL.
+ */
+void display_theme_colors(uint8_t fore[3], uint8_t back[3]);
 
 
 /**

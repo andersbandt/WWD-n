@@ -171,6 +171,37 @@ uint32_t temp_history_get_rev(void);
 uint32_t temp_history_span_s(size_t n);
 
 
+/* ---------------------------------------------------------------------------
+ * Live gyro history — the IMU "Display readings" screen's time axis.
+ *
+ * The accel half of that screen needs no ring: one sample IS the orientation.
+ * The gyro half does, because angular rate reads zero whenever the wrist is
+ * still. See the ring's declaration in imu.c for why its decimation peak-holds
+ * instead of averaging (and therefore why this is not a util/series.h ring).
+ * ------------------------------------------------------------------------- */
+
+/**
+ * @brief appends one raw gyro sample. Called from event_cb() for every FIFO
+ * sample; stores one peak-held value per GYRO_HISTORY_DECIMATE calls.
+ */
+void imu_gyro_history_feed(const int16_t gyro[3]);
+
+/**
+ * @brief the most recent stored samples, OLDEST FIRST, all three axes at once
+ * so the traces cannot straddle a store and misalign.
+ *
+ * @param[out] x,y,z caller-owned buffers, at least max_count entries each
+ * @return how many samples were copied (0 if none stored yet)
+ */
+size_t imu_gyro_history_get(int16_t *x, int16_t *y, int16_t *z, size_t max_count);
+
+/** @brief bumped per stored sample — cheap "anything new to draw?" check. */
+uint32_t imu_gyro_history_rev(void);
+
+/** @brief seconds of wall time the newest `n` stored samples span. */
+uint32_t imu_gyro_history_span_s(size_t n);
+
+
 /**
  * @brief function for enabling the FIFO interrupt for the IMU
  */

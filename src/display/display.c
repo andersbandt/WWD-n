@@ -568,78 +568,29 @@ void drawGraph(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_ma
 
 
 /*
- * drawGraphEx: the graph primitive. See display.h for the parameter contract
- * and graph_layout.h for the arithmetic, which lives outside this file so it
- * can be tested on a host with no board attached (test/band/graph_test.c).
- *
- * Three things this does that the original drawGraph() did not, each of which
- * came from a real gap rather than from wanting a richer widget:
- *
- * IT OWNS ITS MARGINS. The caller hands over one outer rect and this reserves
- * space inside it for axis labels. The temperature screen used to compute the
- * label margin itself and pass the reduced box, which left a strip of the
- * previous screen visible beside the plot until that screen learned to clear
- * itself first. One owner, one clear, no strip.
- *
- * IT AGGREGATES WHEN SAMPLES OUTNUMBER PIXELS. A day of battery history is
- * 288 points and the plot is ~90 px wide. Plotting every Nth point would drop
- * exactly the excursions worth seeing, so each column draws its samples'
- * min..max as a vertical run — dense regions read as a band, and a one-sample
- * sag stays visible.
- *
- * IT DRAWS BARS. Steps per hour is a rate over an interval, not a value at an
- * instant; joining hourly totals with a line implies a continuity that is not
- * there. Bars from a zero baseline say what the data means.
- *
- * Cost discipline is unchanged from the original: everything reuses
- * drawLine()/filledRect()/drawRect() from gfx.c, and the whole graph flushes
- * once at the end rather than once per segment.
+ * drawGraphEx: the single-series spelling of drawGraphMulti() below, which
+ * is where the work is. Kept because most screens plot one thing.
  */
 void drawGraphEx(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
                  struct graph_box box, const struct graph_opts *opts)
 {
-    static const struct graph_opts default_opts = { .style = GRAPH_LINE };
+    struct graph_trace trace = { .data = data };
 
-    if (opts == NULL) {
-        opts = &default_opts;
-    }
-    if (data == NULL || num_data == 0 || y_max <= y_min ||
-        box.right <= box.left || box.bottom <= box.top) {
-        return;
-    }
+    drawGraphMulti(&trace, 1, num_data, y_min, y_max, box, opts);
+}
 
-    bool has_y_labels = (opts->y_max_label != NULL) || (opts->y_min_label != NULL) ||
-                        (opts->y_mid_label != NULL);
-    bool has_x_labels = (opts->x_left != NULL) || (opts->x_mid != NULL) ||
-                        (opts->x_right != NULL);
 
-    int16_t y_label_w = has_y_labels ? GRAPH_Y_LABEL_W : 0;
-    int16_t x_label_h = has_x_labels ? (int16_t)(GRAPH_AXIS_FONT + 2) : 0;
-
-    struct graph_box plot = graph_plot_rect(box, y_label_w, x_label_h);
-    if (plot.right <= plot.left || plot.bottom <= plot.top) {
-        return;
-    }
-
-    /* Attempted for the whole outer rect, not just the plot: the labels are
-     * part of the same repaint, and a band that covers only the plot would
-     * composite the line while the labels still flickered in beside it.
-     * Usually taller than the band and so a no-op, which is fine. */
-    bool banded = beginFieldBand(box.left, box.top, box.right, box.bottom);
-
-    setColor(ui_back[0], ui_back[1], ui_back[2]);
-    filledRect((uint16_t)box.left, (uint16_t)box.top,
-               (uint16_t)box.right, (uint16_t)box.bottom);
-
-    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
-    drawRect((uint16_t)plot.left, (uint16_t)plot.top,
-             (uint16_t)plot.right, (uint16_t)plot.bottom);
-
-    /* Columns: one per sample while they fit, capped at the pixel width once
-     * they do not. +1 because the rect bounds are inclusive. */
-    uint16_t max_cols = (uint16_t)(plot.right - plot.left + 1);
-    uint16_t cols = (num_data < max_cols) ? (uint16_t)num_data : max_cols;
-
+/*
+ * plot_trace: one series into an already-cleared, already-framed plot rect.
+ *
+ * Split out of drawGraphEx() unchanged so that the multi-series case shares
+ * exactly this code rather than a second copy of the column aggregation —
+ * which is the part with the arithmetic worth getting right, and the part
+ * test/band/graph_test.c exercises.
+ */
+static void plot_trace(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_max,
+                       struct graph_box plot, const struct graph_opts *opts, uint16_t cols)
+{
     if (opts->style == GRAPH_BAR) {
         /* Bars sit on the axis, so the baseline is 0 (or y_min if the data
          * never reaches 0) rather than the bottom of an auto-ranged box —
@@ -736,9 +687,129 @@ void drawGraphEx(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_
             have_prev = true;
         }
     }
+}
 
-    /* Labels last: drawGraphEx clears its whole rect at the top, so anything
-     * drawn before the plot would be wiped, and anything drawn by the CALLER
+
+/*
+ * drawGraphMulti: the graph primitive. See display.h for the parameter
+ * contract and graph_layout.h for the arithmetic, which lives outside this
+ * file so it can be tested on a host with no board attached
+ * (test/band/graph_test.c).
+ *
+ * Four things this does that the original drawGraph() did not, each of which
+ * came from a real gap rather than from wanting a richer widget:
+ *
+ * IT OWNS ITS MARGINS. The caller hands over one outer rect and this reserves
+ * space inside it for axis labels. The temperature screen used to compute the
+ * label margin itself and pass the reduced box, which left a strip of the
+ * previous screen visible beside the plot until that screen learned to clear
+ * itself first. One owner, one clear, no strip.
+ *
+ * IT AGGREGATES WHEN SAMPLES OUTNUMBER PIXELS. A day of battery history is
+ * 288 points and the plot is ~90 px wide. Plotting every Nth point would drop
+ * exactly the excursions worth seeing, so each column draws its samples'
+ * min..max as a vertical run — dense regions read as a band, and a one-sample
+ * sag stays visible.
+ *
+ * IT DRAWS BARS. Steps per hour is a rate over an interval, not a value at an
+ * instant; joining hourly totals with a line implies a continuity that is not
+ * there. Bars from a zero baseline say what the data means.
+ *
+ * IT OVERLAYS SERIES. Three gyro axes are one measurement, not three: what
+ * makes a wrist flick legible is X against Y against Z on one time axis and
+ * one scale. Sharing the clear and the band is what makes that possible — see
+ * the note on drawGraphMulti() in display.h.
+ *
+ * Cost discipline is unchanged from the original: everything reuses
+ * drawLine()/filledRect()/drawRect() from gfx.c, and the whole graph flushes
+ * once at the end rather than once per segment.
+ */
+void drawGraphMulti(const struct graph_trace *traces, size_t num_traces, size_t num_data,
+                    int16_t y_min, int16_t y_max, struct graph_box box,
+                    const struct graph_opts *opts)
+{
+    static const struct graph_opts default_opts = { .style = GRAPH_LINE };
+
+    if (opts == NULL) {
+        opts = &default_opts;
+    }
+    if (traces == NULL || num_data == 0 || y_max <= y_min ||
+        box.right <= box.left || box.bottom <= box.top) {
+        return;
+    }
+
+    /* Nothing plottable is a no-op, not an empty framed box — a screen that
+     * has no data yet should be left alone for its caller to replace with a
+     * display_out_notice(), which is the rule the single-series version
+     * established by rejecting a NULL data pointer outright. */
+    bool any_data = false;
+    for (size_t t = 0; t < num_traces; t++) {
+        any_data = any_data || (traces[t].data != NULL);
+    }
+    if (!any_data) {
+        return;
+    }
+
+    bool has_y_labels = (opts->y_max_label != NULL) || (opts->y_min_label != NULL) ||
+                        (opts->y_mid_label != NULL);
+    bool has_x_labels = (opts->x_left != NULL) || (opts->x_mid != NULL) ||
+                        (opts->x_right != NULL);
+
+    int16_t y_label_w = has_y_labels ? GRAPH_Y_LABEL_W : 0;
+    int16_t x_label_h = has_x_labels ? (int16_t)(GRAPH_AXIS_FONT + 2) : 0;
+
+    struct graph_box plot = graph_plot_rect(box, y_label_w, x_label_h);
+    if (plot.right <= plot.left || plot.bottom <= plot.top) {
+        return;
+    }
+
+    /* Attempted for the whole outer rect, not just the plot: the labels are
+     * part of the same repaint, and a band that covers only the plot would
+     * composite the line while the labels still flickered in beside it.
+     * Usually taller than the band and so a no-op, which is fine. */
+    bool banded = beginFieldBand(box.left, box.top, box.right, box.bottom);
+
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
+    filledRect((uint16_t)box.left, (uint16_t)box.top,
+               (uint16_t)box.right, (uint16_t)box.bottom);
+
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
+    drawRect((uint16_t)plot.left, (uint16_t)plot.top,
+             (uint16_t)plot.right, (uint16_t)plot.bottom);
+
+    /* Columns: one per sample while they fit, capped at the pixel width once
+     * they do not. +1 because the rect bounds are inclusive. */
+    uint16_t max_cols = (uint16_t)(plot.right - plot.left + 1);
+    uint16_t cols = (num_data < max_cols) ? (uint16_t)num_data : max_cols;
+
+    /* Under the traces, so a trace crossing zero stays the thing you see. */
+    if (opts->zero_line && y_min < 0 && y_max > 0) {
+        int16_t zero_y = graph_value_to_y(0, y_min, y_max, plot.top, plot.bottom);
+        for (int16_t x = (int16_t)(plot.left + 1); x < plot.right; x += 3) {
+            setPixel((uint16_t)x, (uint16_t)zero_y);
+        }
+    }
+
+    for (size_t t = 0; t < num_traces; t++) {
+        if (traces[t].data == NULL) {
+            continue;
+        }
+
+        /* An all-zero colour means "theme ink" rather than black-on-black:
+         * the menu ground IS black ink on light lilac, so a literal {0,0,0}
+         * trace would be invisible on the clock face and indistinguishable
+         * from the frame on a leaf screen. */
+        if (traces[t].color[0] || traces[t].color[1] || traces[t].color[2]) {
+            setColor(traces[t].color[0], traces[t].color[1], traces[t].color[2]);
+        } else {
+            setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
+        }
+
+        plot_trace(traces[t].data, num_data, y_min, y_max, plot, opts, cols);
+    }
+
+    /* Labels last: this clears its whole rect at the top, so anything drawn
+     * before the plot would be wiped, and anything drawn by the CALLER
      * beforehand would be too. */
     if (has_y_labels) {
         setFont(getFontPointer(GRAPH_AXIS_FONT));
@@ -788,6 +859,186 @@ void drawGraphEx(const int16_t *data, size_t num_data, int16_t y_min, int16_t y_
     flushBuffer();
     if (banded) {
         endBand();
+    }
+}
+
+
+/*
+ * display_set_font: selects one of the font_size_t faces for a subsequent raw
+ * drawText() call. The font table is private to this file (getFontPointer()),
+ * and every text helper here picks a face for its caller — but a screen that
+ * draws its own coloured text (the live IMU screen's legend) needs the face
+ * without the helper. Exposing the selector is smaller than exposing the
+ * table.
+ */
+void display_set_font(font_size_t fontSize)
+{
+    setFont(getFontPointer(fontSize));
+}
+
+
+/*
+ * drawAxisGauge: one signed axis as a centre-zero bar plus its number.
+ *
+ * The accelerometer half of the live IMU screen. A bar rather than three more
+ * digits because the question that screen answers is "which way is the watch
+ * pointing, and is it moving" — an orientation is a shape, and reading it off
+ * "AX:-1893" requires the reader to do the mental arithmetic the bar does for
+ * them. Zero is the centre, so gravity on an axis reads as a bar half the
+ * track long and the sign is visible without parsing a minus glyph.
+ *
+ * value and full_scale are in the same arbitrary unit (milli-g for the accel
+ * screen); anything past full_scale clamps to the end of the track rather
+ * than auto-ranging, because a gauge whose scale moves is not a gauge.
+ *
+ * Banded, and sized to be banded: one row at a time fits inside
+ * ST7735S_BAND_ROWS where the whole three-axis block would not.
+ */
+void drawAxisGauge(int16_t left, int16_t top, int16_t right, int16_t bottom,
+                   const char *label, int32_t value, int32_t full_scale,
+                   const uint8_t color[3])
+{
+    /* Wide enough for the full int32 range the value could carry, not just
+     * the +/-16 g the accel screen passes — a caller with a bigger unit
+     * should not silently truncate its own number. */
+    char text[16];
+
+    if (right <= left || bottom <= top || full_scale <= 0) {
+        return;
+    }
+
+    /* Left to right: one label character, the track, then a right-aligned
+     * number. GAUGE_VALUE_W fits "-15.99" at FONT_SMALL's 6 px per glyph. */
+    const int16_t char_w   = (int16_t)(FONT_SMALL / 2);
+    const int16_t label_w  = (int16_t)(char_w + 2);
+    const int16_t value_w  = (int16_t)(6 * char_w);
+
+    int16_t track_left  = (int16_t)(left + label_w);
+    int16_t track_right = (int16_t)(right - value_w - 2);
+    if (track_right <= track_left) {
+        return;
+    }
+
+    bool banded = beginFieldBand(left, top, right, bottom);
+
+    setColor(ui_back[0], ui_back[1], ui_back[2]);
+    filledRect((uint16_t)left, (uint16_t)top, (uint16_t)right, (uint16_t)bottom);
+
+    setFont(getFontPointer(FONT_SMALL));
+    /* Explicit, because the glyph background is a global the last screen to
+     * draw inverted text set — and this row's own clear is the only thing
+     * underneath these two strings. */
+    setbgColor(ui_back[0], ui_back[1], ui_back[2]);
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
+    if (label != NULL) {
+        drawText((uint16_t)left, (uint16_t)top, label);
+    }
+
+    drawRect((uint16_t)track_left, (uint16_t)top,
+             (uint16_t)track_right, (uint16_t)bottom);
+
+    int16_t centre = (int16_t)((track_left + track_right) / 2);
+    int16_t half   = (int16_t)((track_right - track_left) / 2 - 1);
+
+    /* Clamp before scaling, so a saturated axis reads as full-scale rather
+     * than wrapping through the int16 the bar length would otherwise be. */
+    int32_t v = value;
+    if (v >  full_scale) { v =  full_scale; }
+    if (v < -full_scale) { v = -full_scale; }
+
+    int16_t span = (int16_t)((int32_t)half * v / full_scale);
+
+    setColor(color[0], color[1], color[2]);
+    if (span >= 0) {
+        filledRect((uint16_t)centre, (uint16_t)(top + 2),
+                   (uint16_t)(centre + span), (uint16_t)(bottom - 2));
+    } else {
+        filledRect((uint16_t)(centre + span), (uint16_t)(top + 2),
+                   (uint16_t)centre, (uint16_t)(bottom - 2));
+    }
+
+    /* Zero tick last: it is the reference the bar is read against, so it has
+     * to stay visible through a bar drawn over it. */
+    setColor(ui_fore[0], ui_fore[1], ui_fore[2]);
+    drawLine((uint16_t)centre, (uint16_t)top, (uint16_t)centre, (uint16_t)bottom);
+
+    /* Two decimals: at 16 g full scale one count is ~0.5 mg, and one decimal
+     * cannot show the tilt of a wrist resting on a desk. */
+    int32_t whole = value / 1000;
+    int32_t frac  = value % 1000;
+    if (frac < 0) { frac = -frac; }
+    snprintf(text, sizeof(text), "%s%d.%02d",
+             (value < 0 && whole == 0) ? "-" : "", (int)whole, (int)(frac / 10));
+
+    int16_t text_x = (int16_t)(right - (int16_t)strlen(text) * char_w);
+    if (text_x < track_right + 2) {
+        text_x = (int16_t)(track_right + 2);
+    }
+    drawText((uint16_t)text_x, (uint16_t)top, text);
+
+    flushBuffer();
+    if (banded) {
+        endBand();
+    }
+}
+
+
+/*
+ * drawStatusRing: a border around the whole panel, green for on and red for
+ * off — the Garmin convention, and the reason it is worth copying is that it
+ * states a binary setting in the one channel that is readable without
+ * reading: colour, at the edge of vision, over the entire screen.
+ *
+ * It replaces printing a 1 or a 0, which required the reader to remember
+ * which way round the encoding went.
+ *
+ * Uses the same off-palette green and red as the wear badge (the GOOD_ and
+ * BAD_ constants above) rather than a third pair, so "green means good"
+ * means one thing across the device.
+ *
+ * NOT banded: the ring is taller than ST7735S_BAND_ROWS by design, and its
+ * four edges are thin fills that cannot flicker the way a cleared text box
+ * does — there is nothing underneath them to briefly show through.
+ */
+void drawStatusRing(bool on, uint8_t thickness)
+{
+    if (thickness == 0) {
+        thickness = 1;
+    }
+    if (thickness > HEIGHT / 4) {
+        thickness = (uint8_t)(HEIGHT / 4);
+    }
+
+    uint16_t right  = (uint16_t)(WIDTH - 1);
+    uint16_t bottom = (uint16_t)(HEIGHT - 1);
+    uint16_t t      = (uint16_t)(thickness - 1);
+
+    if (on) {
+        setColor(GOOD_RED, GOOD_GRN, GOOD_BLU);
+    } else {
+        setColor(BAD_RED, BAD_GRN, BAD_BLU);
+    }
+
+    filledRect(0, 0, right, t);                              /* top    */
+    filledRect(0, (uint16_t)(bottom - t), right, bottom);    /* bottom */
+    filledRect(0, 0, t, bottom);                             /* left   */
+    filledRect((uint16_t)(right - t), 0, right, bottom);     /* right  */
+
+    flushBuffer();
+}
+
+
+/*
+ * display_theme_colors: the CURRENT ink and ground, for the screens that
+ * compose their own widgets out of gfx primitives (ui_display.c) and would
+ * otherwise have to guess which background is in effect. Read-only on
+ * purpose — display_set_menu_background() stays the only way to change them.
+ */
+void display_theme_colors(uint8_t fore[3], uint8_t back[3])
+{
+    for (unsigned i = 0; i < 3; i++) {
+        if (fore != NULL) { fore[i] = ui_fore[i]; }
+        if (back != NULL) { back[i] = ui_back[i]; }
     }
 }
 

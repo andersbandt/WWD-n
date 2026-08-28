@@ -728,57 +728,216 @@ void display_out_statistics(const int16_t *data, size_t num_data)
 }
 
 
-void display_out_imu(const inv_imu_sensor_event_t *event, imu_display_mode_t mode)
-{
-    char line0[12];
-    char line1[12];
-    char line2[12];
 
-    if (event == NULL) {
+
+/* ---------------------------------------------------------------------------
+ * Live IMU screen
+ *
+ * Replaces a screen that printed three numbers -- and, in the mode it was
+ * actually called with, printed AX, AY and GZ: two thirds of one sensor and
+ * one third of the other, an arbitrary "compact tradeoff" that made the
+ * screen unable to answer any question about either. Both sensors, all six
+ * axes now, but not in the same form, because they do not mean the same kind
+ * of thing:
+ *
+ *   ACCELEROMETER -> the newest sample, as three centre-zero bars. At rest
+ *   the reading IS the gravity vector, i.e. the watch's orientation, and an
+ *   orientation is a shape rather than a number.
+ *
+ *   GYROSCOPE -> a history, as three overlaid traces on one time axis.
+ *   Angular rate is zero whenever the wrist is still, so a live gyro number
+ *   spends most of its life reading nothing at all; what is worth seeing is
+ *   the shape of a movement, which only exists over time.
+ * ------------------------------------------------------------------------- */
+
+/* Raw-count scaling. Both fixed by imu_start(): startAccel(100, 16) and
+ * startGyro(100, 2000), i.e. +/-16 g over int16 (2048 LSB/g) and +/-2000 dps
+ * (16.384 LSB/dps). imu_set_odr() changes the rate, never the ranges. */
+#define IMU_ACCEL_LSB_PER_G   2048
+#define IMU_GYRO_LSB_PER_DPS  164   /* tenths, i.e. 16.4 LSB/dps */
+
+/* One channel per axis, and the same three everywhere on the screen: the bar
+ * for X and the trace for X are the same colour, so the legend is learned
+ * once. Dark and saturated because leaf screens draw on the light lilac
+ * ground (see display_set_menu_background()). */
+static const uint8_t AXIS_COLOR[3][3] = {
+    { 24,  0,  0 },   /* X - red   */
+    {  0, 34,  0 },   /* Y - green */
+    {  0,  4, 26 },   /* Z - blue  */
+};
+
+#define IMU_LIVE_TITLE_Y     0
+#define IMU_LIVE_ROW0_Y     17   /* clears the FONT_SMALL title at y=2..14 */
+#define IMU_LIVE_ROW_PITCH  15
+#define IMU_LIVE_ROW_H      12
+#define IMU_LIVE_GYRO_HDR_Y 63   /* last gauge row ends at 59 */
+#define IMU_LIVE_GRAPH_TOP  78   /* header glyphs end at 75 */
+
+/* Full-scale of the accel bars, in milli-g. Deliberately NOT the sensor's
+ * +/-16 g: at 16 g full scale, 1 g of gravity is a sixteenth of the track and
+ * a resting wrist looks like nothing is happening. +/-2 g fills the bar with
+ * gravity and clamps only under real impact. */
+#define IMU_LIVE_ACCEL_FS_MG 2000
+
+/* Floor for the gyro plot's symmetric y range, in raw counts: 50 dps at the
+ * configured 16.4 LSB/dps. Without a floor, auto-ranging a still wrist
+ * amplifies sensor noise into a dramatic-looking trace; 100 dps was the first
+ * guess and, on hardware, wasted most of the plot's height on small
+ * movements. */
+#define IMU_LIVE_GYRO_MIN_RANGE 820
+
+
+/*
+ * display_out_imu_live: the whole screen. Drawn in three banded pieces (title
+ * row, three gauge rows, graph) rather than clear_display() + redraw, which
+ * is what made every other live screen on this device flicker at 1 Hz.
+ */
+void display_out_imu_live(const struct imu_live_view *v)
+{
+    if (v == NULL) {
         return;
     }
 
-    clear_display();
+    uint8_t fore[3], back[3];
+    display_theme_colors(fore, back);
 
-    switch (mode) {
-
-    case IMU_DISPLAY_ACCEL:
-        snprintf(line0, sizeof(line0), "AX:%d", event->accel[0]);
-        snprintf(line1, sizeof(line1), "AY:%d", event->accel[1]);
-        snprintf(line2, sizeof(line2), "AZ:%d", event->accel[2]);
-        break;
-
-#if ICM_IS_GYRO_SUPPORTED
-    case IMU_DISPLAY_GYRO:
-        snprintf(line0, sizeof(line0), "GX:%d", event->gyro[0]);
-        snprintf(line1, sizeof(line1), "GY:%d", event->gyro[1]);
-        snprintf(line2, sizeof(line2), "GZ:%d", event->gyro[2]);
-        break;
-#endif
-
-    case IMU_DISPLAY_BOTH:
-#if ICM_IS_GYRO_SUPPORTED
-        /* Compact: accel X/Y + gyro Z (example tradeoff) */
-        snprintf(line0, sizeof(line0), "AX:%d", event->accel[0]);
-        snprintf(line1, sizeof(line1), "AY:%d", event->accel[1]);
-        snprintf(line2, sizeof(line2), "GZ:%d", event->gyro[2]);
-#else
-        snprintf(line0, sizeof(line0), "AX:%d", event->accel[0]);
-        snprintf(line1, sizeof(line1), "AY:%d", event->accel[1]);
-        snprintf(line2, sizeof(line2), "AZ:%d", event->accel[2]);
-#endif
-        break;
-
-    default:
-        snprintf(line0, sizeof(line0), "IMU ERR");
-        line1[0] = '\0';
-        line2[0] = '\0';
-        break;
+    /* Titles are static text, so they are painted once on entry (full_redraw)
+     * and then left alone -- repainting them every second is the other half
+     * of the flicker. */
+    if (v->full_redraw) {
+        clear_display();
+        printLine("ACCEL  g", 0, 2, FONT_SMALL);
     }
 
-    printLine(line0, 0, 0, FONT_LARGE);
-    printLine(line1, 1, 0, FONT_LARGE);
-    printLine(line2, 2, 0, FONT_LARGE);
+    for (unsigned ax = 0; ax < 3; ax++) {
+        static const char *names[3] = { "X", "Y", "Z" };
+        int16_t top = (int16_t)(IMU_LIVE_ROW0_Y + ax * IMU_LIVE_ROW_PITCH);
+
+        /* Raw counts to milli-g. int32 throughout: raw * 1000 overflows an
+         * int16 at 33 counts, which is about 16 mg. */
+        int32_t milli_g = (int32_t)v->accel[ax] * 1000 / IMU_ACCEL_LSB_PER_G;
+
+        drawAxisGauge(2, top, (int16_t)(WIDTH - 3), (int16_t)(top + IMU_LIVE_ROW_H),
+                      names[ax], milli_g, IMU_LIVE_ACCEL_FS_MG, AXIS_COLOR[ax]);
+    }
+
+    /* Gyro header doubles as the legend: each axis letter in its trace's own
+     * colour, which is cheaper to read than a separate key. */
+    if (v->full_redraw) {
+        setColor(back[0], back[1], back[2]);
+        filledRect(0, IMU_LIVE_GYRO_HDR_Y, (uint16_t)(WIDTH - 1),
+                   (uint16_t)(IMU_LIVE_GYRO_HDR_Y + FONT_SMALL));
+
+        display_set_font(FONT_SMALL);
+        setTransparent(true);
+        setColor(fore[0], fore[1], fore[2]);
+        drawText(2, IMU_LIVE_GYRO_HDR_Y, "GYRO dps");
+
+        const int16_t char_w = FONT_SMALL / 2;
+        int16_t legend_x = (int16_t)(WIDTH - 3 - 5 * char_w);
+        for (unsigned ax = 0; ax < 3; ax++) {
+            static const char *names[3] = { "X", "Y", "Z" };
+            setColor(AXIS_COLOR[ax][0], AXIS_COLOR[ax][1], AXIS_COLOR[ax][2]);
+            drawText((uint16_t)legend_x, IMU_LIVE_GYRO_HDR_Y, names[ax]);
+            legend_x = (int16_t)(legend_x + 2 * char_w);
+        }
+        setTransparent(false);
+        setColor(fore[0], fore[1], fore[2]);
+        flushBuffer();
+    }
+
+    if (v->gyro_n < 2) {
+        return;   /* not enough history to plot yet; the gauges above still update */
+    }
+
+    /* Symmetric range, floored: zero has to stay in the middle for the sign
+     * of a rotation to be readable at a glance. */
+    int32_t peak = IMU_LIVE_GYRO_MIN_RANGE;
+    for (size_t i = 0; i < v->gyro_n; i++) {
+        const int16_t *axes[3] = { v->gyro_x, v->gyro_y, v->gyro_z };
+        for (unsigned ax = 0; ax < 3; ax++) {
+            int32_t m = axes[ax][i] < 0 ? -(int32_t)axes[ax][i] : axes[ax][i];
+            if (m > peak) {
+                peak = m;
+            }
+        }
+    }
+    if (peak > INT16_MAX - 1) {
+        peak = INT16_MAX - 1;
+    }
+
+    char label_max[8], label_min[8];
+    int32_t peak_dps = peak * 10 / IMU_GYRO_LSB_PER_DPS;
+    snprintf(label_max, sizeof(label_max), "%d", (int)peak_dps);
+    snprintf(label_min, sizeof(label_min), "-%d", (int)peak_dps);
+
+    struct graph_trace traces[3] = {
+        { .data = v->gyro_x },
+        { .data = v->gyro_y },
+        { .data = v->gyro_z },
+    };
+    for (unsigned ax = 0; ax < 3; ax++) {
+        memcpy(traces[ax].color, AXIS_COLOR[ax], sizeof(traces[ax].color));
+    }
+
+    struct graph_opts opts = {
+        .style = GRAPH_LINE,
+        .y_max_label = label_max,
+        .y_mid_label = "0",
+        .y_min_label = label_min,
+        .x_left = v->x_left,
+        .x_mid = v->x_mid,
+        .x_right = v->x_right,
+        .mark_column = -1,
+        .zero_line = true,
+    };
+
+    struct graph_box box = { 0, IMU_LIVE_GRAPH_TOP,
+                             (int16_t)(WIDTH - 1), (int16_t)(HEIGHT - 1) };
+
+    drawGraphMulti(traces, 3, v->gyro_n, (int16_t)-peak, (int16_t)peak, box, &opts);
+}
+
+
+/* ---------------------------------------------------------------------------
+ * Binary setting screens
+ *
+ * Every on/off setting used to render as display_out_measurement("Bluetooth",
+ * 1) -- a label over a digit. That asks the reader to remember an encoding
+ * ("is 1 on?") to read a state that is not even a number, and it looks
+ * identical to the screens that DO show numbers, so a glance cannot tell a
+ * setting from a measurement.
+ *
+ * The Garmin convention instead: a coloured ring around the whole panel,
+ * green for on and red for off, with the state spelled out in words inside
+ * it. Colour at the edge of the screen is legible before the eye has focused
+ * on anything, and it cannot be misread the way a 0 can.
+ * ------------------------------------------------------------------------- */
+
+#define TOGGLE_RING_PX 6
+
+void display_out_toggle(const char *label, bool on, const char *on_hint,
+                        const char *off_hint)
+{
+    clear_display();
+    drawStatusRing(on, TOGGLE_RING_PX);
+
+    if (label != NULL) {
+        printLine(label, 1, TOGGLE_RING_PX + 4, FONT_MEDIUM);
+    }
+    printLine(on ? "ON" : "OFF", 2, TOGGLE_RING_PX + 4, FONT_XLARGE);
+
+    /* The button hints exist because these screens are modal and the mapping
+     * (SW1 enables, SW4 disables) is not discoverable from the ring. */
+    /* Lines 6/7 rather than 4/5: printLine()'s line numbers are relative to
+     * the font it is given, so FONT_SMALL line 4 (y=70) would land on top of
+     * the FONT_XLARGE state word (y=72) above. */
+    if (on_hint != NULL) {
+        printLine(on_hint, 6, TOGGLE_RING_PX + 4, FONT_SMALL);
+    }
+    if (off_hint != NULL) {
+        printLine(off_hint, 7, TOGGLE_RING_PX + 4, FONT_SMALL);
+    }
 }
 
 

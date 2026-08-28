@@ -5,6 +5,93 @@ bring-up session.
 
 ---
 
+## [FIXED + VERIFIED ON SN3 2026-08-27] Half the NAND was unaddressable: every page mirrored at +65536
+
+**Proof, from `DUMP_20260827190551_02.bin` (a full 283 MB dump):** page N and page
+N+65536 are **byte-identical**, on 300 of 300 randomly sampled pairs across the
+whole array, plus every hand-checked pair (13, 1365, 1422, 3112, 5000, 20000,
+40000, 60000, 64000). The wear markers, the anchors and their uptimes all repeat
+at exactly +65536 pages = 2^16.
+
+**Root cause is the geometry in `mt29f_nand.c`:**
+
+```c
+static const mt29f_cfg_t cfg = {
+    .num_dies = 2,            /* mt29f_nand.h even comments this "AKA plane" */
+    .blocks_per_die = 1024,
+```
+
+The MT29F2G01 is **one die of 2048 blocks with two PLANES**, not two dies of
+1024. Planes are already handled correctly and separately, by the CA12
+plane-select bit (`blk_num & 0x1`) added in the 2026-07-26 aliasing fix — which
+is itself the tell that this part is plane-based. Modelling it as two dies means
+`blk_num` only ever reaches 1023, and everything above 1 Gbit is supposed to be
+reached by `spi_nand_die_select()` writing `REG_DIE_SELECT` — a feature this part
+does not implement. The row address for offset X and offset X + 1 Gbit is
+therefore **identical**, for reads and for writes alike (both go through
+`spi_nand_offset_to_row_addr()`).
+
+**What this explains, all at once:**
+
+- **Usable capacity is 1 Gbit, not 2.** `nvs.c` computes `flash_size` from
+  `num_dies * blocks_per_die * ...` = 2 Gbit, so `write_addr` runs to ~283 MB
+  while only the first ~139 MB exist.
+- **Every "record overruns page" warning.** Past page 65536 the log writes onto
+  pages that already hold data. This is the same failure as 2026-08-26 item B,
+  but from a second, independent cause — fixing the append point does not help,
+  because the *address itself* is wrong.
+- **The still-open item C, "metadata stops advancing".** The META region is the
+  last 8 blocks, 2040-2047. Those alias onto blocks 1016-1023, which are
+  ordinary DATA. Metadata has been writing into the middle of the log this whole
+  time. That is why seq stalled at ~95,174.
+- **The decoder's inflated `capture_duration()`.** 101.22 h reported for a dump
+  whose 368 anchors span 2026-08-26 22:57:48 to 2026-08-27 13:51:09 = **14.9 h
+  of real wall-clock**. The mirror doubles the segment count, and dt_ticks
+  accumulated through corrupted records inflates the rest.
+
+**The fix is small but not free:** `.num_dies = 1, .blocks_per_die = 2048`, and
+make `spi_nand_die_select()` a no-op unless `num_dies > 1`. The block field is
+already masked `& 0x07FF` and the row address is sent as 3 bytes, so 11 bits of
+block fits with nothing else to change. **Confirm the geometry against the
+MT29F2G01ABAGD datasheet first** — the whole bug is that it was assumed once
+already. Changing it moves every physical address, so it requires a full chip
+erase and invalidates existing dumps.
+
+**FIXED and verified on SN3 2026-08-27.** Three changes in `mt29f_nand.c`:
+`.num_dies = 1, .blocks_per_die = 2048`; `spi_nand_die_select()` returns early
+when `num_dies <= 1` (it did not just write REG_DIE_SELECT, it READ IT BACK and
+compared, on a part that does not implement the register); and the init unlock
+is now a loop over dies rather than `spi_nand_unlock(DIE_1); spi_nand_unlock(DIE_0);`
+— which passed feature-register VALUES (0x40, 0x00) as die INDICES and worked
+only because everything non-zero took the DIE_1 branch.
+
+Confirmed against the part: this driver was forked from
+`~/Documents/NCS/zephyr-mt29f-spi-flash`, whose `DEVICE_ID` is **0x46** — the
+4 Gbit MT29F4G01ADAGD, genuinely two stacked dies with a real die-select. This
+board fits **0x24**, the 2 Gbit single-die part (the KiCad footprint says
+MT29F2G01ABAGDWB). The geometry came along with the fork and was never revisited.
+
+**Verification on hardware (GDB, live target):**
+1. `inst` reads `num_dies=1, blocks_per_die=2048` => 131072 pages, full 2 Gbit.
+2. Wrote `A5 5A DE AD BE EF 70 00` to page 70000 (offset 152,320,000, in the old
+   dead half). Page 70000 reads it back; its former alias page 4464 still holds
+   its own unrelated log data. **Both the read and the write path are
+   de-aliased** — under the old code that write would have landed on page 4464.
+3. Page 65536 != page 0 (both TIME_ANCHORs, different dt_ticks).
+4. `mt29f_chip_erase()` then read FF at offsets 0, 152,320,000 and 283,000,000 —
+   the erase now reaches addresses the old build could not express.
+
+**GDB trap found while testing this.** `mt29f_read()`/`mt29f_write()` reject any
+`len` that is not a multiple of 2176 and return -EINVAL WITHOUT touching the
+buffer — so a rejected call reads exactly like a successful one returning the
+previous contents. Two "identical" reads fooled me into nearly reporting a
+mirror that was not there. Also: calling these from a breakpoint deadlocks
+unless `set scheduler-locking off` is issued first, because another thread can
+be halted holding `mt29f_bus_mutex`. And `spi_nand_wait_until_ready()` has no
+timeout — an unlucky state spins forever with no diagnostic.
+
+---
+
 ## [FIXED 2026-08-26, one part still OPEN] MT29F page defects behind the "record overruns page" warnings
 
 Root-caused on-target on SN3. Full evidence, verbatim console output and the

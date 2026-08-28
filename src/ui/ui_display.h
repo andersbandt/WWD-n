@@ -48,12 +48,27 @@ typedef enum {
 } date_invert_field_t;
 
 
-// IMU display mode enum
-typedef enum {
-    IMU_DISPLAY_ACCEL,
-    IMU_DISPLAY_GYRO,
-    IMU_DISPLAY_BOTH,
-} imu_display_mode_t;
+/*
+ * One frame of the live IMU screen. The two sensors arrive in different
+ * shapes on purpose — the newest accel sample (an orientation) against a gyro
+ * history (a movement) — see display_out_imu_live() in ui_display.c.
+ */
+struct imu_live_view {
+    int16_t accel[3];        /* newest sample, raw counts */
+
+    const int16_t *gyro_x;   /* history, oldest first, raw counts */
+    const int16_t *gyro_y;
+    const int16_t *gyro_z;
+    size_t gyro_n;           /* samples per axis; < 2 skips the plot */
+
+    const char *x_left;      /* time-axis labels, caller-formatted */
+    const char *x_mid;
+    const char *x_right;
+
+    /* True on the first draw after entering the screen: paints the static
+     * chrome (titles, legend) that every later frame leaves alone. */
+    bool full_redraw;
+};
 
 
 
@@ -207,9 +222,32 @@ void display_out_statistics(const int16_t *data, size_t num_data);
 
 
 /**
- * @brief displays IMU data (meant for a live-streaming type display)
+ * display_out_imu_live: the IMU "Display readings" screen.
+ *
+ * Accelerometer as three centre-zero bar gauges (the newest sample is the
+ * orientation), gyroscope as three overlaid traces on a shared time axis
+ * (angular rate only means something over time). Replaces display_out_imu(),
+ * which printed three numbers and, in the only mode anything called it with,
+ * showed AX/AY/GZ — two axes of one sensor and one of the other.
  */
-void display_out_imu(const inv_imu_sensor_event_t *event, imu_display_mode_t mode);
+void display_out_imu_live(const struct imu_live_view *v);
+
+
+/**
+ * display_out_toggle: the screen for a binary setting.
+ *
+ * A green (on) or red (off) ring around the whole panel with the state in
+ * words inside it, replacing the label-over-a-1-or-0 that
+ * display_out_measurement() gave these screens. Every on/off setting uses
+ * this so the encoding is learned once.
+ *
+ * @param label    what is being toggled, e.g. "Bluetooth"
+ * @param on       current EFFECTIVE state — what is true, not what was asked
+ * @param on_hint  button hint for enabling, or NULL
+ * @param off_hint button hint for disabling, or NULL
+ */
+void display_out_toggle(const char *label, bool on, const char *on_hint,
+                        const char *off_hint);
 
 
 /**
