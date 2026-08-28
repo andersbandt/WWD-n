@@ -114,8 +114,13 @@ typedef struct {
  * point of turning auto-off off is to keep a graph on screen while you look
  * at it — but "on screen while you look at it" and "on all night because the
  * watch was left in a menu" are different things, and the panel costs ~2.1 mA
- * even at 0% backlight. Long enough that it cannot be hit while reading. */
-#define UI_SUB_SCREEN_MAX_ON_MS (10 * 60 * 1000)
+ * even at 0% backlight.
+ *
+ * 2 minutes (was 10 — Anders, 2026-08-27). Ten was chosen to be safely longer
+ * than anyone would stare at a graph; two is still far longer than a look, and
+ * the case it actually guards against is a watch left face-up on a desk, where
+ * the eight extra minutes of lit panel were the whole cost. */
+#define UI_SUB_SCREEN_MAX_ON_MS (2 * 60 * 1000)
 
 
 extern ui_mode_t ui_mode;

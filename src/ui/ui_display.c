@@ -487,6 +487,35 @@ void display_out_power_indicators(int charging, int low_power) {
 BELOW FUNCTIONS ARE SPECIALIZED AND LIKELY CALLED IN FROM A UI MENU FUNCTION
 */
 
+/*
+ * display_out_measurement_live: a labelled number that updates in place.
+ *
+ * display_out_measurement() below does clear_display() — a full 40 KB panel
+ * wipe — plus two printLine()s, which is fine for a screen drawn once and
+ * wrong for one redrawn on the 1 Hz service tick. This paints the label once
+ * and thereafter touches only the value's own fixed-width box.
+ *
+ * @param full_redraw paint the static label; pass true only on entry
+ */
+#define MEAS_LABEL_LINE  2
+#define MEAS_VALUE_Y     95
+#define MEAS_VALUE_W     104
+
+void display_out_measurement_live(const char *label, int value, bool full_redraw)
+{
+    char value_str[16];
+
+    if (full_redraw) {
+        clear_display();
+        printLine(label, MEAS_LABEL_LINE, 12, FONT_LARGE);
+    }
+
+    snprintf(value_str, sizeof(value_str), "%d", value);
+    printFieldRightAligned(value_str, MEAS_VALUE_Y, (uint32_t)(WIDTH - 12),
+                           MEAS_VALUE_W, FONT_LARGE);
+}
+
+
 void display_out_measurement(char * text, int value)
 {
     char value_str[8];

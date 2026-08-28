@@ -81,8 +81,9 @@ static set_screen_t set_screen = SET_SCREEN_TIME;
  * on entry, so it's safe to reset on every reset_uifunc_params() call
  * without disturbing the actual timer state. */
 static bool stopwatch_screen_dirty = true;
-/* Same contract as stopwatch_screen_dirty: set whenever the screen needs a
- * full repaint (entered fresh, or the cursor moved). */
+/* Same contract as stopwatch_screen_dirty: set when the screen needs its
+ * static chrome painted, i.e. on entry only. NOT on cursor movement — see
+ * activity_UI_FUNC(), where that used to cost a full-panel wipe per press. */
 static bool activity_screen_dirty = true;
 static size_t activity_cursor;
 
@@ -703,9 +704,29 @@ void imutempRead_UI_FUNC() {
 }
 
 
+/*
+ * pedometer_UI_FUNC: step count.
+ *
+ * Was display_out_measurement("Steps", step_count) on every call — and this
+ * runs on the 1 Hz service tick, so it was a full-panel clear plus two
+ * FONT_LARGE redraws once a second for a number that changes every 9 s at
+ * most. Now the label is painted once and the value only when it moves.
+ */
 void pedometer_UI_FUNC(void) {
-    display_out_measurement("Steps", (int)step_count);
-    return;
+    static uint32_t last_drawn;
+
+    bool full_redraw = first_ui_time;
+    if (first_ui_time) {
+        first_ui_time = false;
+        last_drawn = step_count + 1;   /* force the first value draw */
+    }
+
+    if (!full_redraw && step_count == last_drawn) {
+        return;
+    }
+    last_drawn = step_count;
+
+    display_out_measurement_live("Steps", (int)step_count, full_redraw);
 }
 
 
@@ -976,11 +997,33 @@ void stepsGraph_UI_FUNC(void) {
 /////////////////////////////////////////////////////
 
 void data_stats_UI_FUNC(void) {
+    /* Tracks what is currently on the panel, so neither branch repaints
+     * something already there. display_out_notice() does a clear_display(),
+     * and this function runs on the 1 Hz tick — without this the "not ready"
+     * case wiped and repainted the whole screen once a second, forever. */
+    enum { DRAWN_NOTHING = 0, DRAWN_NOTICE, DRAWN_STATS };
+    static uint8_t drawn_state;
+
+    if (first_ui_time) {
+        drawn_state = DRAWN_NOTHING;
+    }
+
     if (!nvs_ready()) {
         /* Was display_out_measurement("NVS", -1) — a bare "-1" under a title,
          * which reads as a value rather than as a failure. */
-        display_out_notice("LOG STATS", "NVS not ready.", "No flash log.");
+        if (drawn_state != DRAWN_NOTICE) {
+            display_out_notice("LOG STATS", "NVS not ready.", "No flash log.");
+            drawn_state = DRAWN_NOTICE;
+        }
+        first_ui_time = false;
         return;
+    }
+
+    /* Coming back from the notice needs the static chrome painted even though
+     * this is no longer the first tick on the screen. */
+    if (drawn_state != DRAWN_STATS) {
+        first_ui_time = true;
+        drawn_state = DRAWN_STATS;
     }
 
     /* first_ui_time drives the one-shot full redraw (clear + static labels);
@@ -1021,7 +1064,12 @@ void erase_flash_UI_FUNC(void) {
     static int cursor;
 
     if (!nvs_ready()) {
-        display_out_notice("ERASE FLASH", "NVS not ready.", "Nothing to erase.");
+        /* Draw the notice once, not once per tick — display_out_notice()
+         * clears the whole panel. */
+        if (first_ui_time) {
+            first_ui_time = false;
+            display_out_notice("ERASE FLASH", "NVS not ready.", "Nothing to erase.");
+        }
         return;
     }
 
@@ -1152,16 +1200,23 @@ void activity_UI_FUNC(void) {
     size_t  count = activity_count();
 
     if (count > 0) {
+        /* Cursor movement deliberately does NOT set activity_screen_dirty.
+         * That flag means "repaint the static chrome", and it costs a
+         * clear_display() — a full 40 KB panel wipe — plus a forced repaint
+         * of all five rows. Moving the cursor changes exactly two rows (one
+         * loses its '>', one gains it), and display_out_activity() already
+         * diffs every row against what it last drew, so those two repaint on
+         * their own and the other three are skipped. A page change is the
+         * same story: all five rows differ, so all five redraw, still with no
+         * wipe underneath them. */
         if (btn == BUTTON_1_MASK) {            /* SW1 top-left = UP */
             if (activity_cursor > 0) {
                 activity_cursor--;
-                activity_screen_dirty = true;  /* cursor moved: repaint rows */
             }
         }
         else if (btn == BUTTON_4_MASK) {       /* SW4 bottom-left = DOWN */
             if (activity_cursor + 1 < count) {
                 activity_cursor++;
-                activity_screen_dirty = true;
             }
         }
         else if (btn == BUTTON_2_MASK) {       /* SW2 top-right = SELECT */

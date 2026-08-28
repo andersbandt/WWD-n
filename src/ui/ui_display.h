@@ -234,6 +234,18 @@ void display_out_imu_live(const struct imu_live_view *v);
 
 
 /**
+ * display_out_measurement_live: a labelled number redrawn in place.
+ *
+ * For a value shown on a screen that ticks (the pedometer). Paints the label
+ * once; later calls touch only the value's fixed-width box, instead of
+ * display_out_measurement()'s full-panel clear on every call.
+ *
+ * @param full_redraw paint the static label; true only on entry
+ */
+void display_out_measurement_live(const char *label, int value, bool full_redraw);
+
+
+/**
  * display_out_brightness: the backlight brightness screen.
  *
  * Big percentage plus a fill bar. Replaces display_out_measurement() here
