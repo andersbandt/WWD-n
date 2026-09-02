@@ -52,6 +52,133 @@ new interrupt, SPI or power cost. Too high silently misses raises; too low
 costs approximately nothing. Bias low.
 
 
+## [2026-08-28] The IMU died for 6 hours and SPI never noticed: stall detector + soft-reset recovery
+
+Anders: "the IMU stopped responding — step count wasn't incrementing, no new IMU
+data, a power cycle solved it." Diagnosed from `DUMP_20260828164741` (24.7 MB,
+1,134,994 records, 18h52m, 4 boots) rather than from the symptom.
+
+### What the log shows
+
+The fault is real, is in the IMU, and is timestamped: **2026-08-28 08:34, boot 2**.
+
+| Signal | Behaviour |
+|---|---|
+| Last `IMU_FIFO` sample | 08:34:00.92 (seq 565038) — healthy to the last sample, real motion, gyro at tens of deg/s |
+| IMU `TEMPERATURE` | last CHANGED 08:34:05.68 -> 28.6875 degC, then **2199 bit-identical reads over 6h09m** |
+| `SOC_TEMP` | kept updating normally throughout |
+| `WEAR_STATE` | zero transitions in boot 2 |
+| Recovery | only at the power cycle -> boot 3, 14:47 |
+
+Two conclusions fall straight out.
+
+**The SPI bus and the register interface were fine.** All 2199 of those
+temperature reads *succeeded* and returned a plausible value — not 0x00, not
+0xFF, not garbage. They returned the SAME value forever. **A WHO_AM_I check
+would have passed for all six hours.** Any health check that only proves "the
+part answers SPI" is blind to this fault by construction.
+
+**What stopped is the sensor data path, not the chip.** `TEMP_DATA` is
+refreshed by the internal data path at ODR. FIFO output and `TEMP_DATA` froze
+within ~5 s of each other. One event killed both and left the register file
+readable.
+
+### What is NOT the fault (do not re-chase this)
+
+The same dump has several other multi-hour windows with zero `IMU_FIFO`
+records — all of 00:03-07:43, for one. **Those are the wear gate, not faults.**
+`imu_process()` gates the NVS write on `imu_is_worn()`, so an off-wrist watch
+logs no samples by design, and in those windows the IMU temperature kept
+drifting smoothly (537 distinct raw values in boot 1, tracking the room cooling
+27 -> 24.8 degC overnight). **The frozen temperature is what separates a real
+stall from the wear gate**, which is exactly why it is now the detector.
+
+### Leading theory for the cause: a torn RMW of PWR_MGMT0
+
+Not proven — the signature above is evidence, this mechanism is inference.
+
+`inv_imu_transport.c:235-305`: every MREG access wraps itself in
+`inv_imu_switch_on_mclk()` / `switch_off_mclk()`, and both do a **blind
+read-modify-write of the whole `PWR_MGMT0` byte** — the byte that also holds
+`ACCEL_MODE` and `GYRO_MODE`. `need_mclk_cnt` is a plain non-atomic refcount.
+
+Two threads run those sequences: `button_handler_thread` (prio 5) drains the
+FIFO ~10x/s; `sensor_update_thread` (prio 7) reads the APEX pedometer every
+9 s. **Priority 5 preempts 7**, so the pedometer read can be interrupted
+mid-sequence, every time. Before this change there was no mutex anywhere in the
+IMU transport — the only IMU mutexes guarded local RAM structures.
+
+A torn RMW, or one garbled `PWR_MGMT0` read written straight back, clears
+`ACCEL_MODE`/`GYRO_MODE`. **Accel off + gyro off = no FIFO, `TEMP_DATA` frozen
+at its last conversion, registers still readable, and nothing in the firmware
+ever writes `PWR_MGMT0` again.** That matches the observed signature exactly,
+including "only a power cycle fixes it". Corroborating: the pedometer rewrite
+already concedes "a garbled APEX read is not hypothetical" on this shared bus,
+and this same dump carries two absurd 233.0 degC temperature outliers.
+
+**The discriminating test is one register read**, which is why the detector logs
+it: if a stall is ever recorded with `accel_mode`/`gyro_mode` reading OFF, the
+theory is confirmed. If they read LOW_NOISE and data still isn't moving, the
+part wedged internally and the answer is the reset regardless.
+
+### What was built
+
+**Detector (`imu_health.c`, fed from `sensor_update_thread`).** Counts
+consecutive bit-identical raw temperature readings; `IMU_HEALTH_FROZEN_TICKS`
+= 6, i.e. ~54 s at the 9 s tick. Costs **no extra SPI traffic** — it reuses the
+reading `main.c` already takes for `temp_history_push()`. Compared RAW, not
+converted, so the comparison is exact. On tripping it reads `PWR_MGMT0` and
+writes a `RECORD_IMU_HEALTH` carrying the **whole raw byte** (keep it raw even
+if a decoded field is added later — the raw byte is what settles the theory).
+
+Rejected: a FIFO-drain-liveness timer. It would catch MCU-side interrupt
+failures too, but it is a second detector for a fault we have not seen, and the
+temperature canary already catches the one we have — with zero extra bus
+traffic. Revisit if a stall is ever logged with the temperature still moving.
+
+**Recovery (`imu_recover()`).** The ICM-42670-P **has no reset pin** — its LGA
+has none, the DTS node carries only `int-gpios`, and the part sits on the
+board's permanent 3.3 V rail. So the soft reset is the only lever there is:
+`init_icm()` -> `inv_imu_init()` issues
+`SIGNAL_PATH_RESET.SOFT_RESET_DEVICE_CONFIG`, waits 1 ms, re-applies the 4-wire
+serial setting (the reset drops it) and verifies `RESET_DONE`. A reset returns
+every register to default, so recovery then rebuilds the whole configuration:
+`imu_start()` + `imu_fifo_interrupt()` + `imu_apex()` + `imu_set_odr(rate_config_get_imu_odr_hz())`.
+
+Three things that are load-bearing:
+- It calls those directly rather than `imu_init()`, which allocates
+  `imu_data_buffer` — calling it again would leak the old one every recovery.
+- The ODR re-apply is not optional: `imu_start()` sets the compile-time
+  default, so without it a recovery silently reverts a `CMD_SET_RATE` change.
+- Rate-limited to one attempt per 5 min. A genuinely dead part would otherwise
+  be reset every 54 s forever — the same log-flood/power failure mode as the
+  full-NAND error spam.
+
+The pedometer needs no special handling: `imu_get_pedo()` already accumulates
+deltas and resyncs on a backwards counter (written for `startApex()` zeroing the
+count), so the day's step total survives a reset.
+
+**`imu_bus_mutex` (imu.c).** Recovery cannot be correct without it — resetting
+the part underneath a concurrent FIFO drain is the very hazard above. Held at
+the coarsest points that bound a whole compound sequence: `get_fifo_data()`,
+`imu_get_pedo()`, `imu_check_wom()`, `getTempDataFromIMUReg()`, `getPwrMgmt0()`
+and all of `imu_recover()`. Zephyr mutexes are recursive, so nesting is safe.
+This is *also* the fix for the suspected root cause, but it is deliberately not
+being claimed as one until a logged `PWR_MGMT0` says so.
+
+`RECORD_IMU_HEALTH` = 9 (append-only, as the enum comment demands) and the
+matching decode is in `wwd_gui_api/common/dump_decoder.py` — added in the same
+change, since a record type this repo writes and that repo doesn't know is what
+truncated pages in the 2026-08-26 ACTIVITY bug. Verified: an existing dump
+decodes identically before and after, and a synthetic health record round-trips
+to `stall / accel_mode=0 / gyro_mode=0`.
+
+Cost: **+1224 B flash, +64 B RAM** (317,600 -> 318,824 B).
+
+**UNTESTED ON HARDWARE.** Built only. Nothing here has seen a real stall — the
+fault took 6 hours to appear once and there is no way to provoke it on demand.
+The first real proof will be a `RECORD_IMU_HEALTH` in a dump.
+
 ## [2026-08-26] Live "Display readings" screen rebuilt: all six axes, two different shapes
 
 The screen showed **AX, AY and GZ**. That was not a bug in the sense of

@@ -46,6 +46,17 @@ extern int16_t imu_temperature;
 
 
 /**
+ * @brief take/release the IMU compound-sequence lock. Every multi-transaction
+ * register sequence on the part must be inside it — see the comment above
+ * imu_bus_mutex in imu.c for what goes wrong otherwise. Recursive, so nesting
+ * locked calls is safe. Public because imu_health.c's recovery has to hold it
+ * across a reset + full reconfiguration.
+ */
+void imu_bus_lock(void);
+void imu_bus_unlock(void);
+
+
+/**
  * @brief function for initialization the IMU
  *
  * @return init status indictaor

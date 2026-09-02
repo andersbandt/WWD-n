@@ -72,6 +72,34 @@ int16_t imu_temperature = 0;
  * NVS-bound queue at all. */
 static inv_imu_sensor_event_t latest_imu_event;
 static bool latest_imu_event_valid = false;
+/*
+ * Serialises COMPOUND register sequences on the IMU.
+ *
+ * Not the same thing as the SPI bus lock — Zephyr's SPI driver already makes
+ * each transaction atomic. What is not atomic is a multi-transaction sequence
+ * against a part with banked indirect registers and a shared power register:
+ * every MREG access in inv_imu_transport.c wraps itself in
+ * inv_imu_switch_on_mclk()/switch_off_mclk(), which read-modify-write the
+ * whole PWR_MGMT0 byte — the byte that also holds ACCEL_MODE and GYRO_MODE —
+ * and bump a plain non-atomic need_mclk_cnt refcount.
+ *
+ * Two threads run those sequences: button_handler_thread (prio 5) drains the
+ * FIFO ~10x/s, and sensor_update_thread (prio 7) reads the APEX pedometer
+ * every 9 s. Priority 5 preempts 7, so the pedometer read can be interrupted
+ * mid-sequence, every time. A torn read-modify-write there clears
+ * ACCEL_MODE/GYRO_MODE and the sensor data path stops for good — the leading
+ * theory for the 2026-08-28 outage (imu_notes.md).
+ *
+ * Held at the coarsest points that bound a whole sequence, so it must never be
+ * taken around anything slow. Zephyr mutexes are recursive, so a locked path
+ * calling another locked path is safe.
+ */
+K_MUTEX_DEFINE(imu_bus_mutex);
+
+void imu_bus_lock(void)   { k_mutex_lock(&imu_bus_mutex, K_FOREVER); }
+void imu_bus_unlock(void) { k_mutex_unlock(&imu_bus_mutex); }
+
+
 K_MUTEX_DEFINE(latest_imu_event_mutex);
 
 /* Live gyro history for the IMU "Display readings" screen.
@@ -327,7 +355,9 @@ void imu_reg_poll() {
  */
 // TODO: really should document the flow. Where the event callback is stored, all the functions involved, circular buffer, etc
 void get_fifo_data() {
+    imu_bus_lock();
     int fifo_status = getDataFromFifo();
+    imu_bus_unlock();
 }
 
 
@@ -687,7 +717,12 @@ int imu_get_pedo() {
     uint32_t sensor_total = pedo_last_sensor_total;
 
     #ifdef USE_DERS_IMU
+        /* Locked: this is an MREG read, so it runs the PWR_MGMT0
+         * read-modify-write dance described above imu_bus_mutex, and it is the
+         * lower-priority half of the pair that races the FIFO drain. */
+        imu_bus_lock();
         volatile int status = getPedometer(&sensor_total, &step_cadence, &activity);
+        imu_bus_unlock();
     #else
         volatile int status = 999;
     #endif
@@ -733,7 +768,10 @@ int imu_get_pedo() {
 
 bool imu_check_wom(void) {
 #ifdef USE_DERS_IMU
-    return checkWom();
+    imu_bus_lock();
+    bool wom = checkWom();
+    imu_bus_unlock();
+    return wom;
 #else
     return false;
 #endif

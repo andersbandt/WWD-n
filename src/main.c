@@ -27,6 +27,7 @@
 #include <imu.h>
 #include <imu_bringup.h>
 #include <ICM_42670.h>   /* getTempDataFromIMUReg() for the BLE status feed */
+#include <imu_health.h>   /* imu_health_tick() — IMU data-path stall detector */
 #include <display.h>
 
 /* NVS bring-up phase + pipeline tick */
@@ -237,7 +238,17 @@ static void sensor_update_thread_entry(void *p1, void *p2, void *p3)
          * the point -- the difference between the two dies is what separates
          * self-heating from sensor error. */
         if (imu_alive) {
-            temp_history_push(getTempDataFromIMUReg(), soc_centi);
+            int16_t imu_raw = getTempDataFromIMUReg();
+
+            temp_history_push(imu_raw, soc_centi);
+
+            /* Same reading, second consumer: the stall detector. It watches
+             * for this raw value repeating exactly, which is what the IMU's
+             * temperature register does once the sensor data path stops while
+             * the register interface stays alive — the 2026-08-28 six-hour
+             * outage. Fed from the reading already taken rather than a fresh
+             * one so it costs no extra SPI traffic. See imu_health.c. */
+            imu_health_tick(imu_raw);
         }
 
         int batt_mv = battery_voltage_mv();

@@ -518,7 +518,34 @@ int startApex() {
  * Data retrieval function. Reads data from temperature registers
  */
 int16_t getTempDataFromIMUReg() {
-    return inv_imu_get_temp_register(&icm_driver);
+    /* Locked even though it is a single register read: it is called from
+     * sensor_update_thread and from nvs_bringup's pipeline tick, and the point
+     * of the lock is that no register traffic should interleave with another
+     * thread's MREG sequence. See imu_bus_mutex in imu.c. */
+    imu_bus_lock();
+    int16_t raw = inv_imu_get_temp_register(&icm_driver);
+    imu_bus_unlock();
+    return raw;
+}
+
+
+/*
+ * getPwrMgmt0: reads the raw PWR_MGMT0 byte — ACCEL_MODE, GYRO_MODE, IDLE and
+ * ACCEL_LP_CLK_SEL. The stall detector logs this whole byte to establish
+ * whether a dead data path is a powered-down one. See imu_health.c.
+ */
+int getPwrMgmt0(uint8_t *out) {
+    int rc;
+
+    if (out == NULL) {
+        return -EINVAL;
+    }
+
+    imu_bus_lock();
+    rc = inv_imu_read_reg(&icm_driver, PWR_MGMT0, 1, out);
+    imu_bus_unlock();
+
+    return rc;
 }
 
 

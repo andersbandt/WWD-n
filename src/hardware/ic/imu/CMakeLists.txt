@@ -28,6 +28,7 @@ option(USE_ZEPHYR_IMU "Use Zephyr IMU driver" OFF)
 target_sources(app PRIVATE
     imu.c
     imu_bringup.c
+    imu_health.c
 )
 
 if (USE_DERS_IMU)

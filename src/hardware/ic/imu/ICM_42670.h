@@ -87,6 +87,13 @@ int16_t getTempDataFromIMUReg();
 
 
 /**
+ * @brief reads the raw PWR_MGMT0 byte (accel/gyro power mode, IDLE).
+ * @return 0 on success, negative on error
+ */
+int getPwrMgmt0(uint8_t *out);
+
+
+/**
  * @brief gets data from the IMU registers
  */
 int getDataFromIMUReg(inv_imu_sensor_event_t* evt);

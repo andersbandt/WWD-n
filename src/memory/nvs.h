@@ -68,6 +68,7 @@ enum record_type {
     RECORD_SOC_TEMP,    /* nRF52833 die temperature,    payload: struct record_soc_temp */
     RECORD_WEAR_STATE,  /* on/off-wrist transition,     payload: struct record_wear_state */
     RECORD_ACTIVITY,    /* activity session marker,     payload: struct record_activity */
+    RECORD_IMU_HEALTH,  /* IMU data-path stall/recovery, payload: struct record_imu_health */
 
     /* APPEND ONLY. These values are written into every log record's header and
      * are hand-mirrored by dump_decoder.py in the companion wwd_gui_api repo
@@ -176,6 +177,28 @@ struct record_activity {
     uint8_t  activity_id;  /* activity_id_t — see src/activity/activity.h */
     uint16_t session_seq;  /* pairs a START with its STOP; the run index */
     uint32_t nand_offset;  /* write offset at the marker (advisory) */
+} __packed;
+
+/* RECORD_IMU_HEALTH: the IMU's sensor data path stopped, or was recovered.
+ *
+ * Written by imu_health.c when the IMU temperature register returns the same
+ * raw value IMU_HEALTH_FROZEN_TICKS times running. TEMP_DATA is refreshed by
+ * the part's internal data path at ODR, so a frozen value means that path has
+ * stopped even though SPI register reads still succeed — the signature of the
+ * 2026-08-28 six-hour outage (see imu_notes.md). A WHO_AM_I check does NOT
+ * catch this: the part answers correctly throughout.
+ *
+ * pwr_mgmt0 is the whole raw byte deliberately, not a decoded flag. The
+ * leading theory for that outage is that ACCEL_MODE/GYRO_MODE get cleared by
+ * a torn read-modify-write of this register (inv_imu_transport.c does one on
+ * every MREG access, from two threads, unlocked). Logging the raw byte is
+ * what confirms or kills that theory on the next occurrence, so keep it raw
+ * even if a decoded field is added alongside later. */
+struct record_imu_health {
+    uint8_t  event;        /* 0 = stall detected, 1 = recovered, 2 = recovery failed */
+    uint8_t  pwr_mgmt0;    /* raw PWR_MGMT0 at detection; 0xFF if the read failed */
+    int16_t  raw_temp;     /* the frozen raw temperature value */
+    uint16_t frozen_ticks; /* consecutive identical reads that tripped it */
 } __packed;
 
 /* RECORD_POWER: power mode transition or periodic battery snapshot */
