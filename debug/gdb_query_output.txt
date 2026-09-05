@@ -1,13 +1,24 @@
 0x0000b236 in sym_WVJLOWUIPBC2HDDMNEWOD4POANUBUKS6OYFXDSA ()
 Expected an decimal digit (0-9)
-Breakpoint 1 at 0x15980: file /home/anders/Documents/NCS/WWD-n/src/memory/nvs_bringup.c, line 693.
+Breakpoint 1 at 0x194b8: file /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_health.c, line 166.
 
-Breakpoint 1, nvs_pipeline_tick () at /home/anders/Documents/NCS/WWD-n/src/memory/nvs_bringup.c:693
-693	    if (!nvs_alive || !imu_alive) {
-$1 = 0
-0x20009418 <page_buffer>:	0xff	0xff	0xff	0xff	0xff	0xff	0xff	0xff
+Breakpoint 1, imu_health_tick (raw_temp=raw_temp@entry=612) at /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_health.c:166
+166	    if (!imu_alive) {
+$1 = 612
 $2 = 0
-0x20009418 <page_buffer>:	0xff	0xff	0xff	0xff	0xff	0xff	0xff	0xff
 $3 = 0
-0x20009418 <page_buffer>:	0xff	0xff	0xff	0xff	0xff	0xff	0xff	0xff
+$4 = false
+Breakpoint 2 at 0x19414: file /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_health.c, line 100.
+
+Breakpoint 2, imu_recover () at /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_health.c:100
+100	    imu_bus_lock();
+#0  imu_recover () at /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_health.c:100
+#1  0x000195ca in imu_health_tick (raw_temp=raw_temp@entry=612) at /home/anders/Documents/NCS/WWD-n/src/hardware/ic/imu/imu_health.c:218
+#2  0x00010e14 in sensor_update_thread_entry (p1=<optimized out>, p2=<optimized out>, p3=<optimized out>) at /home/anders/Documents/NCS/WWD-n/src/main.c:251
+#3  0x00038372 in z_thread_entry (entry=0x10d75 <sensor_update_thread_entry>, p1=<optimized out>, p2=<optimized out>, p3=<optimized out>) at /home/anders/ncs/v3.1.1/zephyr/lib/os/thread_entry.c:48
+#4  0xaaaaaaaa in ?? ()
+Backtrace stopped: previous frame identical to this frame (corrupt stack?)
+$5 = 6
+$6 = true
+$7 = 1
 [Inferior 1 (Remote target) detached]
